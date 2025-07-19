@@ -1,0 +1,32 @@
+# Github workflow syntax: https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  # branches-ignore:
+  #   - main
+  #   - "releases/**"
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches:
+      - main
+      - "releases/**"
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.24"
+
+      - name: Install dependencies
+        run: go mod download -x
+
+      - name: Run tests
+        run: go test -v -p 1 -count=1 -race -cover ./...
