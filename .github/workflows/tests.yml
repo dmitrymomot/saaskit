@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
   # branches-ignore:
   #   - main
   #   - "releases/**"
@@ -13,6 +17,10 @@ on:
     branches:
       - main
       - "releases/**"
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
 
 jobs:
   tests:
