@@ -3,8 +3,10 @@ package saaskit_test
 import (
 	"context"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,6 +63,144 @@ func TestTempl(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, "text/html; charset=utf-8", w.Header().Get("Content-Type"))
 				assert.Equal(t, tt.wantBody, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestTemplWithModifiers(t *testing.T) {
+	component := mockTemplComponent{content: "<div>Alert</div>"}
+
+	tests := []struct {
+		name        string
+		modifiers   []saaskit.ResponseModifier
+		htmx        bool
+		wantHeaders map[string]string
+	}{
+		{
+			name: "with retarget for HTMX",
+			modifiers: []saaskit.ResponseModifier{
+				saaskit.ApplyHTMXModifiers(
+					saaskit.SetHTMXRetarget("#notifications"),
+				),
+			},
+			htmx: true,
+			wantHeaders: map[string]string{
+				"HX-Retarget": "#notifications",
+			},
+		},
+		{
+			name: "with reswap for HTMX",
+			modifiers: []saaskit.ResponseModifier{
+				saaskit.ApplyHTMXModifiers(
+					saaskit.SetHTMXReswapModifiers(
+						saaskit.SwapStrategy(saaskit.SwapAfterBegin),
+					),
+				),
+			},
+			htmx: true,
+			wantHeaders: map[string]string{
+				"HX-Reswap": "afterbegin",
+			},
+		},
+		{
+			name: "with trigger for HTMX",
+			modifiers: []saaskit.ResponseModifier{
+				saaskit.ApplyHTMXModifiers(
+					saaskit.SetHTMXTrigger("notification-shown"),
+				),
+			},
+			htmx: true,
+			wantHeaders: map[string]string{
+				"HX-Trigger": "notification-shown",
+			},
+		},
+		{
+			name: "with multiple HTMX modifiers",
+			modifiers: []saaskit.ResponseModifier{
+				saaskit.ApplyHTMXModifiers(
+					saaskit.SetHTMXRetarget("#alerts"),
+					saaskit.SetHTMXReswapModifiers(
+						saaskit.SwapStrategy(saaskit.SwapBeforeEnd),
+					),
+					saaskit.SetHTMXTrigger("alert-added"),
+				),
+			},
+			htmx: true,
+			wantHeaders: map[string]string{
+				"HX-Retarget": "#alerts",
+				"HX-Reswap":   "beforeend",
+				"HX-Trigger":  "alert-added",
+			},
+		},
+		{
+			name: "modifiers ignored for non-HTMX requests",
+			modifiers: []saaskit.ResponseModifier{
+				saaskit.ApplyHTMXModifiers(
+					saaskit.SetHTMXRetarget("#notifications"),
+					saaskit.SetHTMXReswapModifiers(
+						saaskit.SwapStrategy(saaskit.SwapAfterBegin),
+					),
+				),
+			},
+			htmx:        false,
+			wantHeaders: map[string]string{},
+		},
+		{
+			name: "with complex swap modifiers",
+			modifiers: []saaskit.ResponseModifier{
+				saaskit.ApplyHTMXModifiers(
+					saaskit.SetHTMXReswapModifiers(
+						saaskit.SwapStrategy(saaskit.SwapInnerHTML),
+						saaskit.SwapSettle(500*time.Millisecond),
+						saaskit.SwapScrollTop(),
+						saaskit.SwapFocusScroll(true),
+					),
+				),
+			},
+			htmx: true,
+			wantHeaders: map[string]string{
+				"HX-Reswap": "innerHTML settle:500ms scroll:top focus-scroll:true",
+			},
+		},
+		{
+			name: "custom response modifier",
+			modifiers: []saaskit.ResponseModifier{
+				func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("X-Custom-Header", "custom-value")
+				},
+			},
+			htmx: false,
+			wantHeaders: map[string]string{
+				"X-Custom-Header": "custom-value",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "/", nil)
+			if tt.htmx {
+				r.Header.Set("HX-Request", "true")
+			}
+
+			resp := saaskit.Templ(component, tt.modifiers...)
+			err := resp.Render(w, r)
+
+			require.NoError(t, err)
+			assert.Equal(t, "<div>Alert</div>", w.Body.String())
+
+			// Check expected headers
+			for header, value := range tt.wantHeaders {
+				assert.Equal(t, value, w.Header().Get(header), "Header %s", header)
+			}
+
+			// Check that unwanted headers are not set
+			if !tt.htmx {
+				assert.Empty(t, w.Header().Get("HX-Retarget"))
+				assert.Empty(t, w.Header().Get("HX-Reswap"))
+				assert.Empty(t, w.Header().Get("HX-Trigger"))
 			}
 		})
 	}

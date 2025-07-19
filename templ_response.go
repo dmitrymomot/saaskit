@@ -12,31 +12,53 @@ type TemplComponent interface {
 	Render(ctx context.Context, w io.Writer) error
 }
 
+// ResponseModifier is a function that modifies the HTTP response
+type ResponseModifier func(http.ResponseWriter, *http.Request)
+
 // templResponse wraps a templ component to implement Response
 type templResponse struct {
 	component TemplComponent
+	modifiers []ResponseModifier
 }
 
 // Render renders the templ component
 func (t templResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// Apply all response modifiers
+	for _, mod := range t.modifiers {
+		mod(w, r)
+	}
+
 	return t.component.Render(r.Context(), w)
 }
 
-// Templ creates a response from a templ component.
+// Templ creates a response from a templ component with optional response modifiers.
 // The component must implement the TemplComponent interface (which matches templ.Component).
 //
-// Example:
+// Simple usage:
 //
-//	import "your/app/templates"
+//	return saaskit.Templ(templates.UserProfile(req.UserID))
 //
-//	handler := saaskit.HandlerFunc[saaskit.Context, UserRequest](
-//		func(ctx saaskit.Context, req UserRequest) saaskit.Response {
-//			return saaskit.Templ(templates.UserProfile(req.UserID))
-//		},
+// With response modifiers (e.g., HTMX):
+//
+//	return saaskit.Templ(
+//		templates.ErrorAlert("Invalid email"),
+//		saaskit.ApplyHTMXModifiers(
+//			saaskit.SetHTMXRetarget("#notifications"),
+//			saaskit.SetHTMXReswapModifiers(
+//				saaskit.SwapStrategy(saaskit.SwapAfterBegin),
+//				saaskit.SwapSettle(500*time.Millisecond),
+//				saaskit.SwapScrollTop(),
+//			),
+//			saaskit.SetHTMXTrigger("error-shown"),
+//		),
 //	)
-func Templ(component TemplComponent) Response {
-	return templResponse{component: component}
+func Templ(component TemplComponent, modifiers ...ResponseModifier) Response {
+	return templResponse{
+		component: component,
+		modifiers: modifiers,
+	}
 }
 
 // templPartialResponse conditionally renders partial or full component based on request type
