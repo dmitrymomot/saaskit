@@ -61,7 +61,6 @@ func JSONError(err error) Response {
 		status = http.StatusUnprocessableEntity
 		code = "validation_error"
 		errorDetail.Code = code
-		errorDetail.Message = "Validation failed"
 
 		// Convert ValidationError to map[string][]string
 		if len(valErr) > 0 {

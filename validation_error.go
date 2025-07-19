@@ -14,7 +14,7 @@ type ValidationError url.Values
 // Returns a human-readable error message summarizing validation failures.
 func (e ValidationError) Error() string {
 	if len(e) == 0 {
-		return "validation error"
+		return "Validation error"
 	}
 
 	var parts []string
