@@ -1,6 +1,7 @@
 package saaskit
 
 import (
+	"errors"
 	"net/http"
 )
 
@@ -79,8 +80,15 @@ func WithContextFactory[C Context](f func(http.ResponseWriter, *http.Request) C)
 }
 
 // defaultErrorHandler provides standard HTTP error responses.
+// It checks if the error is an HTTPError and uses its status code,
+// otherwise defaults to 500 Internal Server Error.
 func defaultErrorHandler[C Context](ctx C, err error) {
-	http.Error(ctx.ResponseWriter(), "Internal Server Error", http.StatusInternalServerError)
+	var httpErr HTTPError
+	if errors.As(err, &httpErr) {
+		http.Error(ctx.ResponseWriter(), httpErr.Key, httpErr.Code)
+		return
+	}
+	http.Error(ctx.ResponseWriter(), err.Error(), http.StatusInternalServerError)
 }
 
 // Wrap converts a typed HandlerFunc to http.HandlerFunc.
