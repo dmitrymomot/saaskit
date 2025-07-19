@@ -1,0 +1,8 @@
+version: "2"
+
+issues:
+  exclude-rules:
+    # Exclude test files from errcheck linter
+    - path: "_test\\.go$"
+      linters:
+        - errcheck
