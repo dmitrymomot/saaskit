@@ -25,7 +25,7 @@ func (m mockResponse) Render(w http.ResponseWriter, r *http.Request) error {
 		return m.renderErr
 	}
 	w.WriteHeader(m.statusCode)
-	_, _ = w.Write([]byte(m.body))
+	w.Write([]byte(m.body))
 	return nil
 }
 
@@ -146,7 +146,7 @@ func TestWrap(t *testing.T) {
 			errorHandlerCalled = true
 			assert.Equal(t, binderErr, err)
 			ctx.ResponseWriter().WriteHeader(http.StatusBadRequest)
-			_, _ = ctx.ResponseWriter().Write([]byte("custom error: " + err.Error()))
+			ctx.ResponseWriter().Write([]byte("custom error: " + err.Error()))
 		}
 
 		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
@@ -196,7 +196,7 @@ func TestWrap(t *testing.T) {
 		customErrorHandler := func(ctx saaskit.Context, err error) {
 			capturedErr = err
 			ctx.ResponseWriter().WriteHeader(http.StatusServiceUnavailable)
-			_, _ = ctx.ResponseWriter().Write([]byte("service unavailable"))
+			ctx.ResponseWriter().Write([]byte("service unavailable"))
 		}
 
 		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
