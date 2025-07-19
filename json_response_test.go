@@ -189,11 +189,13 @@ func TestJSONError(t *testing.T) {
 			var got JSONResponse
 			err = json.Unmarshal(w.Body.Bytes(), &got)
 			require.NoError(t, err)
-			// For validation errors, check message separately
+			// For validation errors, check message separately due to map iteration order
 			if tt.name == "validation error" {
 				assert.Equal(t, tt.expectedBody.Code, got.Code)
 				assert.Equal(t, tt.expectedBody.Error.Code, got.Error.Code)
-				assert.Equal(t, "Validation failed", got.Error.Message)
+				assert.Contains(t, got.Error.Message, "validation error:")
+				assert.Contains(t, got.Error.Message, "email: invalid format")
+				assert.Contains(t, got.Error.Message, "age: must be positive")
 				assert.Equal(t, tt.expectedBody.Error.Details, got.Error.Details)
 			} else {
 				assert.Equal(t, tt.expectedBody, got)

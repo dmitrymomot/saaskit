@@ -9,7 +9,7 @@ import (
 func TestValidationError(t *testing.T) {
 	t.Run("empty error", func(t *testing.T) {
 		err := NewValidationError()
-		assert.Equal(t, "validation error", err.Error())
+		assert.Equal(t, "Validation failed", err.Error())
 		assert.True(t, err.IsEmpty())
 	})
 
