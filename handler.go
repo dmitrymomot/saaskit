@@ -1,0 +1,155 @@
+package saaskit
+
+import (
+	"net/http"
+)
+
+// HandlerFunc provides type-safe HTTP request handling with custom context support.
+// C must implement the Context interface, R can be any request type.
+//
+// Example with standard context:
+//
+//	handler := saaskit.HandlerFunc[saaskit.Context, CreateUserRequest](
+//		func(ctx saaskit.Context, req CreateUserRequest) saaskit.Response {
+//			user := createUser(req.Name, req.Email)
+//			return JSONResponse(user)
+//		},
+//	)
+//
+// Example with custom context:
+//
+//	handler := saaskit.HandlerFunc[AppContext, CreateUserRequest](
+//		func(ctx AppContext, req CreateUserRequest) saaskit.Response {
+//			userID := ctx.UserID() // Direct access to custom methods
+//			return JSONResponse(user)
+//		},
+//	)
+type HandlerFunc[C Context, R any] func(ctx C, req R) Response
+
+// Response renders itself to an http.ResponseWriter.
+// Implementations should set headers, status code, and write body.
+// Errors are handled by the framework (returns 500).
+type Response interface {
+	Render(w http.ResponseWriter, r *http.Request) error
+}
+
+// Binder parses HTTP requests into typed values.
+type Binder[C Context] interface {
+	Bind(ctx C, v any) error
+}
+
+// ErrorHandler handles errors from binding or rendering.
+type ErrorHandler[C Context] func(ctx C, err error)
+
+// WrapOption configures the Wrap function.
+type WrapOption[C Context] func(*wrapConfig[C])
+
+// wrapConfig holds configuration for Wrap.
+type wrapConfig[C Context] struct {
+	binder         Binder[C]
+	errorHandler   ErrorHandler[C]
+	contextFactory func(http.ResponseWriter, *http.Request) C
+}
+
+// WithBinder sets a custom request binder.
+func WithBinder[C Context](b Binder[C]) WrapOption[C] {
+	return func(c *wrapConfig[C]) {
+		if b != nil {
+			c.binder = b
+		}
+	}
+}
+
+// WithErrorHandler sets a custom error handler.
+func WithErrorHandler[C Context](h ErrorHandler[C]) WrapOption[C] {
+	return func(c *wrapConfig[C]) {
+		if h != nil {
+			c.errorHandler = h
+		}
+	}
+}
+
+// WithContextFactory sets a custom context factory.
+func WithContextFactory[C Context](f func(http.ResponseWriter, *http.Request) C) WrapOption[C] {
+	return func(c *wrapConfig[C]) {
+		if f != nil {
+			c.contextFactory = f
+		}
+	}
+}
+
+// defaultErrorHandler provides standard HTTP error responses.
+func defaultErrorHandler[C Context](ctx C, err error) {
+	http.Error(ctx.ResponseWriter(), "Internal Server Error", http.StatusInternalServerError)
+}
+
+// Wrap converts a typed HandlerFunc to http.HandlerFunc.
+//
+// Usage with standard context:
+//
+//	handler := saaskit.HandlerFunc[saaskit.Context, CreateUserRequest](...)
+//	http.HandleFunc("/users", saaskit.Wrap(handler))
+//
+// Usage with custom context:
+//
+//	handler := saaskit.HandlerFunc[AppContext, CreateUserRequest](...)
+//	http.HandleFunc("/users", saaskit.Wrap(handler,
+//		saaskit.WithContextFactory(NewAppContext),
+//	))
+//
+// With options:
+//
+//	http.HandleFunc("/users", saaskit.Wrap(handler,
+//		saaskit.WithBinder(customBinder),
+//		saaskit.WithErrorHandler(customErrorHandler),
+//		saaskit.WithContextFactory(customContextFactory),
+//	))
+func Wrap[C Context, R any](h HandlerFunc[C, R], opts ...WrapOption[C]) http.HandlerFunc {
+	// Initialize config with defaults
+	cfg := &wrapConfig[C]{
+		errorHandler: defaultErrorHandler[C],
+	}
+
+	// Set default context factory if none provided and C can be created with NewContext
+	if cfg.contextFactory == nil {
+		// Try to use NewContext as default factory
+		cfg.contextFactory = func(w http.ResponseWriter, r *http.Request) C {
+			ctx := NewContext(w, r)
+			if c, ok := any(ctx).(C); ok {
+				return c
+			}
+			// This will panic if C is not compatible with the default Context
+			panic("cannot use default context factory with custom context type - provide WithContextFactory")
+		}
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := cfg.contextFactory(w, r)
+
+		var req R
+
+		// Use custom binder if provided
+		// Otherwise req remains zero value
+		if cfg.binder != nil {
+			if err := cfg.binder.Bind(ctx, &req); err != nil {
+				cfg.errorHandler(ctx, err)
+				return
+			}
+		}
+
+		response := h(ctx, req)
+		if response == nil {
+			// Handler returned nil response
+			cfg.errorHandler(ctx, ErrNilResponse)
+			return
+		}
+		if err := response.Render(w, r); err != nil {
+			cfg.errorHandler(ctx, err)
+		}
+	}
+}
