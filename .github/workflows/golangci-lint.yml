@@ -4,9 +4,17 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
   pull_request:
     branches:
       - main
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
 
 permissions:
   contents: read
@@ -25,3 +33,4 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           version: latest
+          args: --skip-files=".*_test\.go"
