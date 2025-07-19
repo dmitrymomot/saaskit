@@ -61,7 +61,7 @@ func TestWrap(t *testing.T) {
 		wrapped(rec, req)
 
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		assert.Contains(t, rec.Body.String(), "Internal Server Error")
+		assert.Contains(t, rec.Body.String(), "render failed")
 	})
 
 	t.Run("handler returns nil response", func(t *testing.T) {
@@ -77,7 +77,7 @@ func TestWrap(t *testing.T) {
 		wrapped(rec, req)
 
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		assert.Contains(t, rec.Body.String(), "Internal Server Error")
+		assert.Contains(t, rec.Body.String(), "handler returned nil response")
 	})
 
 	t.Run("with custom context factory", func(t *testing.T) {
@@ -215,6 +215,58 @@ func TestWrap(t *testing.T) {
 		assert.NotNil(t, capturedErr)
 		assert.Equal(t, "handler returned nil response", capturedErr.Error())
 	})
+
+	t.Run("handler returns HTTPError", func(t *testing.T) {
+		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
+			return mockResponse{renderErr: saaskit.ErrNotFound}
+		})
+
+		wrapped := saaskit.Wrap(handler)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		wrapped(rec, req)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Contains(t, rec.Body.String(), "not_found")
+	})
+
+	t.Run("handler returns wrapped HTTPError", func(t *testing.T) {
+		// Wrap the HTTPError to test errors.As functionality
+		wrappedErr := fmt.Errorf("validation failed: %w", saaskit.ErrUnprocessableEntity)
+
+		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
+			return mockResponse{renderErr: wrappedErr}
+		})
+
+		wrapped := saaskit.Wrap(handler)
+
+		req := httptest.NewRequest(http.MethodPost, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		wrapped(rec, req)
+
+		assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+		assert.Contains(t, rec.Body.String(), "unprocessable_entity")
+	})
+
+	t.Run("handler returns non-HTTPError", func(t *testing.T) {
+		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
+			return mockResponse{renderErr: errors.New("database connection failed")}
+		})
+
+		wrapped := saaskit.Wrap(handler)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		wrapped(rec, req)
+
+		// Should fallback to 500 with the actual error message
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Contains(t, rec.Body.String(), "database connection failed")
+	})
 }
 
 // mockBinder for testing
@@ -305,7 +357,7 @@ func TestWrapWithCustomContext(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rec.Code)
 		assert.Equal(t, "User test-user-123", rec.Body.String())
 	})
-	
+
 	t.Run("custom context without factory panics", func(t *testing.T) {
 		handler := saaskit.HandlerFunc[customContext, string](func(ctx customContext, req string) saaskit.Response {
 			// This should never be called
@@ -315,10 +367,10 @@ func TestWrapWithCustomContext(t *testing.T) {
 
 		// Don't provide WithContextFactory - should panic
 		wrapped := saaskit.Wrap(handler)
-		
+
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
-		
+
 		assert.Panics(t, func() {
 			wrapped(rec, req)
 		}, "should panic when custom context is used without factory")
@@ -337,16 +389,16 @@ func TestDefaultContextFactory(t *testing.T) {
 
 		// No WithContextFactory provided - should use default
 		wrapped := saaskit.Wrap(handler)
-		
+
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
-		
+
 		wrapped(rec, req)
-		
+
 		assert.Equal(t, http.StatusOK, rec.Code)
 		assert.Equal(t, "ok", rec.Body.String())
 	})
-	
+
 	t.Run("overriding default factory works", func(t *testing.T) {
 		customFactoryCalled := false
 		customFactory := func(w http.ResponseWriter, r *http.Request) saaskit.Context {
@@ -362,26 +414,26 @@ func TestDefaultContextFactory(t *testing.T) {
 		wrapped := saaskit.Wrap(handler,
 			saaskit.WithContextFactory(customFactory),
 		)
-		
+
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
-		
+
 		wrapped(rec, req)
-		
+
 		assert.True(t, customFactoryCalled, "custom factory should be called")
 		assert.Equal(t, http.StatusOK, rec.Code)
 	})
-	
+
 	t.Run("panic message contains helpful text", func(t *testing.T) {
 		handler := saaskit.HandlerFunc[customContext, string](func(ctx customContext, req string) saaskit.Response {
 			return nil
 		})
 
 		wrapped := saaskit.Wrap(handler)
-		
+
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
-		
+
 		// Capture panic message
 		var panicMsg string
 		func() {
@@ -392,7 +444,7 @@ func TestDefaultContextFactory(t *testing.T) {
 			}()
 			wrapped(rec, req)
 		}()
-		
+
 		assert.Contains(t, panicMsg, "cannot use default context factory with custom context type")
 		assert.Contains(t, panicMsg, "WithContextFactory")
 	})
