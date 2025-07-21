@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/github/license/dmitrymomot/saaskit)](https://github.com/dmitrymomot/saaskit/blob/main/LICENSE)
 
 [![Tests](https://github.com/dmitrymomot/saaskit/actions/workflows/tests.yml/badge.svg)](https://github.com/dmitrymomot/saaskit/actions/workflows/tests.yml)
-[![CodeQL Analysis](https://github.com/dmitrymomot/saaskit/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/dmitrymomot/saaskit/actions/workflows/codeql-analysis.yml)
+[![CodeQL Analysis](https://github.com/dmitrymomot/saaskit/actions/workflows/codeql.yml/badge.svg)](https://github.com/dmitrymomot/saaskit/actions/workflows/codeql.yml)
 [![GolangCI Lint](https://github.com/dmitrymomot/saaskit/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/dmitrymomot/saaskit/actions/workflows/golangci-lint.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dmitrymomot/saaskit)](https://goreportcard.com/report/github.com/dmitrymomot/saaskit)
 
