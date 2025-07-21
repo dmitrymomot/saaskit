@@ -2,6 +2,8 @@ package saaskit_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -74,5 +76,91 @@ func TestContextValue(t *testing.T) {
 
 		got := saaskit.ContextValue[*user](ctx, key)
 		assert.Nil(t, got)
+	})
+}
+
+func TestContext_SSE(t *testing.T) {
+	t.Run("SSE request initializes SSE generator", func(t *testing.T) {
+		// Create a request with SSE Accept header
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Accept", "text/event-stream")
+		w := httptest.NewRecorder()
+
+		ctx := saaskit.NewContext(w, req)
+
+		sse := ctx.SSE()
+		assert.NotNil(t, sse, "SSE should be initialized for SSE requests")
+	})
+
+	t.Run("non-SSE request returns nil", func(t *testing.T) {
+		// Regular request without SSE headers
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		w := httptest.NewRecorder()
+
+		ctx := saaskit.NewContext(w, req)
+
+		sse := ctx.SSE()
+		assert.Nil(t, sse, "SSE should be nil for non-SSE requests")
+	})
+
+	t.Run("SSE request with datastar query param", func(t *testing.T) {
+		// Request with datastar query parameter
+		req := httptest.NewRequest(http.MethodGet, "/test?datastar=true", nil)
+		w := httptest.NewRecorder()
+
+		ctx := saaskit.NewContext(w, req)
+
+		sse := ctx.SSE()
+		assert.NotNil(t, sse, "SSE should be initialized for requests with datastar query param")
+	})
+
+	t.Run("SSE functionality works", func(t *testing.T) {
+		// Create SSE request
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Accept", "text/event-stream")
+		w := httptest.NewRecorder()
+
+		ctx := saaskit.NewContext(w, req)
+		sse := ctx.SSE()
+		require.NotNil(t, sse)
+
+		// Test that we can use the SSE generator - test Redirect method
+		err := sse.Redirect("/test-redirect")
+		assert.NoError(t, err)
+
+		// Check response headers were set correctly
+		assert.Equal(t, "text/event-stream", w.Header().Get("Content-Type"))
+		assert.Equal(t, "no-cache", w.Header().Get("Cache-Control"))
+	})
+
+	t.Run("Context implements all interface methods", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		w := httptest.NewRecorder()
+
+		// Set a deadline on the request context
+		reqCtx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		req = req.WithContext(reqCtx)
+
+		ctx := saaskit.NewContext(w, req)
+
+		// Test Context interface methods
+		assert.Equal(t, req, ctx.Request())
+		assert.Equal(t, w, ctx.ResponseWriter())
+
+		// Test context.Context interface methods
+		assert.Equal(t, ctx.Done(), req.Context().Done())
+		assert.Equal(t, ctx.Err(), req.Context().Err())
+
+		deadline, ok := ctx.Deadline()
+		expectedDeadline, expectedOk := req.Context().Deadline()
+		assert.Equal(t, expectedDeadline, deadline)
+		assert.Equal(t, expectedOk, ok)
+
+		// Test Value method
+		key := saaskit.NewContextKey("test")
+		reqWithValue := req.WithContext(context.WithValue(req.Context(), key, "test-value"))
+		ctxWithValue := saaskit.NewContext(w, reqWithValue)
+		assert.Equal(t, "test-value", ctxWithValue.Value(key))
 	})
 }
