@@ -267,7 +267,45 @@ func TestFile(t *testing.T) {
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unsupported type for file field")
+		assert.Contains(t, err.Error(), "incompatible type for file field")
+	})
+}
+
+func TestFile_ErrorHandling(t *testing.T) {
+	t.Run("multipart parsing error", func(t *testing.T) {
+		// Create an invalid multipart form
+		req := httptest.NewRequest(http.MethodPost, "/upload", bytes.NewReader([]byte("invalid multipart data")))
+		req.Header.Set("Content-Type", "multipart/form-data; boundary=invalid")
+
+		type UploadRequest struct {
+			File binder.FileUpload `file:"file"`
+		}
+
+		var upload UploadRequest
+		fileBinder := binder.File()
+		err := fileBinder(req, &upload)
+
+		// Should return an error instead of nil
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to parse multipart form")
+	})
+
+	t.Run("valid non-multipart request skips binding", func(t *testing.T) {
+		// Create a JSON request - should skip file binding
+		req := httptest.NewRequest(http.MethodPost, "/upload", bytes.NewReader([]byte(`{"name":"test"}`)))
+		req.Header.Set("Content-Type", "application/json")
+
+		type UploadRequest struct {
+			File binder.FileUpload `file:"file"`
+		}
+
+		var upload UploadRequest
+		fileBinder := binder.File()
+		err := fileBinder(req, &upload)
+
+		// Should not error, just skip
+		require.NoError(t, err)
+		assert.Empty(t, upload.File.Filename)
 	})
 }
 
