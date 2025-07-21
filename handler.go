@@ -63,18 +63,38 @@ type WrapOption[C Context, R any] func(*wrapConfig[C, R])
 
 // wrapConfig holds configuration for Wrap.
 type wrapConfig[C Context, R any] struct {
-	binder         Bind
+	binders        []Bind
 	errorHandler   ErrorHandler[C]
 	contextFactory func(http.ResponseWriter, *http.Request) C
 	decorators     []Decorator[C, R]
 }
 
 // WithBinder sets a custom request binder.
+// For backward compatibility, this converts to a single-item binders slice.
 func WithBinder[C Context, R any](b Bind) WrapOption[C, R] {
 	return func(c *wrapConfig[C, R]) {
 		if b != nil {
-			c.binder = b
+			c.binders = []Bind{b}
 		}
+	}
+}
+
+// WithBinders sets multiple request binders that will be applied in order.
+// Each binder should process only its specific struct tags.
+//
+// Example:
+//
+//	http.HandleFunc("/users/:id", saaskit.Wrap(handler,
+//		saaskit.WithBinders(
+//			binder.Path(),   // processes path: tags
+//			binder.Query(),  // processes query: tags
+//			binder.Form(),   // processes form: tags
+//			binder.File(),   // processes file: tags
+//		),
+//	))
+func WithBinders[C Context, R any](binders ...Bind) WrapOption[C, R] {
+	return func(c *wrapConfig[C, R]) {
+		c.binders = append(c.binders, binders...)
 	}
 }
 
@@ -182,10 +202,10 @@ func Wrap[C Context, R any](h HandlerFunc[C, R], opts ...WrapOption[C, R]) http.
 
 		var req R
 
-		// Use custom binder if provided
-		// Otherwise req remains zero value
-		if cfg.binder != nil {
-			if err := cfg.binder(r, &req); err != nil {
+		// Apply binders in order
+		// Each binder processes only its specific tags
+		for _, binder := range cfg.binders {
+			if err := binder(r, &req); err != nil {
 				cfg.errorHandler(ctx, err)
 				return
 			}
