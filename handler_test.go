@@ -107,13 +107,11 @@ func TestWrap(t *testing.T) {
 			Name string
 		}
 
-		customBinder := &mockBinder[saaskit.Context]{
-			bindFunc: func(ctx saaskit.Context, v any) error {
-				if req, ok := v.(*testRequest); ok {
-					req.Name = "bound value"
-				}
-				return nil
-			},
+		customBinder := func(r *http.Request, v any) error {
+			if req, ok := v.(*testRequest); ok {
+				req.Name = "bound value"
+			}
+			return nil
 		}
 
 		handler := saaskit.HandlerFunc[saaskit.Context, testRequest](func(ctx saaskit.Context, req testRequest) saaskit.Response {
@@ -136,10 +134,8 @@ func TestWrap(t *testing.T) {
 		binderErr := errors.New("binding failed")
 		errorHandlerCalled := false
 
-		customBinder := &mockBinder[saaskit.Context]{
-			bindFunc: func(ctx saaskit.Context, v any) error {
-				return binderErr
-			},
+		customBinder := func(r *http.Request, v any) error {
+			return binderErr
 		}
 
 		customErrorHandler := func(ctx saaskit.Context, err error) {
@@ -269,15 +265,6 @@ func TestWrap(t *testing.T) {
 	})
 }
 
-// mockBinder for testing
-type mockBinder[C saaskit.Context] struct {
-	bindFunc func(ctx C, v any) error
-}
-
-func (m *mockBinder[C]) Bind(ctx C, v any) error {
-	return m.bindFunc(ctx, v)
-}
-
 // Custom context for testing
 type customContext interface {
 	saaskit.Context
@@ -327,17 +314,13 @@ func TestWrapWithCustomContext(t *testing.T) {
 			Name string
 		}
 
-		customBinder := &mockBinder[customContext]{
-			bindFunc: func(ctx customContext, v any) error {
-				// Can access custom context in binder
-				userID := ctx.UserID()
-				assert.Equal(t, "test-user-123", userID)
-
-				if req, ok := v.(*userRequest); ok {
-					req.Name = "User " + userID
-				}
-				return nil
-			},
+		customBinder := func(r *http.Request, v any) error {
+			// Note: Can't access custom context in binder anymore
+			// This is a tradeoff for simpler API
+			if req, ok := v.(*userRequest); ok {
+				req.Name = "User test-user-123"
+			}
+			return nil
 		}
 
 		handler := saaskit.HandlerFunc[customContext, userRequest](func(ctx customContext, req userRequest) saaskit.Response {
@@ -594,13 +577,11 @@ func TestWrapWithDecorators(t *testing.T) {
 			}
 		}
 
-		customBinder := &mockBinder[customContext]{
-			bindFunc: func(ctx customContext, v any) error {
-				if req, ok := v.(*userRequest); ok {
-					req.Name = "John"
-				}
-				return nil
-			},
+		customBinder := func(r *http.Request, v any) error {
+			if req, ok := v.(*userRequest); ok {
+				req.Name = "John"
+			}
+			return nil
 		}
 
 		handler := saaskit.HandlerFunc[customContext, userRequest](func(ctx customContext, req userRequest) saaskit.Response {
