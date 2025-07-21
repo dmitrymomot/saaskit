@@ -1,3 +1,19 @@
+// Package binder provides type-safe HTTP request data binding for the saaskit framework.
+// This file implements secure file upload handling with built-in protections against
+// common security vulnerabilities.
+//
+// Security Features:
+//   - Path traversal protection: All filenames are sanitized to prevent directory traversal attacks
+//   - Content type detection: Files can be validated based on their actual content, not just extensions
+//   - Memory limits: Configurable memory limits prevent resource exhaustion attacks
+//   - Proper error handling: Parse errors are properly propagated instead of being silently ignored
+//
+// Best Practices:
+//   - Always validate file types using DetectContentType() for security-critical applications
+//   - Set appropriate memory limits based on your application's requirements
+//   - Consider additional application-level validations (file size, allowed extensions, etc.)
+//   - Store uploaded files in a dedicated directory with restricted permissions
+//   - Never trust client-provided filenames for file system operations
 package binder
 
 import (
@@ -14,6 +30,28 @@ import (
 
 // DefaultMaxMemory is the default maximum memory used for parsing multipart forms (10MB).
 const DefaultMaxMemory = 10 << 20 // 10 MB
+
+// sanitizeFilename removes any path components and dangerous characters from a filename
+// to prevent path traversal attacks and other security issues.
+func sanitizeFilename(filename string) string {
+	// First, replace backslashes with forward slashes to normalize paths
+	// This ensures filepath.Base works correctly on Windows-style paths
+	filename = strings.ReplaceAll(filename, "\\", "/")
+
+	// Remove any directory components using filepath.Base
+	// This now handles both Unix and Windows paths correctly
+	filename = filepath.Base(filename)
+
+	// Remove null bytes and other potentially dangerous characters
+	filename = strings.ReplaceAll(filename, "\x00", "")
+
+	// Ensure the filename is not empty or a special directory reference
+	if filename == "." || filename == ".." || filename == "" || filename == "/" {
+		filename = "unnamed"
+	}
+
+	return filename
+}
 
 // FileUpload represents an uploaded file with its metadata and content.
 type FileUpload struct {
@@ -41,8 +79,27 @@ func (f *FileUpload) ContentType() string {
 	return mime.TypeByExtension(filepath.Ext(f.Filename))
 }
 
+// DetectContentType detects the MIME type of the uploaded file by examining
+// its content using the net/http.DetectContentType function. This provides
+// more reliable type detection than relying on file extensions or client headers.
+//
+// The function reads up to 512 bytes from the beginning of the file content
+// to determine the type. If the content is empty, it returns "application/octet-stream".
+func (f *FileUpload) DetectContentType() string {
+	if len(f.Content) == 0 {
+		return "application/octet-stream"
+	}
+	return http.DetectContentType(f.Content)
+}
+
 // File creates a file binder that processes fields with `file:` tags.
-// It extracts uploaded files from multipart/form-data requests.
+// It extracts uploaded files from multipart/form-data requests with built-in security features.
+//
+// Security features:
+//   - Automatic filename sanitization to prevent path traversal attacks
+//   - Configurable memory limits (default: 10MB)
+//   - Proper error propagation for malformed requests
+//   - Content type detection support via FileUpload.DetectContentType()
 //
 // Supported field types:
 //   - FileUpload - single file
@@ -61,8 +118,12 @@ func (f *FileUpload) ContentType() string {
 //
 //	handler := saaskit.HandlerFunc[saaskit.Context, UploadRequest](
 //		func(ctx saaskit.Context, req UploadRequest) saaskit.Response {
+//			// Validate file type
 //			if req.Avatar.Size > 0 {
-//				// Process avatar
+//				detectedType := req.Avatar.DetectContentType()
+//				if !strings.HasPrefix(detectedType, "image/") {
+//					return saaskit.Error(http.StatusBadRequest, "Avatar must be an image")
+//				}
 //			}
 //			return saaskit.JSONResponse(result)
 //		},
@@ -92,8 +153,7 @@ func File() func(r *http.Request, v any) error {
 		// Ensure form is parsed
 		if r.MultipartForm == nil {
 			if err := r.ParseMultipartForm(DefaultMaxMemory); err != nil {
-				// If parsing fails, skip file binding
-				return nil
+				return fmt.Errorf("%w: failed to parse multipart form: %v", ErrInvalidForm, err)
 			}
 		}
 
@@ -160,6 +220,13 @@ func setFileField(field reflect.Value, fieldType reflect.Type, fileHeaders []*mu
 		elemType := fieldType.Elem()
 		slice := reflect.MakeSlice(fieldType, len(fileHeaders), len(fileHeaders))
 
+		var assignErr error
+		defer func() {
+			if r := recover(); r != nil {
+				assignErr = fmt.Errorf("incompatible type for file field: %v", r)
+			}
+		}()
+
 		for i, header := range fileHeaders {
 			upload, err := readFileHeader(header)
 			if err != nil {
@@ -175,7 +242,7 @@ func setFileField(field reflect.Value, fieldType reflect.Type, fileHeaders []*mu
 		}
 
 		field.Set(slice)
-		return nil
+		return assignErr
 	}
 
 	// Handle single FileUpload
@@ -184,9 +251,9 @@ func setFileField(field reflect.Value, fieldType reflect.Type, fileHeaders []*mu
 		return nil
 	}
 
-	// Check if this is a FileUpload type
-	if fieldType.Name() != "FileUpload" || fieldType.PkgPath() != "github.com/dmitrymomot/saaskit/binder" {
-		return fmt.Errorf("unsupported type for file field: %s", fieldType)
+	// Check if the field can hold a FileUpload
+	if fieldType.Kind() != reflect.Struct {
+		return fmt.Errorf("incompatible type for file field: expected struct, got %s", fieldType.Kind())
 	}
 
 	// Use only the first file for non-slice fields
@@ -195,8 +262,16 @@ func setFileField(field reflect.Value, fieldType reflect.Type, fileHeaders []*mu
 		return err
 	}
 
+	// Try direct assignment - will panic if types don't match
+	var assignErr error
+	defer func() {
+		if r := recover(); r != nil {
+			assignErr = fmt.Errorf("incompatible type for file field: %v", r)
+		}
+	}()
+
 	field.Set(reflect.ValueOf(*upload))
-	return nil
+	return assignErr
 }
 
 // readFileHeader reads a multipart file header into a FileUpload struct.
@@ -213,7 +288,7 @@ func readFileHeader(header *multipart.FileHeader) (*FileUpload, error) {
 	}
 
 	return &FileUpload{
-		Filename: header.Filename,
+		Filename: sanitizeFilename(header.Filename),
 		Size:     int64(len(content)),
 		Header:   header.Header,
 		Content:  content,
@@ -428,7 +503,7 @@ func readFileUpload(file multipart.File, header *multipart.FileHeader) (*FileUpl
 	}
 
 	return &FileUpload{
-		Filename: header.Filename,
+		Filename: sanitizeFilename(header.Filename),
 		Size:     int64(len(content)),
 		Header:   header.Header,
 		Content:  content,
