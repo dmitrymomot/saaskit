@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	"github.com/starfederation/datastar-go/datastar"
 )
 
 // Context wraps http.Request and http.ResponseWriter with context.Context.
@@ -12,20 +14,29 @@ type Context interface {
 	context.Context
 	Request() *http.Request
 	ResponseWriter() http.ResponseWriter
+	SSE() *datastar.ServerSentEventGenerator
 }
 
 // NewContext creates a new Context from HTTP request and response writer.
 func NewContext(w http.ResponseWriter, r *http.Request) Context {
-	return &httpContext{
+	ctx := &httpContext{
 		w: w,
 		r: r,
 	}
+
+	// Initialize SSE if this is a DataStar request
+	if IsDataStar(r) {
+		ctx.sse = NewDataStarSSE(w, r)
+	}
+
+	return ctx
 }
 
 // httpContext is the default implementation of Context.
 type httpContext struct {
-	w http.ResponseWriter
-	r *http.Request
+	w   http.ResponseWriter
+	r   *http.Request
+	sse *datastar.ServerSentEventGenerator
 }
 
 func (c *httpContext) Request() *http.Request {
@@ -34,6 +45,10 @@ func (c *httpContext) Request() *http.Request {
 
 func (c *httpContext) ResponseWriter() http.ResponseWriter {
 	return c.w
+}
+
+func (c *httpContext) SSE() *datastar.ServerSentEventGenerator {
+	return c.sse
 }
 
 // Deadline returns the time when work done on behalf of this context
