@@ -27,6 +27,20 @@ func WithPatchMode(mode datastar.ElementPatchMode) TemplOption {
 	return datastar.WithMode(mode)
 }
 
+// TemplPatch represents a component with its own rendering options
+type TemplPatch struct {
+	Component TemplComponent
+	Options   []datastar.PatchElementOption
+}
+
+// Patch creates a TemplPatch with options for use with TemplMulti
+func Patch(component TemplComponent, opts ...TemplOption) TemplPatch {
+	return TemplPatch{
+		Component: component,
+		Options:   opts,
+	}
+}
+
 // templResponse wraps a templ component to implement Response
 type templResponse struct {
 	component TemplComponent
@@ -123,5 +137,71 @@ func TemplPartial(partial, full TemplComponent, opts ...TemplOption) Response {
 		partial: partial,
 		full:    full,
 		options: opts,
+	}
+}
+
+// templMultiResponse renders multiple components to different targets
+type templMultiResponse struct {
+	patches []TemplPatch
+}
+
+// Render renders multiple components based on request type
+func (t templMultiResponse) Render(w http.ResponseWriter, r *http.Request) error {
+	// For DataStar requests, send multiple SSE patches
+	if IsDataStar(r) {
+		sse := datastar.NewSSE(w, r)
+		for _, patch := range t.patches {
+			if err := sse.PatchElementTempl(patch.Component, patch.Options...); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// For regular HTTP requests, concatenate all components
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	for _, patch := range t.patches {
+		if err := patch.Component.Render(r.Context(), w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// TemplMulti renders multiple components to different targets.
+// For DataStar requests, each component is sent as a separate SSE patch with its own options.
+// For regular HTTP requests, all components are concatenated in order.
+//
+// Example usage:
+//
+//	// Update main content and add a notification
+//	return saaskit.TemplMulti(
+//		saaskit.Patch(templates.UpdatedUserProfile(user),
+//			saaskit.WithTarget("#user-profile")),
+//		saaskit.Patch(templates.SuccessNotification("Profile updated!"),
+//			saaskit.WithTarget("#notifications"),
+//			saaskit.WithPatchMode(saaskit.PatchPrepend)),
+//	)
+//
+// Complex example:
+//
+//	// Update multiple parts of the page
+//	return saaskit.TemplMulti(
+//		// Replace main content
+//		saaskit.Patch(templates.OrderDetails(order),
+//			saaskit.WithTarget("#order-details"),
+//			saaskit.WithPatchMode(saaskit.PatchInner)),
+//		// Update cart badge
+//		saaskit.Patch(templates.CartBadge(itemCount),
+//			saaskit.WithTarget("#cart-badge"),
+//			saaskit.WithPatchMode(saaskit.PatchOuter)),
+//		// Add order confirmation notification
+//		saaskit.Patch(templates.OrderConfirmation(order.ID),
+//			saaskit.WithTarget("#notifications"),
+//			saaskit.WithPatchMode(saaskit.PatchPrepend)),
+//	)
+func TemplMulti(patches ...TemplPatch) Response {
+	return templMultiResponse{
+		patches: patches,
 	}
 }
