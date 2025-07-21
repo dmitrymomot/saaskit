@@ -130,6 +130,134 @@ func TestWrap(t *testing.T) {
 		assert.Equal(t, "bound value", rec.Body.String())
 	})
 
+	t.Run("with multiple binders", func(t *testing.T) {
+		type testRequest struct {
+			Field1 string
+			Field2 string
+		}
+
+		binder1 := func(r *http.Request, v any) error {
+			if req, ok := v.(*testRequest); ok {
+				req.Field1 = "value1"
+			}
+			return nil
+		}
+
+		binder2 := func(r *http.Request, v any) error {
+			if req, ok := v.(*testRequest); ok {
+				req.Field2 = "value2"
+			}
+			return nil
+		}
+
+		handler := saaskit.HandlerFunc[saaskit.Context, testRequest](func(ctx saaskit.Context, req testRequest) saaskit.Response {
+			assert.Equal(t, "value1", req.Field1)
+			assert.Equal(t, "value2", req.Field2)
+			return mockResponse{statusCode: http.StatusOK, body: req.Field1 + "," + req.Field2}
+		})
+
+		wrapped := saaskit.Wrap(handler, saaskit.WithBinders[saaskit.Context, testRequest](binder1, binder2))
+
+		req := httptest.NewRequest(http.MethodPost, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		wrapped(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "value1,value2", rec.Body.String())
+	})
+
+	t.Run("multiple binders execution order", func(t *testing.T) {
+		type testRequest struct {
+			Value string
+		}
+
+		var executionOrder []string
+
+		binder1 := func(r *http.Request, v any) error {
+			executionOrder = append(executionOrder, "binder1")
+			if req, ok := v.(*testRequest); ok {
+				req.Value = "first"
+			}
+			return nil
+		}
+
+		binder2 := func(r *http.Request, v any) error {
+			executionOrder = append(executionOrder, "binder2")
+			if req, ok := v.(*testRequest); ok {
+				// This should overwrite the value set by binder1
+				req.Value = "second"
+			}
+			return nil
+		}
+
+		handler := saaskit.HandlerFunc[saaskit.Context, testRequest](func(ctx saaskit.Context, req testRequest) saaskit.Response {
+			return mockResponse{statusCode: http.StatusOK, body: req.Value}
+		})
+
+		wrapped := saaskit.Wrap(handler, saaskit.WithBinders[saaskit.Context, testRequest](binder1, binder2))
+
+		req := httptest.NewRequest(http.MethodPost, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		wrapped(rec, req)
+
+		assert.Equal(t, []string{"binder1", "binder2"}, executionOrder)
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "second", rec.Body.String()) // Should have the value from the second binder
+	})
+
+	t.Run("multiple binders with error in chain", func(t *testing.T) {
+		type testRequest struct {
+			Field1 string
+			Field2 string
+		}
+
+		binderErr := errors.New("binder2 failed")
+		var binder1Called, binder2Called bool
+
+		binder1 := func(r *http.Request, v any) error {
+			binder1Called = true
+			if req, ok := v.(*testRequest); ok {
+				req.Field1 = "value1"
+			}
+			return nil
+		}
+
+		binder2 := func(r *http.Request, v any) error {
+			binder2Called = true
+			return binderErr // This binder fails
+		}
+
+		handler := saaskit.HandlerFunc[saaskit.Context, testRequest](func(ctx saaskit.Context, req testRequest) saaskit.Response {
+			t.Fatal("handler should not be called when binder fails")
+			return nil
+		})
+
+		var capturedErr error
+		errorHandler := func(ctx saaskit.Context, err error) {
+			capturedErr = err
+			ctx.ResponseWriter().WriteHeader(http.StatusBadRequest)
+			ctx.ResponseWriter().Write([]byte("binding error"))
+		}
+
+		wrapped := saaskit.Wrap(handler,
+			saaskit.WithBinders[saaskit.Context, testRequest](binder1, binder2),
+			saaskit.WithErrorHandler[saaskit.Context, testRequest](errorHandler),
+		)
+
+		req := httptest.NewRequest(http.MethodPost, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		wrapped(rec, req)
+
+		assert.True(t, binder1Called)
+		assert.True(t, binder2Called)
+		assert.Equal(t, binderErr, capturedErr)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Equal(t, "binding error", rec.Body.String())
+	})
+
 	t.Run("with binder error and custom error handler", func(t *testing.T) {
 		binderErr := errors.New("binding failed")
 		errorHandlerCalled := false

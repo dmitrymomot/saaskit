@@ -3,6 +3,7 @@ package binder_test
 import (
 	"bytes"
 	"errors"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -446,23 +447,147 @@ func TestBindForm(t *testing.T) {
 		assert.Equal(t, 10, result.Count)
 	})
 
-	t.Run("large form data", func(t *testing.T) {
-		// Create large form data
-		formData := url.Values{}
-		for i := 0; i < 100; i++ {
-			formData.Set(strings.ToLower(string(rune('A'+i%26)))+string(rune('0'+i/26)), "value")
-		}
-		formData.Set("name", "LargeForm")
+	t.Run("enterprise application settings form", func(t *testing.T) {
+		// Realistic large configuration form for enterprise SaaS application
+		type AppSettings struct {
+			// General Settings
+			AppName         string `form:"app_name"`
+			AppURL          string `form:"app_url"`
+			SupportEmail    string `form:"support_email"`
+			DefaultTimezone string `form:"default_timezone"`
+			DefaultLanguage string `form:"default_language"`
+			MaintenanceMode bool   `form:"maintenance_mode"`
 
-		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(formData.Encode()))
+			// Security Settings
+			RequireSSL          bool     `form:"require_ssl"`
+			SessionTimeout      int      `form:"session_timeout"`
+			MaxLoginAttempts    int      `form:"max_login_attempts"`
+			PasswordMinLength   int      `form:"password_min_length"`
+			RequireUppercase    bool     `form:"require_uppercase"`
+			RequireLowercase    bool     `form:"require_lowercase"`
+			RequireNumbers      bool     `form:"require_numbers"`
+			RequireSpecialChars bool     `form:"require_special_chars"`
+			TwoFactorAuth       string   `form:"two_factor_auth"`
+			AllowedIPRanges     []string `form:"allowed_ip_ranges"`
+
+			// Email Settings
+			SMTPHost         string `form:"smtp_host"`
+			SMTPPort         int    `form:"smtp_port"`
+			SMTPUser         string `form:"smtp_user"`
+			SMTPPassword     string `form:"smtp_password"`
+			SMTPEncryption   string `form:"smtp_encryption"`
+			EmailFromName    string `form:"email_from_name"`
+			EmailFromAddress string `form:"email_from_address"`
+
+			// Storage Settings
+			StorageProvider  string   `form:"storage_provider"`
+			S3Bucket         string   `form:"s3_bucket"`
+			S3Region         string   `form:"s3_region"`
+			S3AccessKey      string   `form:"s3_access_key"`
+			S3SecretKey      string   `form:"s3_secret_key"`
+			MaxUploadSize    int      `form:"max_upload_size"`
+			AllowedFileTypes []string `form:"allowed_file_types"`
+
+			// API Settings
+			APIRateLimit   int      `form:"api_rate_limit"`
+			APIBurstLimit  int      `form:"api_burst_limit"`
+			WebhookTimeout int      `form:"webhook_timeout"`
+			APIVersions    []string `form:"api_versions"`
+
+			// Feature Flags
+			EnableSignup      bool `form:"enable_signup"`
+			EnableGuestAccess bool `form:"enable_guest_access"`
+			EnableAPIAccess   bool `form:"enable_api_access"`
+			EnableWebhooks    bool `form:"enable_webhooks"`
+			EnableExports     bool `form:"enable_exports"`
+			EnableImports     bool `form:"enable_imports"`
+
+			// Logging Settings
+			LogLevel         string   `form:"log_level"`
+			LogRetentionDays int      `form:"log_retention_days"`
+			EnableAuditLog   bool     `form:"enable_audit_log"`
+			AuditLogEvents   []string `form:"audit_log_events"`
+		}
+
+		// Create realistic form data
+		formData := url.Values{
+			// General
+			"app_name":         {"Enterprise SaaS Platform"},
+			"app_url":          {"https://app.enterprise.com"},
+			"support_email":    {"support@enterprise.com"},
+			"default_timezone": {"America/New_York"},
+			"default_language": {"en-US"},
+			"maintenance_mode": {"false"},
+
+			// Security
+			"require_ssl":           {"true"},
+			"session_timeout":       {"3600"},
+			"max_login_attempts":    {"5"},
+			"password_min_length":   {"12"},
+			"require_uppercase":     {"true"},
+			"require_lowercase":     {"true"},
+			"require_numbers":       {"true"},
+			"require_special_chars": {"true"},
+			"two_factor_auth":       {"required"},
+			"allowed_ip_ranges":     {"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"},
+
+			// Email
+			"smtp_host":          {"smtp.sendgrid.net"},
+			"smtp_port":          {"587"},
+			"smtp_user":          {"apikey"},
+			"smtp_password":      {"SG.xxxxxxxxxxxx"},
+			"smtp_encryption":    {"tls"},
+			"email_from_name":    {"Enterprise Platform"},
+			"email_from_address": {"noreply@enterprise.com"},
+
+			// Storage
+			"storage_provider":   {"s3"},
+			"s3_bucket":          {"enterprise-uploads"},
+			"s3_region":          {"us-east-1"},
+			"s3_access_key":      {"AKIAXXXXXXXXXXXXXXXX"},
+			"s3_secret_key":      {"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},
+			"max_upload_size":    {"104857600"}, // 100MB
+			"allowed_file_types": {"pdf", "doc", "docx", "xls", "xlsx", "png", "jpg", "jpeg"},
+
+			// API
+			"api_rate_limit":  {"1000"},
+			"api_burst_limit": {"2000"},
+			"webhook_timeout": {"30"},
+			"api_versions":    {"v1", "v2", "v3"},
+
+			// Features
+			"enable_signup":       {"true"},
+			"enable_guest_access": {"false"},
+			"enable_api_access":   {"true"},
+			"enable_webhooks":     {"true"},
+			"enable_exports":      {"true"},
+			"enable_imports":      {"true"},
+
+			// Logging
+			"log_level":          {"info"},
+			"log_retention_days": {"90"},
+			"enable_audit_log":   {"true"},
+			"audit_log_events":   {"login", "logout", "create", "update", "delete", "export"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/admin/settings", strings.NewReader(formData.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		var result basicForm
+		var result AppSettings
 		bindFunc := binder.BindForm()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
-		assert.Equal(t, "LargeForm", result.Name)
+		// Verify a sample of fields to ensure proper binding
+		assert.Equal(t, "Enterprise SaaS Platform", result.AppName)
+		assert.True(t, result.RequireSSL)
+		assert.Equal(t, 3600, result.SessionTimeout)
+		assert.Equal(t, []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}, result.AllowedIPRanges)
+		assert.Equal(t, "s3", result.StorageProvider)
+		assert.Equal(t, 104857600, result.MaxUploadSize)
+		assert.Equal(t, []string{"pdf", "doc", "docx", "xls", "xlsx", "png", "jpg", "jpeg"}, result.AllowedFileTypes)
+		assert.True(t, result.EnableAuditLog)
+		assert.Equal(t, []string{"login", "logout", "create", "update", "delete", "export"}, result.AuditLogEvents)
 	})
 
 	t.Run("invalid form data", func(t *testing.T) {
@@ -496,15 +621,23 @@ func TestBindForm(t *testing.T) {
 	})
 
 	t.Run("multipart form content type", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(""))
-		req.Header.Set("Content-Type", "multipart/form-data; boundary=----boundary")
+		// Create a proper multipart form
+		var b bytes.Buffer
+		w := multipart.NewWriter(&b)
+		_ = w.WriteField("name", "Test")
+		_ = w.WriteField("age", "25")
+		_ = w.Close()
+
+		req := httptest.NewRequest(http.MethodPost, "/test", &b)
+		req.Header.Set("Content-Type", w.FormDataContentType())
 
 		var result basicForm
 		bindFunc := binder.BindForm()
 		err := bindFunc(req, &result)
 
-		require.Error(t, err)
-		assert.True(t, errors.Is(err, binder.ErrUnsupportedMediaType))
-		assert.Contains(t, err.Error(), "expected application/x-www-form-urlencoded")
+		// BindForm now supports multipart forms
+		require.NoError(t, err)
+		assert.Equal(t, "Test", result.Name)
+		assert.Equal(t, 25, result.Age)
 	})
 }
