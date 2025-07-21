@@ -45,11 +45,7 @@ func IsDataStar(r *http.Request) bool {
 
 	// Check Content-Type for DataStar-specific types
 	contentType := r.Header.Get("Content-Type")
-	if strings.Contains(contentType, "application/x-datastar") {
-		return true
-	}
-
-	return false
+	return strings.Contains(contentType, "application/x-datastar")
 }
 
 // NewDataStarSSE creates a new Server-Sent Event generator for DataStar responses.
