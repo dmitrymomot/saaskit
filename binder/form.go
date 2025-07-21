@@ -6,7 +6,8 @@ import (
 	"strings"
 )
 
-// BindForm creates a form data binder function for application/x-www-form-urlencoded content.
+// BindForm creates a form data binder function for both application/x-www-form-urlencoded
+// and multipart/form-data content types. For multipart forms, it only binds non-file fields.
 //
 // It supports struct tags for custom field names:
 //   - `form:"name"` - binds to form field "name"
@@ -17,6 +18,8 @@ import (
 //   - Basic types: string, int, int64, uint, uint64, float32, float64, bool
 //   - Slices of basic types for multi-value fields
 //   - Pointers for optional fields
+//
+// For file uploads in multipart forms, use the File() binder with `file:` tags.
 //
 // Example:
 //
@@ -44,7 +47,7 @@ func BindForm() func(r *http.Request, v any) error {
 		// Check content type
 		contentType := r.Header.Get("Content-Type")
 		if contentType == "" {
-			return fmt.Errorf("%w: expected application/x-www-form-urlencoded", ErrMissingContentType)
+			return fmt.Errorf("%w: expected application/x-www-form-urlencoded or multipart/form-data", ErrMissingContentType)
 		}
 
 		// Extract media type without parameters
@@ -53,16 +56,32 @@ func BindForm() func(r *http.Request, v any) error {
 			mediaType = strings.TrimSpace(contentType[:idx])
 		}
 
-		if mediaType != "application/x-www-form-urlencoded" {
-			return fmt.Errorf("%w: got %s, expected application/x-www-form-urlencoded", ErrUnsupportedMediaType, mediaType)
-		}
+		var values map[string][]string
 
-		// Parse form data
-		if err := r.ParseForm(); err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidForm, err)
+		switch {
+		case mediaType == "application/x-www-form-urlencoded":
+			// Parse URL-encoded form
+			if err := r.ParseForm(); err != nil {
+				return fmt.Errorf("%w: %v", ErrInvalidForm, err)
+			}
+			values = r.Form
+
+		case strings.HasPrefix(mediaType, "multipart/form-data"):
+			// Parse multipart form (default 10MB limit)
+			if err := r.ParseMultipartForm(10 << 20); err != nil {
+				return fmt.Errorf("%w: %v", ErrInvalidForm, err)
+			}
+			if r.MultipartForm != nil {
+				values = r.MultipartForm.Value
+			} else {
+				values = make(map[string][]string)
+			}
+
+		default:
+			return fmt.Errorf("%w: got %s, expected application/x-www-form-urlencoded or multipart/form-data", ErrUnsupportedMediaType, mediaType)
 		}
 
 		// Use the shared binding logic
-		return bindToStruct(v, "form", r.Form, ErrInvalidForm)
+		return bindToStruct(v, "form", values, ErrInvalidForm)
 	}
 }
