@@ -34,10 +34,8 @@ type Response interface {
 	Render(w http.ResponseWriter, r *http.Request) error
 }
 
-// Binder parses HTTP requests into typed values.
-type Binder[C Context] interface {
-	Bind(ctx C, v any) error
-}
+// Bind parses HTTP requests into typed values.
+type Bind func(r *http.Request, v any) error
 
 // ErrorHandler handles errors from binding or rendering.
 type ErrorHandler[C Context] func(ctx C, err error)
@@ -65,14 +63,14 @@ type WrapOption[C Context, R any] func(*wrapConfig[C, R])
 
 // wrapConfig holds configuration for Wrap.
 type wrapConfig[C Context, R any] struct {
-	binder         Binder[C]
+	binder         Bind
 	errorHandler   ErrorHandler[C]
 	contextFactory func(http.ResponseWriter, *http.Request) C
 	decorators     []Decorator[C, R]
 }
 
 // WithBinder sets a custom request binder.
-func WithBinder[C Context, R any](b Binder[C]) WrapOption[C, R] {
+func WithBinder[C Context, R any](b Bind) WrapOption[C, R] {
 	return func(c *wrapConfig[C, R]) {
 		if b != nil {
 			c.binder = b
@@ -187,7 +185,7 @@ func Wrap[C Context, R any](h HandlerFunc[C, R], opts ...WrapOption[C, R]) http.
 		// Use custom binder if provided
 		// Otherwise req remains zero value
 		if cfg.binder != nil {
-			if err := cfg.binder.Bind(ctx, &req); err != nil {
+			if err := cfg.binder(r, &req); err != nil {
 				cfg.errorHandler(ctx, err)
 				return
 			}
