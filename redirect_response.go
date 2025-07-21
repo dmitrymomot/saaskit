@@ -3,27 +3,28 @@ package saaskit
 import (
 	"net/http"
 	"net/url"
+
+	"github.com/starfederation/datastar-go/datastar"
 )
 
-// redirectResponse handles redirects for both HTMX and regular requests
+// redirectResponse handles redirects for both DataStar and regular requests
 type redirectResponse struct {
 	url  string
 	code int
 }
 
-// Render performs the redirect, handling both HTMX and regular requests
+// Render performs the redirect, handling both DataStar and regular requests
 func (r redirectResponse) Render(w http.ResponseWriter, req *http.Request) error {
-	if IsHTMX(req) {
-		w.Header().Set(HXRedirect, r.url)
-		w.WriteHeader(http.StatusOK)
-		return nil
+	if IsDataStar(req) {
+		sse := datastar.NewSSE(w, req)
+		return sse.Redirect(r.url)
 	}
 	http.Redirect(w, req, r.url, r.code)
 	return nil
 }
 
 // Redirect creates a redirect response with status 303 (See Other).
-// For HTMX requests, it sets the HX-Redirect header.
+// For DataStar requests, it uses Server-Sent Events to trigger a client-side redirect.
 // For regular requests, it performs a standard HTTP redirect.
 //
 // Example:
@@ -71,10 +72,9 @@ func (r redirectBackResponse) Render(w http.ResponseWriter, req *http.Request) e
 		targetURL = referer
 	}
 
-	if IsHTMX(req) {
-		w.Header().Set(HXRedirect, targetURL)
-		w.WriteHeader(http.StatusOK)
-		return nil
+	if IsDataStar(req) {
+		sse := datastar.NewSSE(w, req)
+		return sse.Redirect(targetURL)
 	}
 
 	http.Redirect(w, req, targetURL, r.code)
