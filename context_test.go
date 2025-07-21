@@ -12,13 +12,23 @@ import (
 	"github.com/dmitrymomot/saaskit"
 )
 
+func TestContextKey_String(t *testing.T) {
+	t.Parallel()
+
+	key := saaskit.NewContextKey("test-key")
+	assert.Equal(t, "test-key", key.String())
+}
+
 func TestContextValue(t *testing.T) {
+	t.Parallel()
+
 	type user struct {
 		ID   int
 		Name string
 	}
 
 	t.Run("string value", func(t *testing.T) {
+		t.Parallel()
 		key := saaskit.NewContextKey("test")
 		ctx := context.WithValue(context.Background(), key, "hello")
 
@@ -27,6 +37,7 @@ func TestContextValue(t *testing.T) {
 	})
 
 	t.Run("struct value", func(t *testing.T) {
+		t.Parallel()
 		key := saaskit.NewContextKey("user")
 		u := user{ID: 123, Name: "Alice"}
 		ctx := context.WithValue(context.Background(), key, u)
@@ -36,6 +47,7 @@ func TestContextValue(t *testing.T) {
 	})
 
 	t.Run("pointer value", func(t *testing.T) {
+		t.Parallel()
 		key := saaskit.NewContextKey("user")
 		u := &user{ID: 456, Name: "Bob"}
 		ctx := context.WithValue(context.Background(), key, u)
@@ -46,6 +58,7 @@ func TestContextValue(t *testing.T) {
 	})
 
 	t.Run("slice value", func(t *testing.T) {
+		t.Parallel()
 		key := saaskit.NewContextKey("ids")
 		ids := []int{1, 2, 3}
 		ctx := context.WithValue(context.Background(), key, ids)
@@ -55,6 +68,7 @@ func TestContextValue(t *testing.T) {
 	})
 
 	t.Run("missing key returns zero value", func(t *testing.T) {
+		t.Parallel()
 		key := saaskit.NewContextKey("missing")
 		ctx := context.Background()
 
@@ -63,6 +77,7 @@ func TestContextValue(t *testing.T) {
 	})
 
 	t.Run("wrong type returns zero value", func(t *testing.T) {
+		t.Parallel()
 		key := saaskit.NewContextKey("number")
 		ctx := context.WithValue(context.Background(), key, "not-a-number")
 
@@ -71,6 +86,7 @@ func TestContextValue(t *testing.T) {
 	})
 
 	t.Run("nil pointer value", func(t *testing.T) {
+		t.Parallel()
 		key := saaskit.NewContextKey("user")
 		ctx := context.WithValue(context.Background(), key, (*user)(nil))
 
@@ -79,8 +95,93 @@ func TestContextValue(t *testing.T) {
 	})
 }
 
+func TestContextValueOK(t *testing.T) {
+	t.Parallel()
+
+	type user struct {
+		ID   int
+		Name string
+	}
+
+	t.Run("present value with correct type", func(t *testing.T) {
+		t.Parallel()
+		key := saaskit.NewContextKey("test")
+		ctx := context.WithValue(context.Background(), key, "hello")
+
+		got, ok := saaskit.ContextValueOK[string](ctx, key)
+		assert.True(t, ok)
+		assert.Equal(t, "hello", got)
+	})
+
+	t.Run("missing key", func(t *testing.T) {
+		t.Parallel()
+		key := saaskit.NewContextKey("missing")
+		ctx := context.Background()
+
+		got, ok := saaskit.ContextValueOK[string](ctx, key)
+		assert.False(t, ok)
+		assert.Empty(t, got)
+	})
+
+	t.Run("wrong type", func(t *testing.T) {
+		t.Parallel()
+		key := saaskit.NewContextKey("number")
+		ctx := context.WithValue(context.Background(), key, "not-a-number")
+
+		got, ok := saaskit.ContextValueOK[int](ctx, key)
+		assert.False(t, ok)
+		assert.Zero(t, got)
+	})
+
+	t.Run("zero value vs missing key", func(t *testing.T) {
+		t.Parallel()
+		key := saaskit.NewContextKey("count")
+		ctx := context.WithValue(context.Background(), key, 0)
+
+		// With ContextValue, can't tell if missing or zero
+		val1 := saaskit.ContextValue[int](ctx, key)
+		assert.Equal(t, 0, val1)
+
+		// With ContextValueOK, can distinguish
+		val2, ok := saaskit.ContextValueOK[int](ctx, key)
+		assert.True(t, ok)
+		assert.Equal(t, 0, val2)
+
+		// Missing key
+		missingKey := saaskit.NewContextKey("missing")
+		val3, ok := saaskit.ContextValueOK[int](ctx, missingKey)
+		assert.False(t, ok)
+		assert.Equal(t, 0, val3)
+	})
+
+	t.Run("pointer types", func(t *testing.T) {
+		t.Parallel()
+		key := saaskit.NewContextKey("user")
+		u := &user{ID: 123, Name: "Alice"}
+		ctx := context.WithValue(context.Background(), key, u)
+
+		got, ok := saaskit.ContextValueOK[*user](ctx, key)
+		assert.True(t, ok)
+		assert.Equal(t, u, got)
+	})
+
+	t.Run("interface types", func(t *testing.T) {
+		t.Parallel()
+		key := saaskit.NewContextKey("error")
+		err := context.DeadlineExceeded
+		ctx := context.WithValue(context.Background(), key, err)
+
+		got, ok := saaskit.ContextValueOK[error](ctx, key)
+		assert.True(t, ok)
+		assert.Equal(t, err, got)
+	})
+}
+
 func TestContext_SSE(t *testing.T) {
+	t.Parallel()
+
 	t.Run("SSE request initializes SSE generator", func(t *testing.T) {
+		t.Parallel()
 		// Create a request with SSE Accept header
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/event-stream")
@@ -93,6 +194,7 @@ func TestContext_SSE(t *testing.T) {
 	})
 
 	t.Run("non-SSE request returns nil", func(t *testing.T) {
+		t.Parallel()
 		// Regular request without SSE headers
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
@@ -104,6 +206,7 @@ func TestContext_SSE(t *testing.T) {
 	})
 
 	t.Run("SSE request with datastar query param", func(t *testing.T) {
+		t.Parallel()
 		// Request with datastar query parameter
 		req := httptest.NewRequest(http.MethodGet, "/test?datastar=true", nil)
 		w := httptest.NewRecorder()
@@ -115,6 +218,7 @@ func TestContext_SSE(t *testing.T) {
 	})
 
 	t.Run("SSE functionality works", func(t *testing.T) {
+		t.Parallel()
 		// Create SSE request
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/event-stream")
@@ -134,6 +238,7 @@ func TestContext_SSE(t *testing.T) {
 	})
 
 	t.Run("Context implements all interface methods", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
