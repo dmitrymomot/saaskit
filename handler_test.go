@@ -91,7 +91,7 @@ func TestWrap(t *testing.T) {
 			return mockResponse{statusCode: http.StatusOK, body: "ok"}
 		})
 
-		wrapped := saaskit.Wrap(handler, saaskit.WithContextFactory(customFactory))
+		wrapped := saaskit.Wrap(handler, saaskit.WithContextFactory[saaskit.Context, string](customFactory))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
@@ -121,7 +121,7 @@ func TestWrap(t *testing.T) {
 			return mockResponse{statusCode: http.StatusOK, body: req.Name}
 		})
 
-		wrapped := saaskit.Wrap(handler, saaskit.WithBinder(customBinder))
+		wrapped := saaskit.Wrap(handler, saaskit.WithBinder[saaskit.Context, testRequest](customBinder))
 
 		req := httptest.NewRequest(http.MethodPost, "/test", nil)
 		rec := httptest.NewRecorder()
@@ -155,8 +155,8 @@ func TestWrap(t *testing.T) {
 		})
 
 		wrapped := saaskit.Wrap(handler,
-			saaskit.WithBinder(customBinder),
-			saaskit.WithErrorHandler(customErrorHandler),
+			saaskit.WithBinder[saaskit.Context, string](customBinder),
+			saaskit.WithErrorHandler[saaskit.Context, string](customErrorHandler),
 		)
 
 		req := httptest.NewRequest(http.MethodPost, "/test", nil)
@@ -176,9 +176,9 @@ func TestWrap(t *testing.T) {
 
 		// Should not panic with nil options
 		wrapped := saaskit.Wrap(handler,
-			saaskit.WithBinder[saaskit.Context](nil),
-			saaskit.WithErrorHandler[saaskit.Context](nil),
-			saaskit.WithContextFactory[saaskit.Context](nil),
+			saaskit.WithBinder[saaskit.Context, string](nil),
+			saaskit.WithErrorHandler[saaskit.Context, string](nil),
+			saaskit.WithContextFactory[saaskit.Context, string](nil),
 		)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -203,7 +203,7 @@ func TestWrap(t *testing.T) {
 			return nil
 		})
 
-		wrapped := saaskit.Wrap(handler, saaskit.WithErrorHandler(customErrorHandler))
+		wrapped := saaskit.Wrap(handler, saaskit.WithErrorHandler[saaskit.Context, string](customErrorHandler))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
@@ -310,7 +310,7 @@ func TestWrapWithCustomContext(t *testing.T) {
 		})
 
 		wrapped := saaskit.Wrap(handler,
-			saaskit.WithContextFactory(newTestCustomContext),
+			saaskit.WithContextFactory[customContext, string](newTestCustomContext),
 		)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -345,8 +345,8 @@ func TestWrapWithCustomContext(t *testing.T) {
 		})
 
 		wrapped := saaskit.Wrap(handler,
-			saaskit.WithContextFactory(newTestCustomContext),
-			saaskit.WithBinder(customBinder),
+			saaskit.WithContextFactory[customContext, userRequest](newTestCustomContext),
+			saaskit.WithBinder[customContext, userRequest](customBinder),
 		)
 
 		req := httptest.NewRequest(http.MethodPost, "/test", nil)
@@ -412,7 +412,7 @@ func TestDefaultContextFactory(t *testing.T) {
 
 		// Provide custom factory even for standard context
 		wrapped := saaskit.Wrap(handler,
-			saaskit.WithContextFactory(customFactory),
+			saaskit.WithContextFactory[saaskit.Context, string](customFactory),
 		)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -447,5 +447,247 @@ func TestDefaultContextFactory(t *testing.T) {
 
 		assert.Contains(t, panicMsg, "cannot use default context factory with custom context type")
 		assert.Contains(t, panicMsg, "WithContextFactory")
+	})
+}
+
+func TestWrapWithDecorators(t *testing.T) {
+	t.Run("single decorator", func(t *testing.T) {
+		var decoratorCalled bool
+		decorator := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
+			return func(ctx saaskit.Context, req string) saaskit.Response {
+				decoratorCalled = true
+				return next(ctx, req)
+			}
+		}
+
+		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
+			return mockResponse{statusCode: http.StatusOK, body: "success"}
+		})
+
+		wrapped := saaskit.Wrap(handler,
+			saaskit.WithDecorators(decorator),
+		)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		wrapped(rec, req)
+
+		assert.True(t, decoratorCalled)
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "success", rec.Body.String())
+	})
+
+	t.Run("multiple decorators order", func(t *testing.T) {
+		var order []string
+
+		decorator1 := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
+			return func(ctx saaskit.Context, req string) saaskit.Response {
+				order = append(order, "decorator1-before")
+				resp := next(ctx, req)
+				order = append(order, "decorator1-after")
+				return resp
+			}
+		}
+
+		decorator2 := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
+			return func(ctx saaskit.Context, req string) saaskit.Response {
+				order = append(order, "decorator2-before")
+				resp := next(ctx, req)
+				order = append(order, "decorator2-after")
+				return resp
+			}
+		}
+
+		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
+			order = append(order, "handler")
+			return mockResponse{statusCode: http.StatusOK, body: "success"}
+		})
+
+		wrapped := saaskit.Wrap(handler,
+			saaskit.WithDecorators(decorator1, decorator2),
+		)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		wrapped(rec, req)
+
+		// Verify order: decorator1 wraps decorator2 wraps handler
+		expectedOrder := []string{
+			"decorator1-before",
+			"decorator2-before",
+			"handler",
+			"decorator2-after",
+			"decorator1-after",
+		}
+		assert.Equal(t, expectedOrder, order)
+		assert.Equal(t, http.StatusOK, rec.Code)
+	})
+
+	t.Run("decorator modifying response", func(t *testing.T) {
+		decorator := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
+			return func(ctx saaskit.Context, req string) saaskit.Response {
+				// Call original handler but ignore response
+				_ = next(ctx, req)
+				// Return modified response
+				return mockResponse{statusCode: http.StatusAccepted, body: "modified"}
+			}
+		}
+
+		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
+			return mockResponse{statusCode: http.StatusOK, body: "original"}
+		})
+
+		wrapped := saaskit.Wrap(handler,
+			saaskit.WithDecorators(decorator),
+		)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		wrapped(rec, req)
+
+		assert.Equal(t, http.StatusAccepted, rec.Code)
+		assert.Equal(t, "modified", rec.Body.String())
+	})
+
+	t.Run("decorator short-circuiting", func(t *testing.T) {
+		handlerCalled := false
+		decorator := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
+			return func(ctx saaskit.Context, req string) saaskit.Response {
+				// Don't call next, return early
+				return mockResponse{statusCode: http.StatusUnauthorized, body: "unauthorized"}
+			}
+		}
+
+		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
+			handlerCalled = true
+			return mockResponse{statusCode: http.StatusOK, body: "success"}
+		})
+
+		wrapped := saaskit.Wrap(handler,
+			saaskit.WithDecorators(decorator),
+		)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		wrapped(rec, req)
+
+		assert.False(t, handlerCalled)
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		assert.Equal(t, "unauthorized", rec.Body.String())
+	})
+
+	t.Run("decorators with custom context", func(t *testing.T) {
+		type userRequest struct {
+			Name string
+		}
+
+		decorator := func(next saaskit.HandlerFunc[customContext, userRequest]) saaskit.HandlerFunc[customContext, userRequest] {
+			return func(ctx customContext, req userRequest) saaskit.Response {
+				// Access custom context method in decorator
+				userID := ctx.UserID()
+				req.Name = req.Name + " (user: " + userID + ")"
+				return next(ctx, req)
+			}
+		}
+
+		customBinder := &mockBinder[customContext]{
+			bindFunc: func(ctx customContext, v any) error {
+				if req, ok := v.(*userRequest); ok {
+					req.Name = "John"
+				}
+				return nil
+			},
+		}
+
+		handler := saaskit.HandlerFunc[customContext, userRequest](func(ctx customContext, req userRequest) saaskit.Response {
+			return mockResponse{statusCode: http.StatusOK, body: req.Name}
+		})
+
+		wrapped := saaskit.Wrap(handler,
+			saaskit.WithContextFactory[customContext, userRequest](newTestCustomContext),
+			saaskit.WithBinder[customContext, userRequest](customBinder),
+			saaskit.WithDecorators(decorator),
+		)
+
+		req := httptest.NewRequest(http.MethodPost, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		wrapped(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "John (user: test-user-123)", rec.Body.String())
+	})
+
+	t.Run("decorator error handling", func(t *testing.T) {
+		decorator := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
+			return func(ctx saaskit.Context, req string) saaskit.Response {
+				return mockResponse{renderErr: errors.New("decorator error")}
+			}
+		}
+
+		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
+			return mockResponse{statusCode: http.StatusOK, body: "success"}
+		})
+
+		wrapped := saaskit.Wrap(handler,
+			saaskit.WithDecorators(decorator),
+		)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		wrapped(rec, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Contains(t, rec.Body.String(), "decorator error")
+	})
+
+	t.Run("multiple WithDecorators calls", func(t *testing.T) {
+		var order []string
+
+		decorator1 := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
+			return func(ctx saaskit.Context, req string) saaskit.Response {
+				order = append(order, "decorator1")
+				return next(ctx, req)
+			}
+		}
+
+		decorator2 := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
+			return func(ctx saaskit.Context, req string) saaskit.Response {
+				order = append(order, "decorator2")
+				return next(ctx, req)
+			}
+		}
+
+		decorator3 := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
+			return func(ctx saaskit.Context, req string) saaskit.Response {
+				order = append(order, "decorator3")
+				return next(ctx, req)
+			}
+		}
+
+		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
+			order = append(order, "handler")
+			return mockResponse{statusCode: http.StatusOK, body: "success"}
+		})
+
+		wrapped := saaskit.Wrap(handler,
+			saaskit.WithDecorators(decorator1, decorator2),
+			saaskit.WithDecorators(decorator3), // Multiple calls should append
+		)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		wrapped(rec, req)
+
+		// All decorators should be applied in order
+		expectedOrder := []string{"decorator1", "decorator2", "decorator3", "handler"}
+		assert.Equal(t, expectedOrder, order)
+		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 }

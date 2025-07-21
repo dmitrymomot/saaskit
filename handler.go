@@ -42,19 +42,38 @@ type Binder[C Context] interface {
 // ErrorHandler handles errors from binding or rendering.
 type ErrorHandler[C Context] func(ctx C, err error)
 
+// Decorator wraps a HandlerFunc to add cross-cutting functionality.
+// Decorators are applied in order, with the first decorator in the list
+// being the outermost wrapper.
+//
+// Example logger decorator:
+//
+//	func Logger[C Context, R any]() Decorator[C, R] {
+//		return func(next HandlerFunc[C, R]) HandlerFunc[C, R] {
+//			return func(ctx C, req R) Response {
+//				log.Printf("Request: %+v", req)
+//				resp := next(ctx, req)
+//				log.Printf("Response complete")
+//				return resp
+//			}
+//		}
+//	}
+type Decorator[C Context, R any] func(HandlerFunc[C, R]) HandlerFunc[C, R]
+
 // WrapOption configures the Wrap function.
-type WrapOption[C Context] func(*wrapConfig[C])
+type WrapOption[C Context, R any] func(*wrapConfig[C, R])
 
 // wrapConfig holds configuration for Wrap.
-type wrapConfig[C Context] struct {
+type wrapConfig[C Context, R any] struct {
 	binder         Binder[C]
 	errorHandler   ErrorHandler[C]
 	contextFactory func(http.ResponseWriter, *http.Request) C
+	decorators     []Decorator[C, R]
 }
 
 // WithBinder sets a custom request binder.
-func WithBinder[C Context](b Binder[C]) WrapOption[C] {
-	return func(c *wrapConfig[C]) {
+func WithBinder[C Context, R any](b Binder[C]) WrapOption[C, R] {
+	return func(c *wrapConfig[C, R]) {
 		if b != nil {
 			c.binder = b
 		}
@@ -62,8 +81,8 @@ func WithBinder[C Context](b Binder[C]) WrapOption[C] {
 }
 
 // WithErrorHandler sets a custom error handler.
-func WithErrorHandler[C Context](h ErrorHandler[C]) WrapOption[C] {
-	return func(c *wrapConfig[C]) {
+func WithErrorHandler[C Context, R any](h ErrorHandler[C]) WrapOption[C, R] {
+	return func(c *wrapConfig[C, R]) {
 		if h != nil {
 			c.errorHandler = h
 		}
@@ -71,11 +90,28 @@ func WithErrorHandler[C Context](h ErrorHandler[C]) WrapOption[C] {
 }
 
 // WithContextFactory sets a custom context factory.
-func WithContextFactory[C Context](f func(http.ResponseWriter, *http.Request) C) WrapOption[C] {
-	return func(c *wrapConfig[C]) {
+func WithContextFactory[C Context, R any](f func(http.ResponseWriter, *http.Request) C) WrapOption[C, R] {
+	return func(c *wrapConfig[C, R]) {
 		if f != nil {
 			c.contextFactory = f
 		}
+	}
+}
+
+// WithDecorators adds decorators to wrap the handler.
+// Decorators are applied in order, with the first decorator being the outermost.
+//
+// Example:
+//
+//	http.HandleFunc("/users", saaskit.Wrap(handler,
+//		saaskit.WithDecorators(
+//			Logger[saaskit.Context, CreateUserRequest](),
+//			RequireAuth[saaskit.Context, CreateUserRequest](),
+//		),
+//	))
+func WithDecorators[C Context, R any](decorators ...Decorator[C, R]) WrapOption[C, R] {
+	return func(c *wrapConfig[C, R]) {
+		c.decorators = append(c.decorators, decorators...)
 	}
 }
 
@@ -111,10 +147,11 @@ func defaultErrorHandler[C Context](ctx C, err error) {
 //		saaskit.WithBinder(customBinder),
 //		saaskit.WithErrorHandler(customErrorHandler),
 //		saaskit.WithContextFactory(customContextFactory),
+//		saaskit.WithDecorators(Logger(), RequireAuth()),
 //	))
-func Wrap[C Context, R any](h HandlerFunc[C, R], opts ...WrapOption[C]) http.HandlerFunc {
+func Wrap[C Context, R any](h HandlerFunc[C, R], opts ...WrapOption[C, R]) http.HandlerFunc {
 	// Initialize config with defaults
-	cfg := &wrapConfig[C]{
+	cfg := &wrapConfig[C, R]{
 		errorHandler: defaultErrorHandler[C],
 	}
 
@@ -136,6 +173,12 @@ func Wrap[C Context, R any](h HandlerFunc[C, R], opts ...WrapOption[C]) http.Han
 		opt(cfg)
 	}
 
+	// Apply decorators in reverse order so first decorator is outermost
+	finalHandler := h
+	for i := len(cfg.decorators) - 1; i >= 0; i-- {
+		finalHandler = cfg.decorators[i](finalHandler)
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := cfg.contextFactory(w, r)
 
@@ -150,7 +193,7 @@ func Wrap[C Context, R any](h HandlerFunc[C, R], opts ...WrapOption[C]) http.Han
 			}
 		}
 
-		response := h(ctx, req)
+		response := finalHandler(ctx, req)
 		if response == nil {
 			// Handler returned nil response
 			cfg.errorHandler(ctx, ErrNilResponse)
