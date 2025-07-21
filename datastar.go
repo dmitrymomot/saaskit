@@ -16,6 +16,18 @@ const (
 	DataStarQueryParam = "datastar"
 )
 
+// Patch mode aliases for convenience
+const (
+	PatchOuter   = datastar.ElementPatchModeOuter   // Morphs element (default)
+	PatchInner   = datastar.ElementPatchModeInner   // Replace inner HTML
+	PatchReplace = datastar.ElementPatchModeReplace // Replace entire element
+	PatchRemove  = datastar.ElementPatchModeRemove  // Remove element
+	PatchAppend  = datastar.ElementPatchModeAppend  // Append inside element
+	PatchPrepend = datastar.ElementPatchModePrepend // Prepend inside element
+	PatchBefore  = datastar.ElementPatchModeBefore  // Insert before element
+	PatchAfter   = datastar.ElementPatchModeAfter   // Insert after element
+)
+
 // IsDataStar checks if the request is a DataStar request.
 // DataStar requests typically accept Server-Sent Events (SSE) and may include
 // signals in the query parameter or request body.
