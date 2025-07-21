@@ -269,4 +269,3 @@ func TestBindJSON(t *testing.T) {
 		assert.Equal(t, "Test", result.Name)
 	})
 }
-
