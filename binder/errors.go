@@ -8,5 +8,6 @@ var (
 	ErrInvalidJSON          = errors.New("invalid JSON")
 	ErrInvalidForm          = errors.New("invalid form data")
 	ErrInvalidQuery         = errors.New("invalid query parameter")
+	ErrInvalidPath          = errors.New("invalid path parameter")
 	ErrMissingContentType   = errors.New("missing content type")
 )
