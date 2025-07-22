@@ -13,11 +13,12 @@ This package is internal to the project and provides file handling capabilities 
 ## Features
 
 - Unified Storage interface for abstracting storage backends
-- Local filesystem storage implementation
+- Local filesystem storage implementation with path traversal protection
 - AWS S3 and S3-compatible storage implementation (MinIO, DigitalOcean Spaces, etc.)
 - File validation utilities (size, MIME type, content detection)
 - Security features including path traversal protection and filename sanitization
 - Support for listing directory contents and checking file existence
+- Thread-safe implementations for concurrent use
 
 ## Usage
 
@@ -27,7 +28,10 @@ This package is internal to the project and provides file handling capabilities 
 import "github.com/dmitrymomot/saaskit/file"
 
 // Create local storage
-storage := file.NewLocalStorage("/files/")
+storage, err := file.NewLocalStorage("/var/www/uploads", "/files/")
+if err != nil {
+    return err
+}
 
 // In HTTP handler
 fh := r.MultipartForm.File["avatar"][0]
@@ -90,7 +94,7 @@ err = storage.Delete(ctx, "uploads/old-file.txt")
 // Delete entire directory
 err = storage.DeleteDir(ctx, "uploads/temp")
 
-// File hashing
+// File hashing (requires: import "crypto/sha256")
 hashStr, err := file.Hash(fh, sha256.New())
 // hashStr = "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
 
@@ -224,7 +228,7 @@ type S3ListObjectsV2Paginator interface {
 
 ```go
 // NewLocalStorage creates a new local filesystem storage
-func NewLocalStorage(baseURL string) *LocalStorage
+func NewLocalStorage(baseDir, baseURL string) (*LocalStorage, error)
 
 // NewS3Storage creates a new S3 storage instance
 func NewS3Storage(ctx context.Context, cfg S3Config, opts ...S3Option) (*S3Storage, error)
