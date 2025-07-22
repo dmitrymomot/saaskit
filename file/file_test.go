@@ -16,7 +16,6 @@ import (
 	"github.com/dmitrymomot/saaskit/file"
 )
 
-// createFileHeader creates a mock multipart.FileHeader for testing
 func createFileHeader(filename string, content []byte) *multipart.FileHeader {
 	body := new(bytes.Buffer)
 	writer := multipart.NewWriter(body)
@@ -56,179 +55,89 @@ func createFileHeader(filename string, content []byte) *multipart.FileHeader {
 }
 
 func TestIsImage(t *testing.T) {
-	tests := []struct {
-		name        string
-		filename    string
-		content     []byte
-		contentType string
-		want        bool
-	}{
-		{
-			name:        "jpeg image",
-			filename:    "test.jpg",
-			content:     []byte{0xFF, 0xD8, 0xFF}, // JPEG magic bytes
-			contentType: "image/jpeg",
-			want:        true,
-		},
-		{
-			name:        "png image",
-			filename:    "test.png",
-			content:     []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, // Full PNG signature
-			contentType: "image/png",
-			want:        true,
-		},
-		{
-			name:        "text file",
-			filename:    "test.txt",
-			content:     []byte("hello world"),
-			contentType: "text/plain",
-			want:        false,
-		},
-		{
-			name:        "gif image",
-			filename:    "test.gif",
-			content:     []byte{0x47, 0x49, 0x46, 0x38, 0x39, 0x61}, // GIF89a signature
-			contentType: "image/gif",
-			want:        true,
-		},
-		{
-			name:     "nil file header",
-			filename: "",
-			content:  nil,
-			want:     false,
-		},
-	}
+	t.Run("jpeg image", func(t *testing.T) {
+		fh := createFileHeader("test.jpg", []byte{0xFF, 0xD8, 0xFF})
+		got := file.IsImage(fh)
+		assert.True(t, got)
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var fh *multipart.FileHeader
-			if tt.content != nil {
-				fh = createFileHeader(tt.filename, tt.content)
-			}
-			got := file.IsImage(fh)
-			assert.Equal(t, tt.want, got)
-		})
-	}
+	t.Run("png image", func(t *testing.T) {
+		fh := createFileHeader("test.png", []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})
+		got := file.IsImage(fh)
+		assert.True(t, got)
+	})
+
+	t.Run("text file", func(t *testing.T) {
+		fh := createFileHeader("test.txt", []byte("hello world"))
+		got := file.IsImage(fh)
+		assert.False(t, got)
+	})
+
+	t.Run("gif image", func(t *testing.T) {
+		fh := createFileHeader("test.gif", []byte{0x47, 0x49, 0x46, 0x38, 0x39, 0x61})
+		got := file.IsImage(fh)
+		assert.True(t, got)
+	})
+
+	t.Run("nil file header", func(t *testing.T) {
+		var fh *multipart.FileHeader
+		got := file.IsImage(fh)
+		assert.False(t, got)
+	})
 }
 
 func TestIsVideo(t *testing.T) {
-	tests := []struct {
-		name        string
-		filename    string
-		content     []byte
-		contentType string
-		want        bool
-	}{
-		{
-			name:        "webm video",
-			filename:    "test.webm",
-			content:     []byte{0x1A, 0x45, 0xDF, 0xA3}, // WebM signature
-			contentType: "video/webm",
-			want:        true,
-		},
-		{
-			name:        "not a video",
-			filename:    "test.jpg",
-			content:     []byte{0xFF, 0xD8, 0xFF},
-			contentType: "image/jpeg",
-			want:        false,
-		},
-		{
-			name:     "nil file header",
-			filename: "",
-			content:  nil,
-			want:     false,
-		},
-	}
+	t.Run("webm video", func(t *testing.T) {
+		fh := createFileHeader("test.webm", []byte{0x1A, 0x45, 0xDF, 0xA3})
+		got := file.IsVideo(fh)
+		assert.True(t, got)
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var fh *multipart.FileHeader
-			if tt.content != nil {
-				fh = createFileHeader(tt.filename, tt.content)
-			}
-			got := file.IsVideo(fh)
-			assert.Equal(t, tt.want, got)
-		})
-	}
+	t.Run("not a video", func(t *testing.T) {
+		fh := createFileHeader("test.jpg", []byte{0xFF, 0xD8, 0xFF})
+		got := file.IsVideo(fh)
+		assert.False(t, got)
+	})
+
+	t.Run("nil file header", func(t *testing.T) {
+		var fh *multipart.FileHeader
+		got := file.IsVideo(fh)
+		assert.False(t, got)
+	})
 }
 
 func TestIsAudio(t *testing.T) {
-	tests := []struct {
-		name        string
-		filename    string
-		content     []byte
-		contentType string
-		want        bool
-	}{
-		{
-			name:        "not audio",
-			filename:    "test.txt",
-			content:     []byte("hello"),
-			contentType: "text/plain",
-			want:        false,
-		},
-		{
-			name:     "nil file header",
-			filename: "",
-			content:  nil,
-			want:     false,
-		},
-	}
+	t.Run("not audio", func(t *testing.T) {
+		fh := createFileHeader("test.txt", []byte("hello"))
+		got := file.IsAudio(fh)
+		assert.False(t, got)
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var fh *multipart.FileHeader
-			if tt.content != nil {
-				fh = createFileHeader(tt.filename, tt.content)
-			}
-			got := file.IsAudio(fh)
-			assert.Equal(t, tt.want, got)
-		})
-	}
+	t.Run("nil file header", func(t *testing.T) {
+		var fh *multipart.FileHeader
+		got := file.IsAudio(fh)
+		assert.False(t, got)
+	})
 }
 
 func TestIsPDF(t *testing.T) {
-	tests := []struct {
-		name        string
-		filename    string
-		content     []byte
-		contentType string
-		want        bool
-	}{
-		{
-			name:        "pdf file",
-			filename:    "test.pdf",
-			content:     []byte("%PDF-1.4"),
-			contentType: "application/pdf",
-			want:        true,
-		},
-		{
-			name:        "pdf by extension",
-			filename:    "test.pdf",
-			content:     []byte("not really pdf"),
-			contentType: "",
-			want:        true,
-		},
-		{
-			name:        "not pdf",
-			filename:    "test.doc",
-			content:     []byte("word doc"),
-			contentType: "application/msword",
-			want:        false,
-		},
-	}
+	t.Run("pdf file", func(t *testing.T) {
+		fh := createFileHeader("test.pdf", []byte("%PDF-1.4"))
+		got := file.IsPDF(fh)
+		assert.True(t, got)
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var fh *multipart.FileHeader
-			if tt.content != nil {
-				fh = createFileHeader(tt.filename, tt.content)
-			}
-			got := file.IsPDF(fh)
-			assert.Equal(t, tt.want, got)
-		})
-	}
+	t.Run("pdf by extension", func(t *testing.T) {
+		fh := createFileHeader("test.pdf", []byte("not really pdf"))
+		got := file.IsPDF(fh)
+		assert.True(t, got)
+	})
+
+	t.Run("not pdf", func(t *testing.T) {
+		fh := createFileHeader("test.doc", []byte("word doc"))
+		got := file.IsPDF(fh)
+		assert.False(t, got)
+	})
 }
 
 func TestGetExtension(t *testing.T) {
@@ -500,14 +409,14 @@ func TestHash(t *testing.T) {
 			name:     "sha256 hash",
 			content:  content,
 			hashFunc: sha256.New(),
-			wantLen:  64, // SHA256 produces 32 bytes = 64 hex chars
+			wantLen:  64,
 			wantErr:  false,
 		},
 		{
 			name:     "md5 hash",
 			content:  content,
 			hashFunc: md5.New(),
-			wantLen:  32, // MD5 produces 16 bytes = 32 hex chars
+			wantLen:  32,
 			wantErr:  false,
 		},
 		{
