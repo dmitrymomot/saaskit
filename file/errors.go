@@ -62,4 +62,34 @@ var (
 
 	// ErrFailedToHashFile is returned when file hashing fails
 	ErrFailedToHashFile = errors.New("failed to hash file")
+
+	// ErrBucketNotFound is returned when S3 bucket does not exist
+	ErrBucketNotFound = errors.New("bucket not found")
+
+	// ErrAccessDenied is returned when access to a resource is denied
+	ErrAccessDenied = errors.New("access denied")
+
+	// ErrRequestTimeout is returned when a request times out
+	ErrRequestTimeout = errors.New("request timed out")
+
+	// ErrServiceUnavailable is returned when the service is temporarily unavailable
+	ErrServiceUnavailable = errors.New("service temporarily unavailable")
+
+	// ErrInvalidObjectState is returned when object is in an invalid state
+	ErrInvalidObjectState = errors.New("invalid object state")
+
+	// ErrOperationTimeout is returned when an operation times out
+	ErrOperationTimeout = errors.New("operation timed out")
+
+	// ErrOperationCanceled is returned when an operation is canceled
+	ErrOperationCanceled = errors.New("operation canceled")
+
+	// ErrPaginatorNil is returned when paginator factory returns nil
+	ErrPaginatorNil = errors.New("paginator factory returned nil")
+
+	// ErrInvalidConfig is returned when configuration is invalid
+	ErrInvalidConfig = errors.New("invalid configuration")
+
+	// ErrFailedToLoadConfig is returned when AWS config cannot be loaded
+	ErrFailedToLoadConfig = errors.New("failed to load AWS config")
 )
