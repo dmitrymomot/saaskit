@@ -4,13 +4,13 @@
 //   - Helper functions for file validation and analysis
 //   - A Storage interface for abstracting file storage backends
 //   - LocalStorage implementation for filesystem storage
-//   - Support for future storage backends (S3, etc.)
+//   - S3Storage implementation for AWS S3 and compatible services
 //
-// Example usage:
+// Example usage with LocalStorage:
 //
 //	import "github.com/dmitrymomot/saaskit/file"
 //
-//	// Create storage
+//	// Create local storage
 //	storage := file.NewLocalStorage("/files/")
 //
 //	// In HTTP handler
@@ -33,4 +33,20 @@
 //
 //	// Get public URL
 //	url := storage.URL(fileInfo.RelativePath)
+//
+// Example usage with S3Storage:
+//
+//	// Create S3 storage
+//	storage, err := file.NewS3Storage(ctx, file.S3Config{
+//	    Bucket:      "my-bucket",
+//	    Region:      "us-east-1",
+//	    AccessKeyID: "key",
+//	    SecretKey:   "secret",
+//	})
+//	if err != nil {
+//	    return err
+//	}
+//
+//	// Use the same Storage interface methods
+//	fileInfo, err := storage.Save(ctx, fh, "uploads/avatar.jpg")
 package file
