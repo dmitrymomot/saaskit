@@ -8,14 +8,13 @@ import (
 
 var (
 	// Common identifier regexes
-	slugRegex       = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
-	usernameRegex   = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-	handleRegex     = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]*$`)
-	skuRegex        = regexp.MustCompile(`^[A-Z0-9-]+$`)
-	hexStringRegex  = regexp.MustCompile(`^[0-9A-Fa-f]+$`)
-	base64Regex     = regexp.MustCompile(`^[A-Za-z0-9+/]*={0,2}$`)
-	domainNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.[a-zA-Z]{2,}$`)
-	subdomainRegex  = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*$`)
+	slugRegex      = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+	usernameRegex  = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	handleRegex    = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]*$`)
+	skuRegex       = regexp.MustCompile(`^[A-Z0-9-]+$`)
+	hexStringRegex = regexp.MustCompile(`^[0-9A-Fa-f]+$`)
+	base64Regex    = regexp.MustCompile(`^[A-Za-z0-9+/]*={0,2}$`)
+	subdomainRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*$`)
 )
 
 // ValidSlug validates that a string is a valid URL slug (lowercase, alphanumeric, hyphens).

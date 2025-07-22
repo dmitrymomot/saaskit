@@ -22,7 +22,7 @@ func HealthCheckHandler(ctx context.Context, log *slog.Logger, funcs ...func(con
 		// Liveness probe: no dependency functions supplied.
 		if len(funcs) == 0 {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("ALIVE"))
+			_, _ = w.Write([]byte("ALIVE"))
 			return
 		}
 
@@ -31,12 +31,12 @@ func HealthCheckHandler(ctx context.Context, log *slog.Logger, funcs ...func(con
 			if err := f(ctx); err != nil {
 				log.ErrorContext(ctx, "Readiness check failed", logger.Error(err))
 				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte("NOT_READY"))
+				_, _ = w.Write([]byte("NOT_READY"))
 				return
 			}
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("READY"))
+		_, _ = w.Write([]byte("READY"))
 	}
 }

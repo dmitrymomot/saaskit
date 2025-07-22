@@ -14,9 +14,6 @@ var (
 	// Phone number regex - international format with optional country code
 	phoneRegex = regexp.MustCompile(`^\+?[1-9]\d{1,14}$`)
 
-	// MAC address regex - supports multiple formats
-	macRegex = regexp.MustCompile(`^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$`)
-
 	// Alphanumeric regex
 	alphanumericRegex = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
 
