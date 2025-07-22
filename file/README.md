@@ -25,10 +25,20 @@ This package is internal to the project and provides file handling capabilities 
 ### Basic Example
 
 ```go
-import "github.com/dmitrymomot/saaskit/file"
+import (
+    "time"
+    "github.com/dmitrymomot/saaskit/file"
+)
 
 // Create local storage
 storage, err := file.NewLocalStorage("/var/www/uploads", "/files/")
+if err != nil {
+    return err
+}
+
+// Or with upload timeout
+storage, err := file.NewLocalStorage("/var/www/uploads", "/files/",
+    file.WithLocalUploadTimeout(5*time.Minute))
 if err != nil {
     return err
 }
@@ -66,6 +76,14 @@ storage, err := file.NewS3Storage(ctx, file.S3Config{
     AccessKeyID: "key",
     SecretKey:   "secret",
 })
+
+// Or with upload timeout
+storage, err := file.NewS3Storage(ctx, file.S3Config{
+    Bucket:      "my-bucket",
+    Region:      "us-east-1",
+    AccessKeyID: "key",
+    SecretKey:   "secret",
+}, file.WithS3UploadTimeout(5*time.Minute))
 if err != nil {
     return err
 }
@@ -208,6 +226,9 @@ type S3Config struct {
 // S3Option defines a function that configures S3Storage
 type S3Option func(*s3Options)
 
+// LocalOption defines a function that configures LocalStorage
+type LocalOption func(*LocalStorage)
+
 // S3Client defines the interface for S3 operations used by S3Storage
 type S3Client interface {
     PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
@@ -228,7 +249,7 @@ type S3ListObjectsV2Paginator interface {
 
 ```go
 // NewLocalStorage creates a new local filesystem storage
-func NewLocalStorage(baseDir, baseURL string) (*LocalStorage, error)
+func NewLocalStorage(baseDir, baseURL string, opts ...LocalOption) (*LocalStorage, error)
 
 // NewS3Storage creates a new S3 storage instance
 func NewS3Storage(ctx context.Context, cfg S3Config, opts ...S3Option) (*S3Storage, error)
@@ -280,6 +301,12 @@ func WithS3ClientOption(option func(*s3.Options)) S3Option
 
 // WithPaginatorFactory sets a custom paginator factory
 func WithPaginatorFactory(factory func(client S3Client, params *s3.ListObjectsV2Input) S3ListObjectsV2Paginator) S3Option
+
+// WithLocalUploadTimeout sets the timeout for upload operations
+func WithLocalUploadTimeout(timeout time.Duration) LocalOption
+
+// WithS3UploadTimeout sets the timeout for upload operations
+func WithS3UploadTimeout(timeout time.Duration) S3Option
 ```
 
 ### Methods
@@ -326,5 +353,15 @@ var (
     ErrFailedToGetAbsolutePath = errors.New("failed to get absolute path")
     ErrFailedToDetectMIMEType  = errors.New("failed to detect MIME type")
     ErrFailedToHashFile        = errors.New("failed to hash file")
+    ErrBucketNotFound          = errors.New("bucket not found")
+    ErrAccessDenied            = errors.New("access denied")
+    ErrRequestTimeout          = errors.New("request timed out")
+    ErrServiceUnavailable      = errors.New("service temporarily unavailable")
+    ErrInvalidObjectState      = errors.New("invalid object state")
+    ErrOperationTimeout        = errors.New("operation timed out")
+    ErrOperationCanceled       = errors.New("operation canceled")
+    ErrPaginatorNil            = errors.New("paginator factory returned nil")
+    ErrInvalidConfig           = errors.New("invalid configuration")
+    ErrFailedToLoadConfig      = errors.New("failed to load AWS config")
 )
 ```
