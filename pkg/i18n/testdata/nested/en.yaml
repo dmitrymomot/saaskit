@@ -1,0 +1,8 @@
+en:
+  module:
+    dashboard:
+      title: "Dashboard Overview"
+      summary: "View all your important metrics at a glance"
+    settings:
+      title: "Application Settings"
+      language: "Language Preference"
