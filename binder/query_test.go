@@ -11,7 +11,7 @@ import (
 	"github.com/dmitrymomot/saaskit/binder"
 )
 
-func TestBindQuery(t *testing.T) {
+func TestQuery(t *testing.T) {
 	type basicStruct struct {
 		Name     string  `query:"name"`
 		Age      int     `query:"age"`
@@ -25,7 +25,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?name=John&age=30&height=5.9&active=true&page=2", nil)
 
 		var result basicStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestBindQuery(t *testing.T) {
 
 		var result basicStruct
 		result.Internal = "original" // Set a value that should not be overwritten
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		var result basicStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -69,7 +69,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?name=Jane&age=25", nil)
 
 		var result basicStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?age=notanumber", nil)
 
 		var result basicStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -95,7 +95,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?page=-1", nil)
 
 		var result basicStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -106,7 +106,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?height=tall", nil)
 
 		var result basicStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -159,7 +159,7 @@ func TestBindQuery(t *testing.T) {
 				req := httptest.NewRequest(http.MethodGet, "/test?active="+tt.value, nil)
 
 				var result basicStruct
-				bindFunc := binder.BindQuery()
+				bindFunc := binder.Query()
 				err := bindFunc(req, &result)
 
 				require.NoError(t, err)
@@ -190,7 +190,7 @@ func TestBindQuery(t *testing.T) {
 				req := httptest.NewRequest(http.MethodGet, "/test?active="+value, nil)
 
 				var result basicStruct
-				bindFunc := binder.BindQuery()
+				bindFunc := binder.Query()
 				err := bindFunc(req, &result)
 
 				require.Error(t, err)
@@ -209,7 +209,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?tags=go&tags=web&tags=api&ids=1&ids=2&ids=3", nil)
 
 		var result sliceStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -226,7 +226,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?tags=go,web,api&scores=1.5,2.0,3.5", nil)
 
 		var result sliceStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -242,7 +242,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?tags=go,web&tags=api&tags=backend,frontend", nil)
 
 		var result sliceStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -257,7 +257,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?flags=true&flags=false&flags=1&flags=0&flags=yes&flags=no&flags=on&flags=off", nil)
 
 		var result boolSliceStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -272,7 +272,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?settings=true,false,yes,no,1,0", nil)
 
 		var result boolSliceStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -291,7 +291,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?name=John&active=true&required=value", nil)
 
 		var result pointerStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -313,7 +313,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?name=Test&count=5", nil)
 
 		var result noTagStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -331,7 +331,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?email=user%40example.com&url=https%3A%2F%2Fexample.com&msg=Hello%20World%21", nil)
 
 		var result specialStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -344,7 +344,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		var result basicStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, result) // Pass by value, not pointer
 
 		require.Error(t, err)
@@ -355,7 +355,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		var result *basicStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, result)
 
 		require.Error(t, err)
@@ -366,7 +366,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		var result string
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -383,7 +383,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?name=Test&count=10", nil)
 
 		var result tagOptionsStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -408,7 +408,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?int8=127&int16=32767&int32=2147483647&int64=9223372036854775807&uint8=255&uint16=65535&uint32=4294967295&uint64=18446744073709551615&float32=3.14", nil)
 
 		var result numericStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -432,7 +432,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?public=visible&private=hidden", nil)
 
 		var result mixedStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -448,7 +448,7 @@ func TestBindQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?tags=go%20,%20web%20,%20%20api", nil)
 
 		var result sliceStruct
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)

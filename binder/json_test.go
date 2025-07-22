@@ -13,7 +13,7 @@ import (
 	"github.com/dmitrymomot/saaskit/binder"
 )
 
-func TestBindJSON(t *testing.T) {
+func TestJSON(t *testing.T) {
 	type testStruct struct {
 		Name  string `json:"name"`
 		Age   int    `json:"age"`
@@ -26,7 +26,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		var result testStruct
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -41,7 +41,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
 		var result testStruct
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -55,7 +55,7 @@ func TestBindJSON(t *testing.T) {
 		// Don't set Content-Type
 
 		var result testStruct
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -69,7 +69,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "text/plain")
 
 		var result testStruct
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -82,7 +82,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		var result testStruct
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -96,7 +96,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		var result testStruct
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -110,7 +110,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		var result testStruct
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -124,7 +124,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		var result testStruct
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -138,7 +138,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		var result testStruct
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -153,7 +153,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		var result testStruct
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -167,7 +167,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		var result testStruct
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -182,7 +182,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		var result testStruct
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -206,7 +206,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		var result Person
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -226,7 +226,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		var result Items
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -246,7 +246,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		var result OptionalFields
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -262,7 +262,7 @@ func TestBindJSON(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json; charset=utf-8; boundary=something")
 
 		var result testStruct
-		bindFunc := binder.BindJSON()
+		bindFunc := binder.JSON()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)

@@ -45,7 +45,7 @@ handler := saaskit.HandlerFunc[saaskit.Context, CreateUserRequest](
 
 // Apply binders
 http.HandleFunc("/users", saaskit.Wrap(handler,
-    saaskit.WithBinder(binder.BindJSON()),  // For JSON requests
+    saaskit.WithBinder(binder.JSON()),  // For JSON requests
 ))
 ```
 
@@ -67,7 +67,7 @@ type ProfileRequest struct {
 r.Get("/users/{id}/profile/{username}", saaskit.Wrap(handler,
     saaskit.WithBinders(
         binder.Path(chi.URLParam),    // Path parameters
-        binder.BindQuery(),           // Query parameters
+        binder.Query(),               // Query parameters
         binder.Form(),                // Form fields AND file uploads
     ),
 ))
@@ -147,8 +147,8 @@ File uploads use the standard Go `*multipart.FileHeader` type, providing direct 
 ### Functions
 
 ```go
-func BindJSON() func(r *http.Request, v any) error
-func BindQuery() func(r *http.Request, v any) error  
+func JSON() func(r *http.Request, v any) error
+func Query() func(r *http.Request, v any) error  
 func Form() func(r *http.Request, v any) error  // Handles both form fields and file uploads
 func Path(extractor func(r *http.Request, fieldName string) string) func(r *http.Request, v any) error
 ```

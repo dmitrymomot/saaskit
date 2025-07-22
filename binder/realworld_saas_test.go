@@ -59,7 +59,7 @@ func TestRealWorldSaaSQueryScenarios(t *testing.T) {
 				req := httptest.NewRequest(http.MethodGet, "/api/users?"+tt.query, nil)
 
 				var result PaginationParams
-				bindFunc := binder.BindQuery()
+				bindFunc := binder.Query()
 				err := bindFunc(req, &result)
 
 				require.NoError(t, err)
@@ -86,7 +86,7 @@ func TestRealWorldSaaSQueryScenarios(t *testing.T) {
 			nil)
 
 		var result FilterParams
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -117,7 +117,7 @@ func TestRealWorldSaaSQueryScenarios(t *testing.T) {
 			nil)
 
 		var result DateRangeParams
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestRealWorldSaaSQueryScenarios(t *testing.T) {
 			nil)
 
 		var result SearchParams
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -172,7 +172,7 @@ func TestRealWorldSaaSQueryScenarios(t *testing.T) {
 			nil)
 
 		var result AnalyticsParams
-		bindFunc := binder.BindQuery()
+		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)

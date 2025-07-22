@@ -37,7 +37,7 @@ import (
 //	r.Get("/users/{id}/profile/{username}", saaskit.Wrap(handler,
 //		saaskit.WithBinders(
 //			binder.Path(chi.URLParam),
-//			binder.BindQuery(),
+//			binder.Query(),
 //			binder.Form(),
 //		),
 //	))
@@ -53,7 +53,7 @@ import (
 //	router.HandleFunc("/users/{id}/profile/{username}", saaskit.Wrap(handler,
 //		saaskit.WithBinders(
 //			binder.Path(muxExtractor),
-//			binder.BindQuery(),
+//			binder.Query(),
 //			binder.Form(),
 //		),
 //	))

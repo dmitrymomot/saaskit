@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// BindJSON creates a JSON binder function.
+// JSON creates a JSON binder function.
 //
 // Example:
 //
@@ -20,9 +20,9 @@ import (
 //	)
 //
 //	http.HandleFunc("/users", saaskit.Wrap(handler,
-//		saaskit.WithBinder(binder.BindJSON()),
+//		saaskit.WithBinder(binder.JSON()),
 //	))
-func BindJSON() func(r *http.Request, v any) error {
+func JSON() func(r *http.Request, v any) error {
 	return func(r *http.Request, v any) error {
 		// Check content type
 		contentType := r.Header.Get("Content-Type")

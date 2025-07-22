@@ -19,7 +19,7 @@ func BenchmarkBindToStruct_SmallStruct(b *testing.B) {
 		Field5 int64  `query:"field5"`
 	}
 
-	queryBinder := binder.BindQuery()
+	queryBinder := binder.Query()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -94,7 +94,7 @@ func BenchmarkBindToStruct_LargeStruct(b *testing.B) {
 		queryString += "field" + string(rune('0'+i/10)) + string(rune('0'+i%10)) + "=value" + string(rune('0'+i/10)) + string(rune('0'+i%10))
 	}
 
-	queryBinder := binder.BindQuery()
+	queryBinder := binder.Query()
 
 	b.ReportAllocs()
 	b.ResetTimer()

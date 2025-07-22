@@ -4,7 +4,7 @@ import (
 	"net/http"
 )
 
-// BindQuery creates a query parameter binder function.
+// Query creates a query parameter binder function.
 //
 // It supports struct tags for custom parameter names:
 //   - `query:"name"` - binds to query parameter "name"
@@ -35,9 +35,9 @@ import (
 //	)
 //
 //	http.HandleFunc("/search", saaskit.Wrap(handler,
-//		saaskit.WithBinder(binder.BindQuery()),
+//		saaskit.WithBinder(binder.Query()),
 //	))
-func BindQuery() func(r *http.Request, v any) error {
+func Query() func(r *http.Request, v any) error {
 	return func(r *http.Request, v any) error {
 		return bindToStruct(v, "query", r.URL.Query(), ErrInvalidQuery)
 	}

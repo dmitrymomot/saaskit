@@ -66,7 +66,7 @@ func BenchmarkCombinedBinders(b *testing.B) {
 	writer.Close()
 
 	// Create binders
-	queryBinder := binder.BindQuery()
+	queryBinder := binder.Query()
 	pathBinder := binder.Path(func(r *http.Request, fieldName string) string {
 		// Simulate path param extraction
 		if fieldName == "user_id" {
@@ -252,14 +252,14 @@ func BenchmarkRealWorldScenario_ProductListing(b *testing.B) {
 
 	writer.Close()
 
-	queryBinder := binder.BindQuery()
+	queryBinder := binder.Query()
 	pathBinder := binder.Path(func(r *http.Request, fieldName string) string {
 		if fieldName == "store_id" {
 			return "store123"
 		}
 		return ""
 	})
-	jsonBinder := binder.BindJSON()
+	jsonBinder := binder.JSON()
 	formBinder := binder.Form()
 
 	b.ReportAllocs()
