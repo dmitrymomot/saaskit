@@ -14,10 +14,10 @@ This package is internal to the project and provides request data binding functi
 
 - Type-safe binding of HTTP request data to structs
 - Support for JSON, form data, query parameters, and path parameters
-- Secure file upload handling with path traversal protection
-- Configurable memory limits for multipart forms
-- Automatic content type detection for uploaded files
+- Unified form and file binding with secure filename sanitization
+- Configurable memory limits for multipart forms (default 10MB)
 - Support for optional fields using pointers and slices for multi-value parameters
+- Direct access to standard Go multipart.FileHeader for file uploads
 
 ## Usage
 
@@ -54,11 +54,13 @@ http.HandleFunc("/users", saaskit.Wrap(handler,
 ```go
 // Combining multiple binders for flexible input
 type ProfileRequest struct {
-    UserID   string      `path:"id"`        // From URL path
-    Username string      `path:"username"`  // From URL path
-    Name     string      `form:"name"`      // From form data
-    Expand   bool        `query:"expand"`   // From query string
-    Avatar   FileUpload  `file:"avatar"`    // File upload
+    UserID   string                  `path:"id"`        // From URL path
+    Username string                  `path:"username"`  // From URL path
+    Name     string                  `form:"name"`      // From form data
+    Bio      string                  `form:"bio"`       // From form data
+    Expand   bool                    `query:"expand"`   // From query string
+    Avatar   *multipart.FileHeader   `file:"avatar"`    // File upload (optional)
+    Gallery  []*multipart.FileHeader `file:"gallery"`   // Multiple files
 }
 
 // Route with multiple data sources
@@ -66,18 +68,31 @@ r.Get("/users/{id}/profile/{username}", saaskit.Wrap(handler,
     saaskit.WithBinders(
         binder.Path(chi.URLParam),    // Path parameters
         binder.BindQuery(),           // Query parameters
-        binder.BindForm(),            // Form fields
-        binder.File(),                // File uploads
+        binder.Form(),                // Form fields AND file uploads
     ),
 ))
 
 // File upload with validation
 handler := saaskit.HandlerFunc[saaskit.Context, UploadRequest](
     func(ctx saaskit.Context, req UploadRequest) saaskit.Response {
-        if req.Avatar.Size > 0 {
-            // Validate file type by content
-            detectedType := req.Avatar.DetectContentType()
-            if !strings.HasPrefix(detectedType, "image/") {
+        if req.Avatar != nil {
+            // Open and validate file
+            file, err := req.Avatar.Open()
+            if err != nil {
+                return saaskit.Error(http.StatusBadRequest, "Failed to open file")
+            }
+            defer file.Close()
+            
+            // Read first 512 bytes for content type detection
+            buffer := make([]byte, 512)
+            _, err = file.Read(buffer)
+            if err != nil && err != io.EOF {
+                return saaskit.Error(http.StatusBadRequest, "Failed to read file")
+            }
+            
+            // Detect content type
+            contentType := http.DetectContentType(buffer)
+            if !strings.HasPrefix(contentType, "image/") {
                 return saaskit.Error(http.StatusBadRequest, "Avatar must be an image")
             }
         }
@@ -88,7 +103,7 @@ handler := saaskit.HandlerFunc[saaskit.Context, UploadRequest](
 
 ### Error Handling
 
-The framework handles binding errors automatically
+The framework handles binding errors automatically.
 Common errors include:
 
 - ErrUnsupportedMediaType: Wrong content type
@@ -103,65 +118,51 @@ Common errors include:
 ### Integration Guidelines
 
 - Use appropriate binders based on content type
-- Combine multiple binders when data comes from different sources
-- Always validate file uploads using DetectContentType() for security
-- Set appropriate memory limits for large file uploads
+- Form() binder handles both form fields and file uploads in multipart requests
+- Always validate file uploads by checking content rather than trusting headers
+- Default memory limit is 10MB for multipart forms
 
 ### Project-Specific Considerations
 
-- File uploads are sanitized automatically to prevent path traversal
-- Memory limits default to 10MB but can be customized per endpoint
+- Filenames are automatically sanitized to prevent path traversal attacks
+- Form() binder unifies form field and file handling for simpler API
 - All binders are designed to work seamlessly with the saaskit handler system
 - Struct tag names follow standard conventions (json, form, query, path, file)
+- File fields use standard Go *multipart.FileHeader type
 
 ## API Reference
 
-### Configuration Variables
+### Configuration
 
 ```go
 const DefaultMaxMemory = 10 << 20 // 10 MB default limit for multipart forms
 ```
 
-### Types
-
-```go
-type FileUpload struct {
-    Filename string                    // Original filename (sanitized)
-    Size     int64                    // File size in bytes
-    Header   textproto.MIMEHeader     // MIME headers
-    Content  []byte                   // File content
-}
-
-type FileHeader struct {
-    Filename string
-    Size     int64
-    Header   textproto.MIMEHeader
-}
-```
+File uploads use the standard Go `*multipart.FileHeader` type, providing direct access to:
+- `Filename` - The original filename (automatically sanitized)
+- `Size` - File size in bytes  
+- `Header` - MIME headers
+- `Open()` - Method to access file content as io.ReadCloser
 
 ### Functions
 
 ```go
 func BindJSON() func(r *http.Request, v any) error
-func BindQuery() func(r *http.Request, v any) error
-func BindForm() func(r *http.Request, v any) error
+func BindQuery() func(r *http.Request, v any) error  
+func Form() func(r *http.Request, v any) error  // Handles both form fields and file uploads
 func Path(extractor func(r *http.Request, fieldName string) string) func(r *http.Request, v any) error
-func File() func(r *http.Request, v any) error
-
-// Standalone file handling functions
-func GetFile(r *http.Request, field string) (*FileUpload, error)
-func GetFiles(r *http.Request, field string) ([]*FileUpload, error)
-func GetAllFiles(r *http.Request) (map[string][]*FileUpload, error)
-func GetFileWithLimit(r *http.Request, field string, maxMemory int64) (*FileUpload, error)
-func StreamFile(r *http.Request, field string, handler func(io.Reader, *FileHeader) error) error
 ```
 
-### Methods
+### Supported Field Types
 
-```go
-func (f *FileUpload) ContentType() string         // Returns MIME type from headers
-func (f *FileUpload) DetectContentType() string   // Detects MIME type from content
-```
+**Form fields (`form:` tag):**
+- Basic types: string, int, int64, uint, uint64, float32, float64, bool
+- Slices of basic types for multi-value fields
+- Pointers for optional fields
+
+**File fields (`file:` tag):**
+- `*multipart.FileHeader` - single file (optional)
+- `[]*multipart.FileHeader` - multiple files
 
 ### Error Types
 
@@ -173,3 +174,15 @@ var ErrInvalidQuery         = errors.New("invalid query parameter")
 var ErrInvalidPath          = errors.New("invalid path parameter")
 var ErrMissingContentType   = errors.New("missing content type")
 ```
+
+### Performance Benchmarks
+
+| Operation | Time/op | Memory/op | Allocs/op |
+|-----------|---------|-----------|------------|
+| Small Form (5 fields) | 2,021 ns | 5,857 B | 22 |
+| Large Form (50 fields) | 13,930 ns | 15,546 B | 120 |
+| Mixed Types | 32,935 ns | 52,840 B | 425 |
+| Single File | 5,772 ns | 17,214 B | 57 |
+| Multiple Files (10) | 28,291 ns | 73,436 B | 303 |
+
+*Benchmarks run on Apple M3 Max*

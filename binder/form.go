@@ -12,36 +12,14 @@ import (
 // DefaultMaxMemory is the default maximum memory used for parsing multipart forms (10MB).
 const DefaultMaxMemory = 10 << 20 // 10 MB
 
-// sanitizeFilename removes any path components and dangerous characters from a filename
-// to prevent path traversal attacks and other security issues.
-func sanitizeFilename(filename string) string {
-	// First, replace backslashes with forward slashes to normalize paths
-	// This ensures filepath.Base works correctly on Windows-style paths
-	filename = strings.ReplaceAll(filename, "\\", "/")
-
-	// Remove any directory components using filepath.Base
-	// This now handles both Unix and Windows paths correctly
-	filename = filepath.Base(filename)
-
-	// Remove null bytes and other potentially dangerous characters
-	filename = strings.ReplaceAll(filename, "\x00", "")
-
-	// Ensure the filename is not empty or a special directory reference
-	if filename == "." || filename == ".." || filename == "" || filename == "/" {
-		filename = "unnamed"
-	}
-
-	return filename
-}
-
 // Form creates a unified binder for both form data and file uploads.
 // It handles application/x-www-form-urlencoded and multipart/form-data content types.
 //
 // Supported struct tags:
 //   - `form:"name"` - binds to form field "name"
-//   - `form:"-"` - skips the field
+//   - `form:"-"`    - skips the field
 //   - `file:"name"` - binds to uploaded file "name"
-//   - `file:"-"` - skips the field
+//   - `file:"-"`    - skips the field
 //
 // Supported types for form fields:
 //   - Basic types: string, int, int64, uint, uint64, float32, float64, bool
@@ -233,4 +211,26 @@ func setFileField(field reflect.Value, fieldType reflect.Type, fileHeaders []*mu
 	}
 
 	return fmt.Errorf("unsupported type for file field: %v (expected *multipart.FileHeader or []*multipart.FileHeader)", fieldType)
+}
+
+// sanitizeFilename removes any path components and dangerous characters from a filename
+// to prevent path traversal attacks and other security issues.
+func sanitizeFilename(filename string) string {
+	// First, replace backslashes with forward slashes to normalize paths
+	// This ensures filepath.Base works correctly on Windows-style paths
+	filename = strings.ReplaceAll(filename, "\\", "/")
+
+	// Remove any directory components using filepath.Base
+	// This now handles both Unix and Windows paths correctly
+	filename = filepath.Base(filename)
+
+	// Remove null bytes and other potentially dangerous characters
+	filename = strings.ReplaceAll(filename, "\x00", "")
+
+	// Ensure the filename is not empty or a special directory reference
+	if filename == "." || filename == ".." || filename == "" || filename == "/" {
+		filename = "unnamed"
+	}
+
+	return filename
 }
