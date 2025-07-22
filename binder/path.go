@@ -38,7 +38,7 @@ import (
 //		saaskit.WithBinders(
 //			binder.Path(chi.URLParam),
 //			binder.BindQuery(),
-//			binder.BindForm(),
+//			binder.Form(),
 //		),
 //	))
 //
@@ -54,7 +54,7 @@ import (
 //		saaskit.WithBinders(
 //			binder.Path(muxExtractor),
 //			binder.BindQuery(),
-//			binder.BindForm(),
+//			binder.Form(),
 //		),
 //	))
 func Path(extractor func(r *http.Request, fieldName string) string) func(r *http.Request, v any) error {

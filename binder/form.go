@@ -2,47 +2,85 @@ package binder
 
 import (
 	"fmt"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
+	"reflect"
 	"strings"
 )
 
-// BindForm creates a form data binder function for both application/x-www-form-urlencoded
-// and multipart/form-data content types. For multipart forms, it only binds non-file fields.
+// DefaultMaxMemory is the default maximum memory used for parsing multipart forms (10MB).
+const DefaultMaxMemory = 10 << 20 // 10 MB
+
+// sanitizeFilename removes any path components and dangerous characters from a filename
+// to prevent path traversal attacks and other security issues.
+func sanitizeFilename(filename string) string {
+	// First, replace backslashes with forward slashes to normalize paths
+	// This ensures filepath.Base works correctly on Windows-style paths
+	filename = strings.ReplaceAll(filename, "\\", "/")
+
+	// Remove any directory components using filepath.Base
+	// This now handles both Unix and Windows paths correctly
+	filename = filepath.Base(filename)
+
+	// Remove null bytes and other potentially dangerous characters
+	filename = strings.ReplaceAll(filename, "\x00", "")
+
+	// Ensure the filename is not empty or a special directory reference
+	if filename == "." || filename == ".." || filename == "" || filename == "/" {
+		filename = "unnamed"
+	}
+
+	return filename
+}
+
+// Form creates a unified binder for both form data and file uploads.
+// It handles application/x-www-form-urlencoded and multipart/form-data content types.
 //
-// It supports struct tags for custom field names:
+// Supported struct tags:
 //   - `form:"name"` - binds to form field "name"
 //   - `form:"-"` - skips the field
-//   - `form:"name,omitempty"` - same as form:"name" for parsing
+//   - `file:"name"` - binds to uploaded file "name"
+//   - `file:"-"` - skips the field
 //
-// Supported types:
+// Supported types for form fields:
 //   - Basic types: string, int, int64, uint, uint64, float32, float64, bool
 //   - Slices of basic types for multi-value fields
 //   - Pointers for optional fields
 //
-// For file uploads in multipart forms, use the File() binder with `file:` tags.
+// Supported types for file fields:
+//   - *multipart.FileHeader - single file
+//   - []*multipart.FileHeader - multiple files
 //
 // Example:
 //
-//	type LoginRequest struct {
-//		Username string   `form:"username"`
-//		Password string   `form:"password"`
-//		Remember bool     `form:"remember"`
-//		Roles    []string `form:"roles"`    // Multiple checkbox values
-//		Ref      *string  `form:"ref"`      // Optional field
-//		Internal string   `form:"-"`        // Skipped
+//	type UploadRequest struct {
+//		Title    string                  `form:"title"`
+//		Category string                  `form:"category"`
+//		Tags     []string                `form:"tags"`     // Multi-value field
+//		Avatar   *multipart.FileHeader   `file:"avatar"`   // Optional file
+//		Gallery  []*multipart.FileHeader `file:"gallery"`  // Multiple files
+//		Internal string                  `form:"-"`        // Skipped
 //	}
 //
-//	handler := saaskit.HandlerFunc[saaskit.Context, LoginRequest](
-//		func(ctx saaskit.Context, req LoginRequest) saaskit.Response {
-//			// req is populated from form data
+//	handler := saaskit.HandlerFunc[saaskit.Context, UploadRequest](
+//		func(ctx saaskit.Context, req UploadRequest) saaskit.Response {
+//			if req.Avatar != nil {
+//				file, err := req.Avatar.Open()
+//				if err != nil {
+//					return saaskit.Error(http.StatusBadRequest, "Failed to open file")
+//				}
+//				defer file.Close()
+//				// Process file...
+//			}
 //			return saaskit.JSONResponse(result)
 //		},
 //	)
 //
-//	http.HandleFunc("/login", saaskit.Wrap(handler,
-//		saaskit.WithBinder(binder.BindForm()),
+//	http.HandleFunc("/upload", saaskit.Wrap(handler,
+//		saaskit.WithBinder(binder.Form()),
 //	))
-func BindForm() func(r *http.Request, v any) error {
+func Form() func(r *http.Request, v any) error {
 	return func(r *http.Request, v any) error {
 		// Check content type
 		contentType := r.Header.Get("Content-Type")
@@ -57,6 +95,7 @@ func BindForm() func(r *http.Request, v any) error {
 		}
 
 		var values map[string][]string
+		var files map[string][]*multipart.FileHeader
 
 		switch {
 		case mediaType == "application/x-www-form-urlencoded":
@@ -67,12 +106,13 @@ func BindForm() func(r *http.Request, v any) error {
 			values = r.Form
 
 		case strings.HasPrefix(mediaType, "multipart/form-data"):
-			// Parse multipart form (default 10MB limit)
-			if err := r.ParseMultipartForm(10 << 20); err != nil {
+			// Parse multipart form
+			if err := r.ParseMultipartForm(DefaultMaxMemory); err != nil {
 				return fmt.Errorf("%w: %v", ErrInvalidForm, err)
 			}
 			if r.MultipartForm != nil {
 				values = r.MultipartForm.Value
+				files = r.MultipartForm.File
 			} else {
 				values = make(map[string][]string)
 			}
@@ -81,7 +121,106 @@ func BindForm() func(r *http.Request, v any) error {
 			return fmt.Errorf("%w: got %s, expected application/x-www-form-urlencoded or multipart/form-data", ErrUnsupportedMediaType, mediaType)
 		}
 
-		// Use the shared binding logic
-		return bindToStruct(v, "form", values, ErrInvalidForm)
+		// Bind both form fields and files
+		return bindFormAndFiles(v, values, files, ErrInvalidForm)
 	}
+}
+
+// bindFormAndFiles binds both form values and files to a struct.
+func bindFormAndFiles(v any, values map[string][]string, files map[string][]*multipart.FileHeader, bindErr error) error {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		return fmt.Errorf("%w: target must be a non-nil pointer", bindErr)
+	}
+
+	rv = rv.Elem()
+	if rv.Kind() != reflect.Struct {
+		return fmt.Errorf("%w: target must be a pointer to struct", bindErr)
+	}
+
+	rt := rv.Type()
+
+	for i := 0; i < rv.NumField(); i++ {
+		field := rv.Field(i)
+		fieldType := rt.Field(i)
+
+		// Skip unexported fields
+		if !field.CanSet() {
+			continue
+		}
+
+		// Check for form tag first
+		formTag := fieldType.Tag.Get("form")
+		if formTag == "-" {
+			continue // Skip explicitly ignored fields
+		}
+
+		// Determine the parameter name for form fields
+		var paramName string
+		if formTag != "" {
+			// Use explicit tag value
+			if idx := strings.Index(formTag, ","); idx != -1 {
+				paramName = formTag[:idx]
+			} else {
+				paramName = formTag
+			}
+		} else if fieldType.Tag.Get("file") == "" {
+			// No form tag and no file tag - use lowercase field name for form binding
+			paramName = strings.ToLower(fieldType.Name)
+		}
+
+		// Try to bind form value if we have a param name
+		if paramName != "" {
+			if fieldValues, exists := values[paramName]; exists && len(fieldValues) > 0 {
+				if err := setFieldValue(field, fieldType.Type, fieldValues); err != nil {
+					return fmt.Errorf("%w: field %s: %v", bindErr, fieldType.Name, err)
+				}
+			}
+			continue
+		}
+
+		// Check for file tag
+		if tag := fieldType.Tag.Get("file"); tag != "" && tag != "-" && files != nil {
+			if fileHeaders, exists := files[tag]; exists && len(fileHeaders) > 0 {
+				if err := setFileField(field, fieldType.Type, fileHeaders); err != nil {
+					return fmt.Errorf("%w: field %s: %v", bindErr, fieldType.Name, err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// setFileField sets file values to struct fields.
+func setFileField(field reflect.Value, fieldType reflect.Type, fileHeaders []*multipart.FileHeader) error {
+	// Sanitize filenames
+	for _, fh := range fileHeaders {
+		fh.Filename = sanitizeFilename(fh.Filename)
+	}
+
+	// Handle slice types
+	if fieldType.Kind() == reflect.Slice {
+		elemType := fieldType.Elem()
+		if elemType != reflect.TypeOf((*multipart.FileHeader)(nil)) {
+			return fmt.Errorf("unsupported slice element type for file field: %v", elemType)
+		}
+
+		slice := reflect.MakeSlice(fieldType, len(fileHeaders), len(fileHeaders))
+		for i, fh := range fileHeaders {
+			slice.Index(i).Set(reflect.ValueOf(fh))
+		}
+		field.Set(slice)
+		return nil
+	}
+
+	// Handle pointer type (optional single file)
+	if fieldType == reflect.TypeOf((*multipart.FileHeader)(nil)) {
+		if len(fileHeaders) > 0 {
+			field.Set(reflect.ValueOf(fileHeaders[0]))
+		}
+		return nil
+	}
+
+	return fmt.Errorf("unsupported type for file field: %v (expected *multipart.FileHeader or []*multipart.FileHeader)", fieldType)
 }

@@ -230,7 +230,7 @@ func TestRealWorldSaaSFormScenarios(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result UserProfileForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -287,7 +287,7 @@ func TestRealWorldSaaSFormScenarios(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result CheckoutForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -345,7 +345,7 @@ func TestRealWorldSaaSFormScenarios(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result ProjectSettings
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)

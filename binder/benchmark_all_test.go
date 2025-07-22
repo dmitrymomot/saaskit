@@ -32,8 +32,8 @@ func BenchmarkCombinedBinders(b *testing.B) {
 		Priority int    `form:"priority"`
 
 		// File uploads
-		Avatar  binder.FileUpload   `file:"avatar"`
-		Gallery []binder.FileUpload `file:"gallery"`
+		Avatar  *multipart.FileHeader   `file:"avatar"`
+		Gallery []*multipart.FileHeader `file:"gallery"`
 	}
 
 	// Create multipart body with JSON and files
@@ -74,8 +74,7 @@ func BenchmarkCombinedBinders(b *testing.B) {
 		}
 		return ""
 	})
-	formBinder := binder.BindForm()
-	fileBinder := binder.File()
+	formBinder := binder.Form()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -96,7 +95,6 @@ func BenchmarkCombinedBinders(b *testing.B) {
 		_ = queryBinder(req, &complexReq)
 		_ = pathBinder(req, &complexReq)
 		_ = formBinder(req, &complexReq)
-		_ = fileBinder(req, &complexReq)
 
 		// Note: JSON binding would typically be done on a separate request
 		// since you can't have both multipart and JSON body at the same time
@@ -129,8 +127,8 @@ func BenchmarkRealWorldScenario_UserProfile(b *testing.B) {
 		Language      string `form:"language"`
 
 		// File uploads
-		ProfilePicture *binder.FileUpload `file:"profile_picture"`
-		Resume         *binder.FileUpload `file:"resume"`
+		ProfilePicture *multipart.FileHeader `file:"profile_picture"`
+		Resume         *multipart.FileHeader `file:"resume"`
 	}
 
 	// Create realistic form data
@@ -171,8 +169,7 @@ func BenchmarkRealWorldScenario_UserProfile(b *testing.B) {
 
 	writer.Close()
 
-	formBinder := binder.BindForm()
-	fileBinder := binder.File()
+	formBinder := binder.Form()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -183,7 +180,6 @@ func BenchmarkRealWorldScenario_UserProfile(b *testing.B) {
 
 		var profile UserProfileUpdate
 		_ = formBinder(req, &profile)
-		_ = fileBinder(req, &profile)
 	}
 }
 
@@ -209,9 +205,9 @@ func BenchmarkRealWorldScenario_ProductListing(b *testing.B) {
 		StoreID string `path:"store_id"`
 
 		// File uploads
-		MainImage      binder.FileUpload   `file:"main_image"`
-		Images         []binder.FileUpload `file:"images"`
-		Specifications *binder.FileUpload  `file:"specifications"`
+		MainImage      *multipart.FileHeader   `file:"main_image"`
+		Images         []*multipart.FileHeader `file:"images"`
+		Specifications *multipart.FileHeader   `file:"specifications"`
 	}
 
 	// Create request body
@@ -264,7 +260,7 @@ func BenchmarkRealWorldScenario_ProductListing(b *testing.B) {
 		return ""
 	})
 	jsonBinder := binder.BindJSON()
-	fileBinder := binder.File()
+	formBinder := binder.Form()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -286,6 +282,6 @@ func BenchmarkRealWorldScenario_ProductListing(b *testing.B) {
 		_ = queryBinder(fileReq, &product)
 		_ = pathBinder(fileReq, &product)
 		_ = jsonBinder(jsonReq, &product)
-		_ = fileBinder(fileReq, &product)
+		_ = formBinder(fileReq, &product)
 	}
 }

@@ -150,7 +150,7 @@ func BenchmarkBindToStruct_MixedTypes(b *testing.B) {
 	writer.WriteField("intslice", "3")
 	writer.Close()
 
-	formBinder := binder.BindForm()
+	formBinder := binder.Form()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -195,7 +195,7 @@ func BenchmarkBindToStruct_NestedStruct(b *testing.B) {
 	writer.WriteField("updated_at", "2023-01-02")
 	writer.Close()
 
-	formBinder := binder.BindForm()
+	formBinder := binder.Form()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -229,7 +229,7 @@ func BenchmarkBindToStruct_PointerFields(b *testing.B) {
 	writer.WriteField("slice", "b")
 	writer.Close()
 
-	formBinder := binder.BindForm()
+	formBinder := binder.Form()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -263,7 +263,7 @@ func BenchmarkForm_TagParsing(b *testing.B) {
 	writer.WriteField("another", "test5")
 	writer.Close()
 
-	formBinder := binder.BindForm()
+	formBinder := binder.Form()
 
 	b.ReportAllocs()
 	b.ResetTimer()

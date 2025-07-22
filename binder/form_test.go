@@ -16,7 +16,7 @@ import (
 	"github.com/dmitrymomot/saaskit/binder"
 )
 
-func TestBindForm(t *testing.T) {
+func TestForm(t *testing.T) {
 	type basicForm struct {
 		Name     string  `form:"name"`
 		Age      int     `form:"age"`
@@ -38,7 +38,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result basicForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -60,7 +60,7 @@ func TestBindForm(t *testing.T) {
 
 		var result basicForm
 		result.Internal = "original" // Set a value that should not be overwritten
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
 
 		var result basicForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -91,7 +91,7 @@ func TestBindForm(t *testing.T) {
 		// Don't set Content-Type
 
 		var result basicForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -105,7 +105,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		var result basicForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -118,7 +118,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result basicForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -138,7 +138,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result basicForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -154,7 +154,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result basicForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -176,7 +176,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result sliceForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -198,7 +198,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result sliceForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -218,7 +218,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result boolSliceForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -237,7 +237,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result boolSliceForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -262,7 +262,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result pointerForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -289,7 +289,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result noTagForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -313,7 +313,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result specialForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -327,7 +327,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result basicForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, result) // Pass by value, not pointer
 
 		require.Error(t, err)
@@ -380,7 +380,7 @@ func TestBindForm(t *testing.T) {
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 				var result basicForm
-				bindFunc := binder.BindForm()
+				bindFunc := binder.Form()
 				err := bindFunc(req, &result)
 
 				require.NoError(t, err)
@@ -413,7 +413,7 @@ func TestBindForm(t *testing.T) {
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 				var result basicForm
-				bindFunc := binder.BindForm()
+				bindFunc := binder.Form()
 				err := bindFunc(req, &result)
 
 				require.Error(t, err)
@@ -438,7 +438,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result tagOptionsForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -574,7 +574,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result AppSettings
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -596,7 +596,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result basicForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
@@ -612,7 +612,7 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result basicForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
@@ -632,12 +632,229 @@ func TestBindForm(t *testing.T) {
 		req.Header.Set("Content-Type", w.FormDataContentType())
 
 		var result basicForm
-		bindFunc := binder.BindForm()
+		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
-		// BindForm now supports multipart forms
+		// Form now supports multipart forms
 		require.NoError(t, err)
 		assert.Equal(t, "Test", result.Name)
 		assert.Equal(t, 25, result.Age)
 	})
+}
+
+func TestFormWithFiles(t *testing.T) {
+	type uploadForm struct {
+		Title    string                  `form:"title"`
+		Category string                  `form:"category"`
+		Avatar   *multipart.FileHeader   `file:"avatar"`
+		Gallery  []*multipart.FileHeader `file:"gallery"`
+		Document *multipart.FileHeader   `file:"document"`
+		Skip     *multipart.FileHeader   `file:"-"`
+		NoTag    *multipart.FileHeader
+		private  *multipart.FileHeader `file:"private"`
+	}
+
+	t.Run("form and file fields together", func(t *testing.T) {
+		body, contentType := createMultipartFormWithFiles(t,
+			map[string]string{
+				"title":    "My Upload",
+				"category": "photos",
+			},
+			map[string][]fileData{
+				"avatar": {{filename: "avatar.jpg", content: []byte("avatar data")}},
+			},
+		)
+
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
+		req.Header.Set("Content-Type", contentType)
+
+		var result uploadForm
+		bindFunc := binder.Form()
+		err := bindFunc(req, &result)
+
+		require.NoError(t, err)
+		assert.Equal(t, "My Upload", result.Title)
+		assert.Equal(t, "photos", result.Category)
+		require.NotNil(t, result.Avatar)
+		assert.Equal(t, "avatar.jpg", result.Avatar.Filename)
+		assert.Equal(t, int64(11), result.Avatar.Size) // "avatar data" is 11 bytes
+	})
+
+	t.Run("optional file present", func(t *testing.T) {
+		body, contentType := createMultipartFormWithFiles(t,
+			map[string]string{"title": "Test"},
+			map[string][]fileData{
+				"document": {{filename: "doc.pdf", content: []byte("pdf content")}},
+			},
+		)
+
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
+		req.Header.Set("Content-Type", contentType)
+
+		var result uploadForm
+		bindFunc := binder.Form()
+		err := bindFunc(req, &result)
+
+		require.NoError(t, err)
+		require.NotNil(t, result.Document)
+		assert.Equal(t, "doc.pdf", result.Document.Filename)
+		assert.Nil(t, result.Avatar) // Not provided
+	})
+
+	t.Run("multiple files", func(t *testing.T) {
+		body, contentType := createMultipartFormWithFiles(t,
+			map[string]string{"title": "Gallery"},
+			map[string][]fileData{
+				"gallery": {
+					{filename: "img1.jpg", content: []byte("image1")},
+					{filename: "img2.jpg", content: []byte("image2")},
+					{filename: "img3.jpg", content: []byte("image3")},
+				},
+			},
+		)
+
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
+		req.Header.Set("Content-Type", contentType)
+
+		var result uploadForm
+		bindFunc := binder.Form()
+		err := bindFunc(req, &result)
+
+		require.NoError(t, err)
+		require.Len(t, result.Gallery, 3)
+		assert.Equal(t, "img1.jpg", result.Gallery[0].Filename)
+		assert.Equal(t, "img2.jpg", result.Gallery[1].Filename)
+		assert.Equal(t, "img3.jpg", result.Gallery[2].Filename)
+	})
+
+	t.Run("skip fields with dash tag", func(t *testing.T) {
+		body, contentType := createMultipartFormWithFiles(t,
+			map[string]string{"title": "Test"},
+			map[string][]fileData{
+				"skip": {{filename: "skip.txt", content: []byte("should not bind")}},
+			},
+		)
+
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
+		req.Header.Set("Content-Type", contentType)
+
+		var result uploadForm
+		bindFunc := binder.Form()
+		err := bindFunc(req, &result)
+
+		require.NoError(t, err)
+		assert.Nil(t, result.Skip)
+	})
+
+	t.Run("filename sanitization", func(t *testing.T) {
+		dangerousFilenames := []struct {
+			input    string
+			expected string
+		}{
+			{"../../../etc/passwd", "passwd"},
+			{"..\\..\\windows\\system32\\config", "config"},
+			{"/etc/passwd", "passwd"},
+			{"C:\\Windows\\System32\\config.sys", "config.sys"},
+			{".", "unnamed"},
+			{"..", "unnamed"},
+			{"/", "unnamed"},
+			{"normal.txt", "normal.txt"},
+		}
+
+		for _, tc := range dangerousFilenames {
+			t.Run(tc.input, func(t *testing.T) {
+				body, contentType := createMultipartFormWithFiles(t,
+					map[string]string{"title": "Test"},
+					map[string][]fileData{
+						"avatar": {{filename: tc.input, content: []byte("data")}},
+					},
+				)
+
+				req := httptest.NewRequest(http.MethodPost, "/upload", body)
+				req.Header.Set("Content-Type", contentType)
+
+				var result uploadForm
+				bindFunc := binder.Form()
+				err := bindFunc(req, &result)
+
+				require.NoError(t, err)
+				require.NotNil(t, result.Avatar)
+				assert.Equal(t, tc.expected, result.Avatar.Filename)
+			})
+		}
+	})
+
+	t.Run("unsupported file field type", func(t *testing.T) {
+		type invalidForm struct {
+			File string `file:"file"` // Wrong type
+		}
+
+		body, contentType := createMultipartFormWithFiles(t,
+			nil,
+			map[string][]fileData{
+				"file": {{filename: "test.txt", content: []byte("data")}},
+			},
+		)
+
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
+		req.Header.Set("Content-Type", contentType)
+
+		var result invalidForm
+		bindFunc := binder.Form()
+		err := bindFunc(req, &result)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported type for file field")
+	})
+
+	t.Run("url-encoded form skips file tags", func(t *testing.T) {
+		// File tags should be ignored for non-multipart forms
+		formData := url.Values{
+			"title":  {"Test"},
+			"avatar": {"ignored"}, // This should be ignored
+		}
+		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		var result uploadForm
+		bindFunc := binder.Form()
+		err := bindFunc(req, &result)
+
+		require.NoError(t, err)
+		assert.Equal(t, "Test", result.Title)
+		assert.Nil(t, result.Avatar) // File field should remain nil
+	})
+}
+
+// Helper types and functions for file tests
+
+type fileData struct {
+	filename string
+	content  []byte
+}
+
+func createMultipartFormWithFiles(t *testing.T, fields map[string]string, files map[string][]fileData) (*bytes.Buffer, string) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	// Add form fields
+	for name, value := range fields {
+		err := writer.WriteField(name, value)
+		require.NoError(t, err)
+	}
+
+	// Add files
+	for fieldName, fieldFiles := range files {
+		for _, file := range fieldFiles {
+			part, err := writer.CreateFormFile(fieldName, file.filename)
+			require.NoError(t, err)
+			_, err = part.Write(file.content)
+			require.NoError(t, err)
+		}
+	}
+
+	err := writer.Close()
+	require.NoError(t, err)
+
+	return body, writer.FormDataContentType()
 }
