@@ -101,4 +101,4 @@
 //   - Real usage over theoretical completeness
 //   - Performance over features
 //   - Explicit over implicit
-package saaskit
+package core

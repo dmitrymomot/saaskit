@@ -1,4 +1,4 @@
-package saaskit
+package core
 
 import (
 	"context"

@@ -1,20 +1,21 @@
-package saaskit
+package core_test
 
 import (
 	"testing"
 
+	"github.com/dmitrymomot/saaskit/core"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestValidationError(t *testing.T) {
 	t.Run("empty error", func(t *testing.T) {
-		err := NewValidationError()
+		err := core.NewValidationError()
 		assert.Equal(t, "Validation failed", err.Error())
 		assert.True(t, err.IsEmpty())
 	})
 
 	t.Run("single field single error", func(t *testing.T) {
-		err := NewValidationError()
+		err := core.NewValidationError()
 		err.Add("email", "invalid format")
 
 		assert.Equal(t, "validation error: email: invalid format", err.Error())
@@ -25,7 +26,7 @@ func TestValidationError(t *testing.T) {
 	})
 
 	t.Run("multiple fields", func(t *testing.T) {
-		err := NewValidationError()
+		err := core.NewValidationError()
 		err.Add("email", "invalid format")
 		err.Add("age", "must be positive")
 
@@ -37,7 +38,7 @@ func TestValidationError(t *testing.T) {
 	})
 
 	t.Run("multiple errors for same field", func(t *testing.T) {
-		err := NewValidationError()
+		err := core.NewValidationError()
 		err.Add("email", "invalid format")
 		err.Add("email", "already exists")
 

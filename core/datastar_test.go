@@ -1,10 +1,11 @@
-package saaskit
+package core_test
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/dmitrymomot/saaskit/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +56,7 @@ func TestIsDataStar(t *testing.T) {
 				req.Header.Set(k, v)
 			}
 
-			result := IsDataStar(req)
+			result := core.IsDataStar(req)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -67,7 +68,7 @@ func TestDataStarRedirect(t *testing.T) {
 		req.Header.Set("Accept", "text/event-stream")
 
 		w := httptest.NewRecorder()
-		err := DataStarRedirect(w, req, "/new-location", http.StatusSeeOther)
+		err := core.DataStarRedirect(w, req, "/new-location", http.StatusSeeOther)
 		require.NoError(t, err)
 
 		// DataStar redirects use SSE, so check for event stream content type
@@ -85,7 +86,7 @@ func TestDataStarRedirect(t *testing.T) {
 		req.Header.Set("Accept", "text/html")
 
 		w := httptest.NewRecorder()
-		err := DataStarRedirect(w, req, "/new-location", http.StatusSeeOther)
+		err := core.DataStarRedirect(w, req, "/new-location", http.StatusSeeOther)
 		require.NoError(t, err)
 
 		// Regular redirects use standard HTTP redirect
@@ -100,7 +101,7 @@ func TestRedirectResponseWithDataStar(t *testing.T) {
 		req.Header.Set("Accept", "text/event-stream")
 
 		w := httptest.NewRecorder()
-		resp := Redirect("/success")
+		resp := core.Redirect("/success")
 		err := resp.Render(w, req)
 		require.NoError(t, err)
 
@@ -115,7 +116,7 @@ func TestRedirectResponseWithDataStar(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/submit", nil)
 
 		w := httptest.NewRecorder()
-		resp := Redirect("/success")
+		resp := core.Redirect("/success")
 		err := resp.Render(w, req)
 		require.NoError(t, err)
 
@@ -133,7 +134,7 @@ func TestRedirectBackWithDataStar(t *testing.T) {
 		req.Host = "example.com"
 
 		w := httptest.NewRecorder()
-		resp := RedirectBack("/")
+		resp := core.RedirectBack("/")
 		err := resp.Render(w, req)
 		require.NoError(t, err)
 
@@ -150,7 +151,7 @@ func TestRedirectBackWithDataStar(t *testing.T) {
 		// No referer header
 
 		w := httptest.NewRecorder()
-		resp := RedirectBack("/home")
+		resp := core.RedirectBack("/home")
 		err := resp.Render(w, req)
 		require.NoError(t, err)
 
@@ -167,7 +168,7 @@ func TestRedirectBackWithDataStar(t *testing.T) {
 		req.Host = "example.com"
 
 		w := httptest.NewRecorder()
-		resp := RedirectBack("/")
+		resp := core.RedirectBack("/")
 		err := resp.Render(w, req)
 		require.NoError(t, err)
 

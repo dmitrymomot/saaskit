@@ -1,4 +1,4 @@
-package saaskit_test
+package core_test
 
 import (
 	"net/http"
@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dmitrymomot/saaskit"
+	saaskit "github.com/dmitrymomot/saaskit/core"
 )
 
 func TestRedirect(t *testing.T) {
