@@ -8,7 +8,7 @@
 //
 // Example usage with LocalStorage:
 //
-//	import "github.com/dmitrymomot/saaskit/file"
+//	import "github.com/dmitrymomot/saaskit/pkg/file"
 //
 //	// Create local storage
 //	storage := file.NewLocalStorage("/files/")

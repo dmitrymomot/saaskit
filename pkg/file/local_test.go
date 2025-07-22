@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dmitrymomot/saaskit/file"
+	"github.com/dmitrymomot/saaskit/pkg/file"
 )
 
 func TestLocalStorage_Save(t *testing.T) {

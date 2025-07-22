@@ -27,7 +27,7 @@ This package is internal to the project and provides file handling capabilities 
 ```go
 import (
     "time"
-    "github.com/dmitrymomot/saaskit/file"
+    "github.com/dmitrymomot/saaskit/pkg/file"
 )
 
 // Create local storage

@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dmitrymomot/saaskit/file"
+	"github.com/dmitrymomot/saaskit/pkg/file"
 )
 
 type mockS3Client struct {
