@@ -149,28 +149,33 @@ func bindFormAndFiles(v any, values map[string][]string, files map[string][]*mul
 			continue
 		}
 
-		// Check for form tag first
+		// Get form and file tags
 		formTag := fieldType.Tag.Get("form")
-		if formTag == "-" {
-			continue // Skip explicitly ignored fields
+		fileTag := fieldType.Tag.Get("file")
+
+		// Skip if both tags are missing
+		if formTag == "" && fileTag == "" {
+			continue
 		}
 
-		// Determine the parameter name for form fields
-		var paramName string
+		// Handle form tag
 		if formTag != "" {
-			// Use explicit tag value
+			if formTag == "-" {
+				continue // Skip explicitly ignored fields
+			}
+
+			// Extract parameter name from tag
+			paramName := formTag
 			if idx := strings.Index(formTag, ","); idx != -1 {
 				paramName = formTag[:idx]
-			} else {
-				paramName = formTag
 			}
-		} else if fieldType.Tag.Get("file") == "" {
-			// No form tag and no file tag - use lowercase field name for form binding
-			paramName = strings.ToLower(fieldType.Name)
-		}
 
-		// Try to bind form value if we have a param name
-		if paramName != "" {
+			// Skip empty parameter names
+			if paramName == "" {
+				continue
+			}
+
+			// Try to bind form value
 			if fieldValues, exists := values[paramName]; exists && len(fieldValues) > 0 {
 				if err := setFieldValue(field, fieldType.Type, fieldValues); err != nil {
 					return fmt.Errorf("%w: field %s: %v", bindErr, fieldType.Name, err)
@@ -179,9 +184,14 @@ func bindFormAndFiles(v any, values map[string][]string, files map[string][]*mul
 			continue
 		}
 
-		// Check for file tag
-		if tag := fieldType.Tag.Get("file"); tag != "" && tag != "-" && files != nil {
-			if fileHeaders, exists := files[tag]; exists && len(fileHeaders) > 0 {
+		// Handle file tag
+		if fileTag != "" && fileTag != "-" && files != nil {
+			// Skip empty file tag values
+			if fileTag == "" {
+				continue
+			}
+
+			if fileHeaders, exists := files[fileTag]; exists && len(fileHeaders) > 0 {
 				if err := setFileField(field, fieldType.Type, fileHeaders); err != nil {
 					return fmt.Errorf("%w: field %s: %v", bindErr, fieldType.Name, err)
 				}

@@ -275,15 +275,17 @@ func TestForm(t *testing.T) {
 		assert.Equal(t, "value", result.Required)
 	})
 
-	t.Run("no struct tag uses lowercase field name", func(t *testing.T) {
+	t.Run("fields without tags are skipped", func(t *testing.T) {
 		type noTagForm struct {
-			Name  string
-			Count int
+			Name  string // No tag, should be skipped
+			Count int    // No tag, should be skipped
+			Title string `form:"title"` // Has tag, should be bound
 		}
 
 		formData := url.Values{
 			"name":  {"Test"},
 			"count": {"5"},
+			"title": {"Hello"},
 		}
 		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(formData.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -293,8 +295,9 @@ func TestForm(t *testing.T) {
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
-		assert.Equal(t, "Test", result.Name)
-		assert.Equal(t, 5, result.Count)
+		assert.Equal(t, "", result.Name)       // Should remain empty (zero value)
+		assert.Equal(t, 0, result.Count)       // Should remain 0 (zero value)
+		assert.Equal(t, "Hello", result.Title) // Should be bound
 	})
 
 	t.Run("special characters in values", func(t *testing.T) {
@@ -445,6 +448,30 @@ func TestForm(t *testing.T) {
 		assert.Equal(t, "Test", result.Name)
 		assert.Equal(t, "", result.Optional) // Not provided, zero value
 		assert.Equal(t, 10, result.Count)
+	})
+
+	t.Run("empty tag values are skipped", func(t *testing.T) {
+		type emptyTagForm struct {
+			Field1 string `form:""`           // Empty form tag, should be skipped
+			Field2 string `form:"name"`       // Valid tag
+			Field3 string `form:",omitempty"` // Empty name with option, should be skipped
+		}
+
+		formData := url.Values{
+			"":     {"empty"},
+			"name": {"John"},
+		}
+		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		var result emptyTagForm
+		bindFunc := binder.Form()
+		err := bindFunc(req, &result)
+
+		require.NoError(t, err)
+		assert.Equal(t, "", result.Field1)     // Should remain empty
+		assert.Equal(t, "John", result.Field2) // Should be bound
+		assert.Equal(t, "", result.Field3)     // Should remain empty
 	})
 
 	t.Run("enterprise application settings form", func(t *testing.T) {
@@ -805,6 +832,35 @@ func TestFormWithFiles(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported type for file field")
+	})
+
+	t.Run("empty file tag values are skipped", func(t *testing.T) {
+		type emptyFileTagForm struct {
+			Title string                `form:"title"`
+			File1 *multipart.FileHeader `file:""`       // Empty file tag, should be skipped
+			File2 *multipart.FileHeader `file:"upload"` // Valid tag
+		}
+
+		body, contentType := createMultipartFormWithFiles(t,
+			map[string]string{"title": "Test"},
+			map[string][]fileData{
+				"":       {{filename: "empty.txt", content: []byte("empty tag")}},
+				"upload": {{filename: "valid.txt", content: []byte("valid")}},
+			},
+		)
+
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
+		req.Header.Set("Content-Type", contentType)
+
+		var result emptyFileTagForm
+		bindFunc := binder.Form()
+		err := bindFunc(req, &result)
+
+		require.NoError(t, err)
+		assert.Equal(t, "Test", result.Title)
+		assert.Nil(t, result.File1)     // Should remain nil
+		require.NotNil(t, result.File2) // Should be bound
+		assert.Equal(t, "valid.txt", result.File2.Filename)
 	})
 
 	t.Run("url-encoded form skips file tags", func(t *testing.T) {

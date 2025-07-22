@@ -45,7 +45,7 @@ func BenchmarkCombinedBinders(b *testing.B) {
 	writer.WriteField("priority", "1")
 
 	// Add JSON part
-	jsonData := map[string]interface{}{
+	jsonData := map[string]any{
 		"name":        "Test Product",
 		"description": "A test product description",
 		"tags":        []string{"tag1", "tag2", "tag3"},
@@ -58,7 +58,7 @@ func BenchmarkCombinedBinders(b *testing.B) {
 	avatarPart, _ := writer.CreateFormFile("avatar", "avatar.jpg")
 	avatarPart.Write(make([]byte, 1024)) // 1KB avatar
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		galleryPart, _ := writer.CreateFormFile("gallery", "photo.jpg")
 		galleryPart.Write(make([]byte, 1024)) // 1KB per gallery image
 	}
@@ -215,7 +215,7 @@ func BenchmarkRealWorldScenario_ProductListing(b *testing.B) {
 	writer := multipart.NewWriter(body)
 
 	// Add JSON data as form field
-	jsonData := map[string]interface{}{
+	jsonData := map[string]any{
 		"title":       "Premium Wireless Headphones",
 		"description": "High-quality wireless headphones with noise cancellation and 30-hour battery life.",
 		"price":       299.99,
@@ -241,7 +241,7 @@ func BenchmarkRealWorldScenario_ProductListing(b *testing.B) {
 	mainImgPart.Write(make([]byte, 500*1024)) // 500KB main image
 
 	// Add gallery images
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		imgPart, _ := writer.CreateFormFile("images", "image.jpg")
 		imgPart.Write(make([]byte, 300*1024)) // 300KB per image
 	}
