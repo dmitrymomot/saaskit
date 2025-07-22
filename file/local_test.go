@@ -15,348 +15,325 @@ import (
 
 func TestLocalStorage_Save(t *testing.T) {
 	tempDir := t.TempDir()
-	storage := file.NewLocalStorage("/files/")
+	storage, err := file.NewLocalStorage(tempDir, "/files/")
+	require.NoError(t, err)
 
-	tests := []struct {
-		name    string
-		path    string
-		content []byte
-		wantErr bool
-	}{
-		{
-			name:    "save simple file",
-			path:    filepath.Join(tempDir, "test.txt"),
-			content: []byte("hello world"),
-			wantErr: false,
-		},
-		{
-			name:    "save in nested directory",
-			path:    filepath.Join(tempDir, "uploads", "docs", "report.pdf"),
-			content: []byte("%PDF-1.4"),
-			wantErr: false,
-		},
-		{
-			name:    "invalid path traversal",
-			path:    "../../../etc/passwd",
-			content: []byte("malicious"),
-			wantErr: true,
-		},
-		{
-			name:    "nil file header",
-			path:    filepath.Join(tempDir, "nil.txt"),
-			content: nil,
-			wantErr: true,
-		},
-	}
+	t.Run("save simple file", func(t *testing.T) {
+		content := []byte("hello world")
+		fh := createFileHeader("test-file.txt", content)
+		path := "test.txt"
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var fh *multipart.FileHeader
-			if tt.content != nil {
-				fh = createFileHeader("test-file.txt", tt.content)
-			}
+		file, err := storage.Save(context.Background(), fh, path)
+		require.NoError(t, err)
+		require.NotNil(t, file)
 
-			file, err := storage.Save(context.Background(), fh, tt.path)
+		assert.Equal(t, "test-file.txt", file.Filename)
+		assert.Equal(t, int64(len(content)), file.Size)
+		assert.Equal(t, ".txt", file.Extension)
+		assert.Equal(t, path, file.RelativePath)
+		assert.NotEmpty(t, file.AbsolutePath)
+		assert.NotEmpty(t, file.MIMEType)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, file)
-			} else {
-				require.NoError(t, err)
-				require.NotNil(t, file)
+		data, err := os.ReadFile(file.AbsolutePath)
+		require.NoError(t, err)
+		assert.Equal(t, content, data)
 
-				// Verify file metadata
-				assert.Equal(t, "test-file.txt", file.Filename)
-				assert.Equal(t, int64(len(tt.content)), file.Size)
-				assert.Equal(t, ".txt", file.Extension)
-				assert.Equal(t, tt.path, file.RelativePath)
-				assert.NotEmpty(t, file.AbsolutePath)
-				assert.NotEmpty(t, file.MIMEType)
+		info, err := os.Stat(file.AbsolutePath)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
+	})
 
-				// Verify file was actually created
-				data, err := os.ReadFile(file.AbsolutePath)
-				require.NoError(t, err)
-				assert.Equal(t, tt.content, data)
+	t.Run("save in nested directory", func(t *testing.T) {
+		content := []byte("%PDF-1.4")
+		fh := createFileHeader("test-file.txt", content)
+		path := "uploads/docs/report.pdf"
 
-				// Verify file permissions
-				info, err := os.Stat(file.AbsolutePath)
-				require.NoError(t, err)
-				assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
-			}
-		})
-	}
+		file, err := storage.Save(context.Background(), fh, path)
+		require.NoError(t, err)
+		require.NotNil(t, file)
+
+		assert.Equal(t, "test-file.txt", file.Filename)
+		assert.Equal(t, int64(len(content)), file.Size)
+		assert.Equal(t, ".txt", file.Extension)
+		assert.Equal(t, path, file.RelativePath)
+		assert.NotEmpty(t, file.AbsolutePath)
+		assert.NotEmpty(t, file.MIMEType)
+
+		data, err := os.ReadFile(file.AbsolutePath)
+		require.NoError(t, err)
+		assert.Equal(t, content, data)
+
+		info, err := os.Stat(file.AbsolutePath)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
+	})
+
+	t.Run("invalid path traversal", func(t *testing.T) {
+		content := []byte("malicious")
+		fh := createFileHeader("test-file.txt", content)
+		path := "../../../etc/passwd"
+
+		file, err := storage.Save(context.Background(), fh, path)
+		assert.Error(t, err)
+		assert.Nil(t, file)
+	})
+
+	t.Run("nil file header", func(t *testing.T) {
+		var fh *multipart.FileHeader
+		path := "nil.txt"
+
+		file, err := storage.Save(context.Background(), fh, path)
+		assert.Error(t, err)
+		assert.Nil(t, file)
+	})
 }
 
 func TestLocalStorage_Delete(t *testing.T) {
 	tempDir := t.TempDir()
-	storage := file.NewLocalStorage("/files/")
-
-	testFile := filepath.Join(tempDir, "delete-me.txt")
-	err := os.WriteFile(testFile, []byte("delete me"), 0644)
+	storage, err := file.NewLocalStorage(tempDir, "/files/")
 	require.NoError(t, err)
 
-	testDir := filepath.Join(tempDir, "test-dir")
-	err = os.Mkdir(testDir, 0755)
-	require.NoError(t, err)
+	t.Run("delete existing file", func(t *testing.T) {
+		testFile := "delete-me.txt"
+		filePath := filepath.Join(tempDir, testFile)
+		err := os.WriteFile(filePath, []byte("delete me"), 0644)
+		require.NoError(t, err)
 
-	tests := []struct {
-		name    string
-		path    string
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name:    "delete existing file",
-			path:    testFile,
-			wantErr: false,
-		},
-		{
-			name:    "delete non-existent file",
-			path:    filepath.Join(tempDir, "not-exists.txt"),
-			wantErr: true,
-			errMsg:  "file not found",
-		},
-		{
-			name:    "try to delete directory",
-			path:    testDir,
-			wantErr: true,
-			errMsg:  "use DeleteDir instead",
-		},
-		{
-			name:    "invalid path traversal",
-			path:    "../../../etc/passwd",
-			wantErr: true,
-			errMsg:  "invalid path",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := storage.Delete(context.Background(), tt.path)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg)
-				}
-			} else {
-				assert.NoError(t, err)
-				// Verify file was deleted
-				_, err := os.Stat(tt.path)
-				assert.True(t, os.IsNotExist(err))
-			}
+		// Cleanup in case delete fails
+		t.Cleanup(func() {
+			_ = os.Remove(filePath)
 		})
-	}
+
+		err = storage.Delete(context.Background(), testFile)
+		assert.NoError(t, err)
+
+		_, err = os.Stat(testFile)
+		assert.True(t, os.IsNotExist(err))
+	})
+
+	t.Run("delete non-existent file", func(t *testing.T) {
+		path := "not-exists.txt"
+
+		err := storage.Delete(context.Background(), path)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "file not found")
+	})
+
+	t.Run("try to delete directory", func(t *testing.T) {
+		testDir := "test-dir"
+		dirPath := filepath.Join(tempDir, testDir)
+		err := os.Mkdir(dirPath, 0755)
+		require.NoError(t, err)
+
+		// Cleanup directory
+		t.Cleanup(func() {
+			_ = os.RemoveAll(dirPath)
+		})
+
+		err = storage.Delete(context.Background(), testDir)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "use DeleteDir instead")
+	})
+
+	t.Run("invalid path traversal", func(t *testing.T) {
+		err := storage.Delete(context.Background(), "../../../etc/passwd")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid path")
+	})
 }
 
 func TestLocalStorage_DeleteDir(t *testing.T) {
 	tempDir := t.TempDir()
-	storage := file.NewLocalStorage("/files/")
-
-	testDir := filepath.Join(tempDir, "test-dir")
-	nestedDir := filepath.Join(testDir, "nested")
-	err := os.MkdirAll(nestedDir, 0755)
+	storage, err := file.NewLocalStorage(tempDir, "/files/")
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(testDir, "file1.txt"), []byte("content1"), 0644)
-	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(nestedDir, "file2.txt"), []byte("content2"), 0644)
-	require.NoError(t, err)
+	t.Run("delete directory with contents", func(t *testing.T) {
+		testDir := "test-dir"
+		testDirAbs := filepath.Join(tempDir, testDir)
+		nestedDir := filepath.Join(testDirAbs, "nested")
+		err := os.MkdirAll(nestedDir, 0755)
+		require.NoError(t, err)
 
-	singleFile := filepath.Join(tempDir, "single.txt")
-	err = os.WriteFile(singleFile, []byte("single"), 0644)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name    string
-		path    string
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name:    "delete directory with contents",
-			path:    testDir,
-			wantErr: false,
-		},
-		{
-			name:    "delete non-existent directory",
-			path:    filepath.Join(tempDir, "not-exists"),
-			wantErr: true,
-			errMsg:  "directory not found",
-		},
-		{
-			name:    "try to delete file",
-			path:    singleFile,
-			wantErr: true,
-			errMsg:  "not a directory",
-		},
-		{
-			name:    "invalid path traversal",
-			path:    "../../../etc",
-			wantErr: true,
-			errMsg:  "invalid path",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := storage.DeleteDir(context.Background(), tt.path)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg)
-				}
-			} else {
-				assert.NoError(t, err)
-				// Verify directory was deleted
-				_, err := os.Stat(tt.path)
-				assert.True(t, os.IsNotExist(err))
-			}
+		// Cleanup entire directory structure
+		t.Cleanup(func() {
+			_ = os.RemoveAll(testDirAbs)
 		})
-	}
+
+		err = os.WriteFile(filepath.Join(testDirAbs, "file1.txt"), []byte("content1"), 0644)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(nestedDir, "file2.txt"), []byte("content2"), 0644)
+		require.NoError(t, err)
+
+		err = storage.DeleteDir(context.Background(), testDir)
+		assert.NoError(t, err)
+
+		_, err = os.Stat(testDirAbs)
+		assert.True(t, os.IsNotExist(err))
+	})
+
+	t.Run("delete non-existent directory", func(t *testing.T) {
+		path := "not-exists"
+
+		err := storage.DeleteDir(context.Background(), path)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "directory not found")
+	})
+
+	t.Run("try to delete file", func(t *testing.T) {
+		singleFile := "single.txt"
+		filePath := filepath.Join(tempDir, singleFile)
+		err := os.WriteFile(filePath, []byte("single"), 0644)
+		require.NoError(t, err)
+
+		// Cleanup file
+		t.Cleanup(func() {
+			_ = os.Remove(filePath)
+		})
+
+		err = storage.DeleteDir(context.Background(), singleFile)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not a directory")
+	})
+
+	t.Run("invalid path traversal", func(t *testing.T) {
+		err := storage.DeleteDir(context.Background(), "../../../etc")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid path")
+	})
 }
 
 func TestLocalStorage_Exists(t *testing.T) {
 	tempDir := t.TempDir()
-	storage := file.NewLocalStorage("/files/")
-
-	testFile := filepath.Join(tempDir, "exists.txt")
-	err := os.WriteFile(testFile, []byte("I exist"), 0644)
+	storage, err := file.NewLocalStorage(tempDir, "/files/")
 	require.NoError(t, err)
 
-	testDir := filepath.Join(tempDir, "existing-dir")
-	err = os.Mkdir(testDir, 0755)
-	require.NoError(t, err)
+	t.Run("existing file", func(t *testing.T) {
+		testFile := "exists.txt"
+		filePath := filepath.Join(tempDir, testFile)
+		err := os.WriteFile(filePath, []byte("I exist"), 0644)
+		require.NoError(t, err)
 
-	tests := []struct {
-		name   string
-		path   string
-		exists bool
-	}{
-		{
-			name:   "existing file",
-			path:   testFile,
-			exists: true,
-		},
-		{
-			name:   "existing directory",
-			path:   testDir,
-			exists: true,
-		},
-		{
-			name:   "non-existent file",
-			path:   filepath.Join(tempDir, "not-exists.txt"),
-			exists: false,
-		},
-		{
-			name:   "invalid path traversal",
-			path:   "../../../etc/passwd",
-			exists: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			exists := storage.Exists(context.Background(), tt.path)
-			assert.Equal(t, tt.exists, exists)
+		// Cleanup file
+		t.Cleanup(func() {
+			_ = os.Remove(filePath)
 		})
-	}
+
+		exists := storage.Exists(context.Background(), testFile)
+		assert.True(t, exists)
+	})
+
+	t.Run("existing directory", func(t *testing.T) {
+		testDir := "existing-dir"
+		dirPath := filepath.Join(tempDir, testDir)
+		err := os.Mkdir(dirPath, 0755)
+		require.NoError(t, err)
+
+		// Cleanup directory
+		t.Cleanup(func() {
+			_ = os.RemoveAll(dirPath)
+		})
+
+		exists := storage.Exists(context.Background(), testDir)
+		assert.True(t, exists)
+	})
+
+	t.Run("non-existent file", func(t *testing.T) {
+		path := "not-exists.txt"
+
+		exists := storage.Exists(context.Background(), path)
+		assert.False(t, exists)
+	})
+
+	t.Run("invalid path traversal", func(t *testing.T) {
+		exists := storage.Exists(context.Background(), "../../../etc/passwd")
+		assert.False(t, exists)
+	})
 }
 
 func TestLocalStorage_List(t *testing.T) {
 	tempDir := t.TempDir()
-	storage := file.NewLocalStorage("/files/")
-
-	// Create test directory structure
-	testDir := filepath.Join(tempDir, "list-test")
-	err := os.MkdirAll(testDir, 0755)
+	storage, err := file.NewLocalStorage(tempDir, "/files/")
 	require.NoError(t, err)
 
-	subDir := filepath.Join(testDir, "subdir")
-	err = os.Mkdir(subDir, 0755)
-	require.NoError(t, err)
-
-	files := map[string][]byte{
-		"file1.txt": []byte("content1"),
-		"file2.pdf": []byte("%PDF-1.4"),
-		"file3.jpg": []byte{0xFF, 0xD8, 0xFF},
-	}
-
-	for name, content := range files {
-		err = os.WriteFile(filepath.Join(testDir, name), content, 0644)
+	t.Run("list directory contents", func(t *testing.T) {
+		testDir := "list-test"
+		testDirAbs := filepath.Join(tempDir, testDir)
+		err := os.MkdirAll(testDirAbs, 0755)
 		require.NoError(t, err)
-	}
 
-	// Create file in subdirectory (should not be listed)
-	err = os.WriteFile(filepath.Join(subDir, "nested.txt"), []byte("nested"), 0644)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name        string
-		dir         string
-		wantEntries int
-		wantErr     bool
-		errMsg      string
-	}{
-		{
-			name:        "list directory contents",
-			dir:         testDir,
-			wantEntries: 4, // 3 files + 1 subdirectory
-			wantErr:     false,
-		},
-		{
-			name:        "list empty directory",
-			dir:         filepath.Join(tempDir, "empty"),
-			wantEntries: 0,
-			wantErr:     true,
-			errMsg:      "directory not found",
-		},
-		{
-			name:        "list file as directory",
-			dir:         filepath.Join(testDir, "file1.txt"),
-			wantEntries: 0,
-			wantErr:     true,
-			errMsg:      "not a directory",
-		},
-		{
-			name:        "invalid path traversal",
-			dir:         "../../../etc",
-			wantEntries: 0,
-			wantErr:     true,
-			errMsg:      "invalid path",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			entries, err := storage.List(context.Background(), tt.dir)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg)
-				}
-			} else {
-				require.NoError(t, err)
-				assert.Len(t, entries, tt.wantEntries)
-
-				// Verify entries
-				for _, entry := range entries {
-					assert.NotEmpty(t, entry.Name)
-					assert.NotEmpty(t, entry.Path)
-
-					if entry.IsDir {
-						assert.Equal(t, int64(0), entry.Size)
-						assert.Equal(t, "subdir", entry.Name)
-					} else {
-						assert.Greater(t, entry.Size, int64(0))
-						assert.Contains(t, []string{"file1.txt", "file2.pdf", "file3.jpg"}, entry.Name)
-					}
-				}
-			}
+		// Cleanup entire directory structure
+		t.Cleanup(func() {
+			_ = os.RemoveAll(testDirAbs)
 		})
-	}
+
+		subDir := filepath.Join(testDirAbs, "subdir")
+		err = os.Mkdir(subDir, 0755)
+		require.NoError(t, err)
+
+		files := map[string][]byte{
+			"file1.txt": []byte("content1"),
+			"file2.pdf": []byte("%PDF-1.4"),
+			"file3.jpg": []byte{0xFF, 0xD8, 0xFF},
+		}
+
+		for name, content := range files {
+			err = os.WriteFile(filepath.Join(testDirAbs, name), content, 0644)
+			require.NoError(t, err)
+		}
+
+		err = os.WriteFile(filepath.Join(subDir, "nested.txt"), []byte("nested"), 0644)
+		require.NoError(t, err)
+
+		entries, err := storage.List(context.Background(), testDir)
+		require.NoError(t, err)
+		assert.Len(t, entries, 4)
+
+		for _, entry := range entries {
+			assert.NotEmpty(t, entry.Name)
+			assert.NotEmpty(t, entry.Path)
+
+			if entry.IsDir {
+				assert.Equal(t, int64(0), entry.Size)
+				assert.Equal(t, "subdir", entry.Name)
+			} else {
+				assert.Greater(t, entry.Size, int64(0))
+				assert.Contains(t, []string{"file1.txt", "file2.pdf", "file3.jpg"}, entry.Name)
+			}
+		}
+	})
+
+	t.Run("list empty directory", func(t *testing.T) {
+		dir := "empty"
+
+		entries, err := storage.List(context.Background(), dir)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "directory not found")
+		assert.Len(t, entries, 0)
+	})
+
+	t.Run("list file as directory", func(t *testing.T) {
+		testFile := "test-file.txt"
+		filePath := filepath.Join(tempDir, testFile)
+		err := os.WriteFile(filePath, []byte("content"), 0644)
+		require.NoError(t, err)
+
+		// Cleanup file
+		t.Cleanup(func() {
+			_ = os.Remove(filePath)
+		})
+
+		entries, err := storage.List(context.Background(), testFile)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not a directory")
+		assert.Len(t, entries, 0)
+	})
+
+	t.Run("invalid path traversal", func(t *testing.T) {
+		entries, err := storage.List(context.Background(), "../../../etc")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid path")
+		assert.Len(t, entries, 0)
+	})
 }
 
 func TestLocalStorage_URL(t *testing.T) {
@@ -406,7 +383,8 @@ func TestLocalStorage_URL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := file.NewLocalStorage(tt.baseURL)
+			storage, err := file.NewLocalStorage(t.TempDir(), tt.baseURL)
+			require.NoError(t, err)
 			got := storage.URL(tt.path)
 			assert.Equal(t, tt.want, got)
 		})
@@ -414,15 +392,15 @@ func TestLocalStorage_URL(t *testing.T) {
 }
 
 func TestLocalStorage_Integration(t *testing.T) {
-	// Integration test that uses multiple methods
 	tempDir := t.TempDir()
-	storage := file.NewLocalStorage("/files/")
+	storage, err := file.NewLocalStorage(tempDir, "/files/")
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	content := []byte("integration test content")
 	fh := createFileHeader("integration.txt", content)
 
-	savePath := filepath.Join(tempDir, "integration", "test.txt")
+	savePath := "integration/test.txt"
 	file, err := storage.Save(ctx, fh, savePath)
 	require.NoError(t, err)
 	require.NotNil(t, file)
@@ -430,16 +408,15 @@ func TestLocalStorage_Integration(t *testing.T) {
 	exists := storage.Exists(ctx, savePath)
 	assert.True(t, exists)
 
-	entries, err := storage.List(ctx, filepath.Join(tempDir, "integration"))
+	entries, err := storage.List(ctx, "integration")
 	require.NoError(t, err)
 	assert.Len(t, entries, 1)
 	assert.Equal(t, "test.txt", entries[0].Name)
 	assert.Equal(t, int64(len(content)), entries[0].Size)
 	assert.False(t, entries[0].IsDir)
 
-	// Get URL - since we're using absolute paths in tests, URL should return just the path
 	url := storage.URL(file.RelativePath)
-	assert.Equal(t, file.RelativePath, url)
+	assert.Equal(t, "/files/"+file.RelativePath, url)
 
 	err = storage.Delete(ctx, savePath)
 	require.NoError(t, err)
@@ -447,9 +424,9 @@ func TestLocalStorage_Integration(t *testing.T) {
 	exists = storage.Exists(ctx, savePath)
 	assert.False(t, exists)
 
-	err = storage.DeleteDir(ctx, filepath.Join(tempDir, "integration"))
+	err = storage.DeleteDir(ctx, "integration")
 	require.NoError(t, err)
 
-	_, err = storage.List(ctx, filepath.Join(tempDir, "integration"))
+	_, err = storage.List(ctx, "integration")
 	assert.Error(t, err)
 }
