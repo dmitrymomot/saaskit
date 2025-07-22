@@ -58,30 +58,40 @@ var (
 		"image/svg+xml": true,
 		"image/bmp":     true,
 		"image/tiff":    true,
+		"image/heic":    true,
+		"image/heif":    true,
+		"image/avif":    true,
+		"image/jxl":     true,
 	}
 
 	videoMIMETypes = map[string]bool{
-		"video/mp4":       true,
-		"video/mpeg":      true,
-		"video/ogg":       true,
-		"video/webm":      true,
-		"video/quicktime": true,
-		"video/x-msvideo": true,
-		"video/x-flv":     true,
-		"video/3gpp":      true,
+		"video/mp4":        true,
+		"video/mpeg":       true,
+		"video/ogg":        true,
+		"video/webm":       true,
+		"video/quicktime":  true,
+		"video/x-msvideo":  true,
+		"video/x-flv":      true,
+		"video/3gpp":       true,
+		"video/x-matroska": true,
+		"video/av1":        true,
 	}
 
 	audioMIMETypes = map[string]bool{
-		"audio/mpeg":  true,
-		"audio/ogg":   true,
-		"audio/wav":   true,
-		"audio/wave":  true,
-		"audio/webm":  true,
-		"audio/aac":   true,
-		"audio/mp4":   true,
-		"audio/x-m4a": true,
-		"audio/opus":  true,
-		"audio/flac":  true,
+		"audio/mpeg":   true,
+		"audio/ogg":    true,
+		"audio/wav":    true,
+		"audio/wave":   true,
+		"audio/webm":   true,
+		"audio/aac":    true,
+		"audio/mp4":    true,
+		"audio/x-m4a":  true,
+		"audio/m4a":    true,
+		"audio/opus":   true,
+		"audio/flac":   true,
+		"audio/x-flac": true,
+		"audio/3gpp":   true,
+		"audio/3gpp2":  true,
 	}
 )
 
@@ -105,7 +115,7 @@ func IsImage(fh *multipart.FileHeader) bool {
 
 	ext := strings.ToLower(GetExtension(fh))
 	switch ext {
-	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp", ".tiff", ".tif":
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp", ".tiff", ".tif", ".heic", ".heif", ".avif", ".jxl":
 		return true
 	default:
 		return false
@@ -126,7 +136,7 @@ func IsVideo(fh *multipart.FileHeader) bool {
 
 	ext := strings.ToLower(GetExtension(fh))
 	switch ext {
-	case ".mp4", ".mpeg", ".mpg", ".ogg", ".webm", ".mov", ".avi", ".flv", ".3gp":
+	case ".mp4", ".mpeg", ".mpg", ".ogg", ".webm", ".mov", ".avi", ".flv", ".3gp", ".mkv", ".av1":
 		return true
 	default:
 		return false
@@ -147,7 +157,7 @@ func IsAudio(fh *multipart.FileHeader) bool {
 
 	ext := strings.ToLower(GetExtension(fh))
 	switch ext {
-	case ".mp3", ".ogg", ".wav", ".webm", ".aac", ".mp4", ".m4a", ".opus", ".flac":
+	case ".mp3", ".ogg", ".wav", ".webm", ".aac", ".mp4", ".m4a", ".opus", ".flac", ".3gp", ".3g2":
 		return true
 	default:
 		return false
@@ -190,14 +200,14 @@ func GetMIMEType(fh *multipart.FileHeader) (string, error) {
 
 	file, err := fh.Open()
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrFailedToOpenFile, err)
+		return "", fmt.Errorf("failed to open file: %w", err)
 	}
 	defer func() { _ = file.Close() }()
 
 	buffer := make([]byte, 512)
 	n, err := file.Read(buffer)
 	if err != nil && err != io.EOF {
-		return "", fmt.Errorf("%w: %v", ErrFailedToReadFile, err)
+		return "", fmt.Errorf("failed to read file: %w", err)
 	}
 
 	if seeker, ok := file.(io.Seeker); ok {
@@ -208,6 +218,8 @@ func GetMIMEType(fh *multipart.FileHeader) (string, error) {
 }
 
 // ValidateSize checks if the file size is within the allowed limit.
+// Note: For streamed uploads, FileHeader.Size may be 0. In such cases,
+// the actual size validation should be done during the save operation.
 //
 // Example:
 //
@@ -219,7 +231,7 @@ func ValidateSize(fh *multipart.FileHeader, maxBytes int64) error {
 		return ErrNilFileHeader
 	}
 	if fh.Size > maxBytes {
-		return fmt.Errorf("%w: %d bytes exceeds %d bytes limit", ErrFileTooLarge, fh.Size, maxBytes)
+		return fmt.Errorf("file size %d bytes exceeds %d bytes limit: %w", fh.Size, maxBytes, ErrFileTooLarge)
 	}
 	return nil
 }
@@ -242,14 +254,14 @@ func ValidateMIMEType(fh *multipart.FileHeader, allowedTypes ...string) error {
 
 	mimeType, err := GetMIMEType(fh)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrFailedToDetectMIMEType, err)
+		return fmt.Errorf("failed to detect MIME type: %w", err)
 	}
 
 	if slices.Contains(allowedTypes, mimeType) {
 		return nil
 	}
 
-	return fmt.Errorf("%w: %s not in allowed types %v", ErrMIMETypeNotAllowed, mimeType, allowedTypes)
+	return fmt.Errorf("MIME type %s not in allowed types %v: %w", mimeType, allowedTypes, ErrMIMETypeNotAllowed)
 }
 
 // ReadAll reads the entire file content into memory.
@@ -261,13 +273,13 @@ func ReadAll(fh *multipart.FileHeader) ([]byte, error) {
 
 	file, err := fh.Open()
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrFailedToOpenFile, err)
+		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer func() { _ = file.Close() }()
 
 	data, err := io.ReadAll(file)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrFailedToReadFile, err)
+		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	return data, nil
@@ -289,12 +301,12 @@ func Hash(fh *multipart.FileHeader, h hash.Hash) (string, error) {
 
 	file, err := fh.Open()
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrFailedToOpenFile, err)
+		return "", fmt.Errorf("failed to open file: %w", err)
 	}
 	defer func() { _ = file.Close() }()
 
 	if _, err := io.Copy(h, file); err != nil {
-		return "", fmt.Errorf("%w: %v", ErrFailedToHashFile, err)
+		return "", fmt.Errorf("failed to hash file: %w", err)
 	}
 
 	return hex.EncodeToString(h.Sum(nil)), nil
