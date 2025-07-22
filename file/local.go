@@ -8,47 +8,74 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // LocalStorage implements Storage interface for local filesystem.
 // It is safe for concurrent use.
 type LocalStorage struct {
-	baseDir string // Base directory for all file operations
-	baseURL string // Base URL for generating public URLs
+	baseDir       string        // Base directory for all file operations
+	baseURL       string        // Base URL for generating public URLs
+	uploadTimeout time.Duration // Timeout for upload operations
+}
+
+// LocalOption defines a function that configures LocalStorage.
+type LocalOption func(*LocalStorage)
+
+// WithLocalUploadTimeout sets the timeout for upload operations.
+// If not set, no timeout is applied (context deadline from caller is used).
+func WithLocalUploadTimeout(timeout time.Duration) LocalOption {
+	return func(s *LocalStorage) {
+		s.uploadTimeout = timeout
+	}
 }
 
 // NewLocalStorage creates a new local filesystem storage.
 // baseDir is the root directory where all files will be stored.
 // baseURL is used for generating public URLs (e.g., "/files").
 // All file operations are confined to baseDir to prevent path traversal attacks.
-func NewLocalStorage(baseDir, baseURL string) (*LocalStorage, error) {
+func NewLocalStorage(baseDir, baseURL string, opts ...LocalOption) (*LocalStorage, error) {
 	if baseDir == "" {
-		return nil, fmt.Errorf("base directory cannot be empty")
+		return nil, ErrInvalidConfig
 	}
 
 	// Resolve base directory to absolute path
 	absBaseDir, err := filepath.Abs(baseDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve base directory: %w", err)
+		return nil, fmt.Errorf("%w: failed to resolve base directory: %v", ErrFailedToGetAbsolutePath, err)
 	}
 
 	// Ensure base directory exists
 	if err := os.MkdirAll(absBaseDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create base directory: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrFailedToCreateDirectory, err)
 	}
 
 	if baseURL != "" && !strings.HasSuffix(baseURL, "/") {
 		baseURL += "/"
 	}
 
-	return &LocalStorage{
+	s := &LocalStorage{
 		baseDir: absBaseDir,
 		baseURL: baseURL,
-	}, nil
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s, nil
 }
 
 // Save stores a file to the local filesystem.
 func (s *LocalStorage) Save(ctx context.Context, fh *multipart.FileHeader, path string) (*File, error) {
+	// Apply upload timeout if configured
+	if s.uploadTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.uploadTimeout)
+		defer cancel()
+	}
+
 	// Check context cancellation
 	select {
 	case <-ctx.Done():
@@ -78,18 +105,18 @@ func (s *LocalStorage) Save(ctx context.Context, fh *multipart.FileHeader, path 
 
 	fileDir := filepath.Dir(absPath)
 	if err = os.MkdirAll(fileDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create directory: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrFailedToCreateDirectory, err)
 	}
 
 	src, err := fh.Open()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrFailedToOpenFile, err)
 	}
 	defer func() { _ = src.Close() }()
 
 	dst, err := os.OpenFile(absPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create file: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
 	}
 	defer func() { _ = dst.Close() }()
 
@@ -112,7 +139,7 @@ func (s *LocalStorage) Save(ctx context.Context, fh *multipart.FileHeader, path 
 			if writeErr != nil {
 				_ = dst.Close()
 				_ = os.Remove(absPath)
-				return nil, fmt.Errorf("failed to write file: %w", writeErr)
+				return nil, fmt.Errorf("%w: %v", ErrFailedToWriteFile, writeErr)
 			}
 			written += int64(nw)
 		}
@@ -122,7 +149,7 @@ func (s *LocalStorage) Save(ctx context.Context, fh *multipart.FileHeader, path 
 		if readErr != nil {
 			_ = dst.Close()
 			_ = os.Remove(absPath)
-			return nil, fmt.Errorf("failed to read file: %w", readErr)
+			return nil, fmt.Errorf("%w: %v", ErrFailedToReadFile, readErr)
 		}
 	}
 
@@ -165,17 +192,17 @@ func (s *LocalStorage) Delete(ctx context.Context, path string) error {
 	info, err := os.Stat(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("file not found: %s: %w", path, ErrFileNotFound)
+			return fmt.Errorf("%w: %s", ErrFileNotFound, path)
 		}
-		return fmt.Errorf("failed to stat path: %w", err)
+		return fmt.Errorf("%w: %v", ErrFailedToStatPath, err)
 	}
 
 	if info.IsDir() {
-		return fmt.Errorf("expected file, got directory %s, use DeleteDir instead: %w", path, ErrIsDirectory)
+		return fmt.Errorf("%w: %s, use DeleteDir instead", ErrIsDirectory, path)
 	}
 
 	if err := os.Remove(absPath); err != nil {
-		return fmt.Errorf("failed to delete file: %w", err)
+		return fmt.Errorf("%w: %v", ErrFailedToDeleteFile, err)
 	}
 
 	return nil
@@ -199,17 +226,17 @@ func (s *LocalStorage) DeleteDir(ctx context.Context, path string) error {
 	info, err := os.Stat(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("directory not found: %s: %w", path, ErrDirectoryNotFound)
+			return fmt.Errorf("%w: %s", ErrDirectoryNotFound, path)
 		}
-		return fmt.Errorf("failed to stat path: %w", err)
+		return fmt.Errorf("%w: %v", ErrFailedToStatPath, err)
 	}
 
 	if !info.IsDir() {
-		return fmt.Errorf("path is not a directory: %s: %w", path, ErrNotDirectory)
+		return fmt.Errorf("%w: %s", ErrNotDirectory, path)
 	}
 
 	if err := os.RemoveAll(absPath); err != nil {
-		return fmt.Errorf("failed to delete directory: %w", err)
+		return fmt.Errorf("%w: %v", ErrFailedToDeleteDirectory, err)
 	}
 
 	return nil
@@ -252,18 +279,18 @@ func (s *LocalStorage) List(ctx context.Context, dir string) ([]Entry, error) {
 	info, err := os.Stat(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("directory not found: %s: %w", dir, ErrDirectoryNotFound)
+			return nil, fmt.Errorf("%w: %s", ErrDirectoryNotFound, dir)
 		}
 		return nil, fmt.Errorf("%w: %v", ErrFailedToStatPath, err)
 	}
 
 	if !info.IsDir() {
-		return nil, fmt.Errorf("path is not a directory: %s: %w", dir, ErrNotDirectory)
+		return nil, fmt.Errorf("%w: %s", ErrNotDirectory, dir)
 	}
 
 	dirEntries, err := os.ReadDir(absPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read directory: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrFailedToReadDirectory, err)
 	}
 
 	entries := make([]Entry, 0, len(dirEntries))
@@ -330,12 +357,12 @@ func (s *LocalStorage) resolvePath(path string) (string, error) {
 	// Resolve to absolute path
 	absPath, err := filepath.Abs(absPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve path: %w", err)
+		return "", fmt.Errorf("%w: %v", ErrFailedToGetAbsolutePath, err)
 	}
 
 	// Ensure the resolved path is within base directory
 	if !strings.HasPrefix(absPath, s.baseDir+string(filepath.Separator)) && absPath != s.baseDir {
-		return "", fmt.Errorf("invalid path: %s: %w", path, ErrInvalidPath)
+		return "", fmt.Errorf("%w: %s", ErrInvalidPath, path)
 	}
 
 	return absPath, nil

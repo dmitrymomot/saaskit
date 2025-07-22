@@ -2,16 +2,19 @@ package file
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 )
 
 // S3Client defines the interface for S3 operations used by S3Storage.
@@ -36,6 +39,7 @@ type S3Storage struct {
 	bucket           string
 	baseURL          string
 	forcePathStyle   bool
+	uploadTimeout    time.Duration
 	paginatorFactory func(client S3Client, params *s3.ListObjectsV2Input) S3ListObjectsV2Paginator
 }
 
@@ -60,6 +64,7 @@ type s3Options struct {
 	s3ConfigOptions  []func(*config.LoadOptions) error
 	s3ClientOptions  []func(*s3.Options)
 	paginatorFactory func(client S3Client, params *s3.ListObjectsV2Input) S3ListObjectsV2Paginator
+	uploadTimeout    time.Duration
 }
 
 // WithS3Client sets a custom pre-configured S3 client.
@@ -99,10 +104,18 @@ func WithPaginatorFactory(factory func(client S3Client, params *s3.ListObjectsV2
 	}
 }
 
+// WithS3UploadTimeout sets the timeout for upload operations.
+// If not set, no timeout is applied (context deadline from caller is used).
+func WithS3UploadTimeout(timeout time.Duration) S3Option {
+	return func(o *s3Options) {
+		o.uploadTimeout = timeout
+	}
+}
+
 // NewS3Storage creates a new S3 storage instance.
 func NewS3Storage(ctx context.Context, cfg S3Config, opts ...S3Option) (*S3Storage, error) {
 	if cfg.Bucket == "" || cfg.Region == "" {
-		return nil, fmt.Errorf("bucket and region are required")
+		return nil, ErrInvalidConfig
 	}
 
 	// Initialize options
@@ -145,7 +158,7 @@ func NewS3Storage(ctx context.Context, cfg S3Config, opts ...S3Option) (*S3Stora
 		// Load AWS configuration
 		awsConfig, err := config.LoadDefaultConfig(ctx, awsOptions...)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load AWS config: %w", err)
+			return nil, fmt.Errorf("%w: %v", ErrFailedToLoadConfig, err)
 		}
 
 		// Create the S3 client
@@ -192,12 +205,72 @@ func NewS3Storage(ctx context.Context, cfg S3Config, opts ...S3Option) (*S3Stora
 		bucket:           cfg.Bucket,
 		baseURL:          baseURL,
 		forcePathStyle:   cfg.ForcePathStyle,
+		uploadTimeout:    options.uploadTimeout,
 		paginatorFactory: paginatorFactory,
 	}, nil
 }
 
+// classifyS3Error converts S3 errors to domain-specific errors.
+func classifyS3Error(err error, operation string) error {
+	if err == nil {
+		return nil
+	}
+
+	// Check for context errors first
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("%w: %s operation", ErrOperationTimeout, operation)
+	}
+	if errors.Is(err, context.Canceled) {
+		return fmt.Errorf("%w: %s operation", ErrOperationCanceled, operation)
+	}
+
+	// Check for specific S3 error types
+	var nsk *types.NoSuchKey
+	if errors.As(err, &nsk) {
+		return fmt.Errorf("%w: %s", ErrFileNotFound, err)
+	}
+
+	var nsb *types.NoSuchBucket
+	if errors.As(err, &nsb) {
+		return ErrBucketNotFound
+	}
+
+	// Check for generic API errors
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		code := apiErr.ErrorCode()
+		switch code {
+		case "AccessDenied":
+			return fmt.Errorf("%w: %s operation", ErrAccessDenied, operation)
+		case "RequestTimeout":
+			return fmt.Errorf("%w: %s operation", ErrRequestTimeout, operation)
+		case "SlowDown", "ServiceUnavailable":
+			return fmt.Errorf("%w: %s operation", ErrServiceUnavailable, operation)
+		case "InvalidObjectState":
+			return fmt.Errorf("%w: %s operation", ErrInvalidObjectState, operation)
+		case "NoSuchKey":
+			return fmt.Errorf("%w: %s", ErrFileNotFound, err)
+		case "NoSuchBucket":
+			return ErrBucketNotFound
+		default:
+			// Include error code in message for debugging
+			return fmt.Errorf("%s operation failed (code: %s): %w", operation, code, err)
+		}
+	}
+
+	// Default error wrapping
+	return fmt.Errorf("%s operation failed: %w", operation, err)
+}
+
 // Save stores a file to S3.
 func (s *S3Storage) Save(ctx context.Context, fh *multipart.FileHeader, path string) (*File, error) {
+	// Apply upload timeout if configured
+	if s.uploadTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.uploadTimeout)
+		defer cancel()
+	}
+
 	if fh == nil {
 		return nil, ErrNilFileHeader
 	}
@@ -206,12 +279,12 @@ func (s *S3Storage) Save(ctx context.Context, fh *multipart.FileHeader, path str
 
 	path = strings.TrimPrefix(path, "/")
 	if strings.Contains(path, "..") {
-		return nil, fmt.Errorf("invalid path: %s: %w", path, ErrInvalidPath)
+		return nil, fmt.Errorf("%w: %s", ErrInvalidPath, path)
 	}
 
 	src, err := fh.Open()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrFailedToOpenFile, err)
 	}
 	defer func() { _ = src.Close() }()
 
@@ -227,7 +300,7 @@ func (s *S3Storage) Save(ctx context.Context, fh *multipart.FileHeader, path str
 		ContentType: aws.String(mimeType),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to write file: %w", err)
+		return nil, classifyS3Error(err, "upload file")
 	}
 
 	return &File{
@@ -244,7 +317,7 @@ func (s *S3Storage) Save(ctx context.Context, fh *multipart.FileHeader, path str
 func (s *S3Storage) Delete(ctx context.Context, path string) error {
 	path = strings.TrimPrefix(path, "/")
 	if strings.Contains(path, "..") {
-		return fmt.Errorf("invalid path: %s: %w", path, ErrInvalidPath)
+		return fmt.Errorf("%w: %s", ErrInvalidPath, path)
 	}
 
 	_, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
@@ -252,7 +325,7 @@ func (s *S3Storage) Delete(ctx context.Context, path string) error {
 		Key:    aws.String(path),
 	})
 	if err != nil {
-		return fmt.Errorf("file not found: %s: %w", path, ErrFileNotFound)
+		return classifyS3Error(err, "check file")
 	}
 
 	_, err = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
@@ -260,7 +333,7 @@ func (s *S3Storage) Delete(ctx context.Context, path string) error {
 		Key:    aws.String(path),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to delete file: %w", err)
+		return classifyS3Error(err, "delete file")
 	}
 
 	return nil
@@ -270,7 +343,7 @@ func (s *S3Storage) Delete(ctx context.Context, path string) error {
 func (s *S3Storage) DeleteDir(ctx context.Context, dir string) error {
 	dir = strings.TrimPrefix(dir, "/")
 	if strings.Contains(dir, "..") {
-		return fmt.Errorf("invalid path: %s: %w", dir, ErrInvalidPath)
+		return fmt.Errorf("%w: %s", ErrInvalidPath, dir)
 	}
 
 	if dir != "" && !strings.HasSuffix(dir, "/") {
@@ -282,14 +355,14 @@ func (s *S3Storage) DeleteDir(ctx context.Context, dir string) error {
 		Prefix: aws.String(dir),
 	})
 	if paginator == nil {
-		return fmt.Errorf("paginator factory returned nil")
+		return ErrPaginatorNil
 	}
 
 	var objects []types.ObjectIdentifier
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to read directory: %w", err)
+			return classifyS3Error(err, "list directory")
 		}
 
 		for _, obj := range page.Contents {
@@ -300,7 +373,7 @@ func (s *S3Storage) DeleteDir(ctx context.Context, dir string) error {
 	}
 
 	if len(objects) == 0 {
-		return fmt.Errorf("directory not found: %s: %w", dir, ErrDirectoryNotFound)
+		return fmt.Errorf("%w: %s", ErrDirectoryNotFound, dir)
 	}
 
 	for i := 0; i < len(objects); i += 1000 {
@@ -312,7 +385,7 @@ func (s *S3Storage) DeleteDir(ctx context.Context, dir string) error {
 			},
 		})
 		if err != nil {
-			return fmt.Errorf("failed to delete directory: %w", err)
+			return classifyS3Error(err, "delete directory")
 		}
 	}
 
@@ -337,7 +410,7 @@ func (s *S3Storage) Exists(ctx context.Context, path string) bool {
 func (s *S3Storage) List(ctx context.Context, dir string) ([]Entry, error) {
 	dir = strings.TrimPrefix(dir, "/")
 	if strings.Contains(dir, "..") {
-		return nil, fmt.Errorf("invalid path: %s: %w", dir, ErrInvalidPath)
+		return nil, fmt.Errorf("%w: %s", ErrInvalidPath, dir)
 	}
 
 	prefix := dir
@@ -351,7 +424,7 @@ func (s *S3Storage) List(ctx context.Context, dir string) ([]Entry, error) {
 		Delimiter: aws.String("/"),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to read directory: %w", err)
+		return nil, classifyS3Error(err, "list directory")
 	}
 
 	var entries []Entry
