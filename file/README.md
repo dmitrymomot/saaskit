@@ -1,4 +1,4 @@
-# File Package
+# File Management
 
 Provides utilities for working with file uploads and storage in SaaS applications.
 

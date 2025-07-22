@@ -1,4 +1,4 @@
-# Package binder
+# Request binder
 
 Type-safe HTTP request data binding for the saaskit framework.
 
@@ -82,14 +82,14 @@ handler := saaskit.HandlerFunc[saaskit.Context, UploadRequest](
                 return saaskit.Error(http.StatusBadRequest, "Failed to open file")
             }
             defer file.Close()
-            
+
             // Read first 512 bytes for content type detection
             buffer := make([]byte, 512)
             _, err = file.Read(buffer)
             if err != nil && err != io.EOF {
                 return saaskit.Error(http.StatusBadRequest, "Failed to read file")
             }
-            
+
             // Detect content type
             contentType := http.DetectContentType(buffer)
             if !strings.HasPrefix(contentType, "image/") {
@@ -128,7 +128,7 @@ Common errors include:
 - Form() binder unifies form field and file handling for simpler API
 - All binders are designed to work seamlessly with the saaskit handler system
 - Struct tag names follow standard conventions (json, form, query, path, file)
-- File fields use standard Go *multipart.FileHeader type
+- File fields use standard Go \*multipart.FileHeader type
 
 ## API Reference
 
@@ -139,8 +139,9 @@ const DefaultMaxMemory = 10 << 20 // 10 MB default limit for multipart forms
 ```
 
 File uploads use the standard Go `*multipart.FileHeader` type, providing direct access to:
+
 - `Filename` - The original filename (automatically sanitized)
-- `Size` - File size in bytes  
+- `Size` - File size in bytes
 - `Header` - MIME headers
 - `Open()` - Method to access file content as io.ReadCloser
 
@@ -148,7 +149,7 @@ File uploads use the standard Go `*multipart.FileHeader` type, providing direct 
 
 ```go
 func JSON() func(r *http.Request, v any) error
-func Query() func(r *http.Request, v any) error  
+func Query() func(r *http.Request, v any) error
 func Form() func(r *http.Request, v any) error  // Handles both form fields and file uploads
 func Path(extractor func(r *http.Request, fieldName string) string) func(r *http.Request, v any) error
 ```
@@ -156,11 +157,13 @@ func Path(extractor func(r *http.Request, fieldName string) string) func(r *http
 ### Supported Field Types
 
 **Form fields (`form:` tag):**
+
 - Basic types: string, int, int64, uint, uint64, float32, float64, bool
 - Slices of basic types for multi-value fields
 - Pointers for optional fields
 
 **File fields (`file:` tag):**
+
 - `*multipart.FileHeader` - single file (optional)
 - `[]*multipart.FileHeader` - multiple files
 
@@ -177,12 +180,12 @@ var ErrMissingContentType   = errors.New("missing content type")
 
 ### Performance Benchmarks
 
-| Operation | Time/op | Memory/op | Allocs/op |
-|-----------|---------|-----------|------------|
-| Small Form (5 fields) | 2,021 ns | 5,857 B | 22 |
-| Large Form (50 fields) | 13,930 ns | 15,546 B | 120 |
-| Mixed Types | 32,935 ns | 52,840 B | 425 |
-| Single File | 5,772 ns | 17,214 B | 57 |
-| Multiple Files (10) | 28,291 ns | 73,436 B | 303 |
+| Operation              | Time/op   | Memory/op | Allocs/op |
+| ---------------------- | --------- | --------- | --------- |
+| Small Form (5 fields)  | 2,021 ns  | 5,857 B   | 22        |
+| Large Form (50 fields) | 13,930 ns | 15,546 B  | 120       |
+| Mixed Types            | 32,935 ns | 52,840 B  | 425       |
+| Single File            | 5,772 ns  | 17,214 B  | 57        |
+| Multiple Files (10)    | 28,291 ns | 73,436 B  | 303       |
 
-*Benchmarks run on Apple M3 Max*
+_Benchmarks run on Apple M3 Max_
