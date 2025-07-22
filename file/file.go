@@ -200,14 +200,14 @@ func GetMIMEType(fh *multipart.FileHeader) (string, error) {
 
 	file, err := fh.Open()
 	if err != nil {
-		return "", fmt.Errorf("failed to open file: %w", err)
+		return "", fmt.Errorf("%w: %v", ErrFailedToOpenFile, err)
 	}
 	defer func() { _ = file.Close() }()
 
 	buffer := make([]byte, 512)
 	n, err := file.Read(buffer)
 	if err != nil && err != io.EOF {
-		return "", fmt.Errorf("failed to read file: %w", err)
+		return "", fmt.Errorf("%w: %v", ErrFailedToReadFile, err)
 	}
 
 	if seeker, ok := file.(io.Seeker); ok {
@@ -254,7 +254,7 @@ func ValidateMIMEType(fh *multipart.FileHeader, allowedTypes ...string) error {
 
 	mimeType, err := GetMIMEType(fh)
 	if err != nil {
-		return fmt.Errorf("failed to detect MIME type: %w", err)
+		return err
 	}
 
 	if slices.Contains(allowedTypes, mimeType) {
@@ -273,13 +273,13 @@ func ReadAll(fh *multipart.FileHeader) ([]byte, error) {
 
 	file, err := fh.Open()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrFailedToOpenFile, err)
 	}
 	defer func() { _ = file.Close() }()
 
 	data, err := io.ReadAll(file)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrFailedToReadFile, err)
 	}
 
 	return data, nil
@@ -301,12 +301,12 @@ func Hash(fh *multipart.FileHeader, h hash.Hash) (string, error) {
 
 	file, err := fh.Open()
 	if err != nil {
-		return "", fmt.Errorf("failed to open file: %w", err)
+		return "", fmt.Errorf("%w: %v", ErrFailedToOpenFile, err)
 	}
 	defer func() { _ = file.Close() }()
 
 	if _, err := io.Copy(h, file); err != nil {
-		return "", fmt.Errorf("failed to hash file: %w", err)
+		return "", fmt.Errorf("%w: %v", ErrFailedToHashFile, err)
 	}
 
 	return hex.EncodeToString(h.Sum(nil)), nil
