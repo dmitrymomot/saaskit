@@ -310,9 +310,7 @@ func Hash(fh *multipart.FileHeader, h hash.Hash) (string, error) {
 //	safe = file.SanitizeFilename("C:\\Windows\\file.txt") // Returns "file.txt"
 func SanitizeFilename(filename string) string {
 	filename = strings.ReplaceAll(filename, "\\", "/")
-
 	filename = filepath.Base(filename)
-
 	filename = strings.ReplaceAll(filename, "\x00", "")
 
 	if filename == "." || filename == ".." || filename == "" || filename == "/" {

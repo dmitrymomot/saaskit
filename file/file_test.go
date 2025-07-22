@@ -17,7 +17,7 @@ import (
 )
 
 // createFileHeader creates a mock multipart.FileHeader for testing
-func createFileHeader(filename string, content []byte, contentType string) *multipart.FileHeader {
+func createFileHeader(filename string, content []byte) *multipart.FileHeader {
 	body := new(bytes.Buffer)
 	writer := multipart.NewWriter(body)
 
@@ -103,7 +103,7 @@ func TestIsImage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var fh *multipart.FileHeader
 			if tt.content != nil {
-				fh = createFileHeader(tt.filename, tt.content, tt.contentType)
+				fh = createFileHeader(tt.filename, tt.content)
 			}
 			got := file.IsImage(fh)
 			assert.Equal(t, tt.want, got)
@@ -145,7 +145,7 @@ func TestIsVideo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var fh *multipart.FileHeader
 			if tt.content != nil {
-				fh = createFileHeader(tt.filename, tt.content, tt.contentType)
+				fh = createFileHeader(tt.filename, tt.content)
 			}
 			got := file.IsVideo(fh)
 			assert.Equal(t, tt.want, got)
@@ -180,7 +180,7 @@ func TestIsAudio(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var fh *multipart.FileHeader
 			if tt.content != nil {
-				fh = createFileHeader(tt.filename, tt.content, tt.contentType)
+				fh = createFileHeader(tt.filename, tt.content)
 			}
 			got := file.IsAudio(fh)
 			assert.Equal(t, tt.want, got)
@@ -223,7 +223,7 @@ func TestIsPDF(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var fh *multipart.FileHeader
 			if tt.content != nil {
-				fh = createFileHeader(tt.filename, tt.content, tt.contentType)
+				fh = createFileHeader(tt.filename, tt.content)
 			}
 			got := file.IsPDF(fh)
 			assert.Equal(t, tt.want, got)
@@ -268,7 +268,7 @@ func TestGetExtension(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var fh *multipart.FileHeader
 			if tt.filename != "" {
-				fh = createFileHeader(tt.filename, []byte("content"), "")
+				fh = createFileHeader(tt.filename, []byte("content"))
 			}
 			got := file.GetExtension(fh)
 			assert.Equal(t, tt.want, got)
@@ -331,7 +331,7 @@ func TestGetMIMEType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var fh *multipart.FileHeader
 			if tt.content != nil {
-				fh = createFileHeader(tt.filename, tt.content, tt.contentType)
+				fh = createFileHeader(tt.filename, tt.content)
 			}
 			got, err := file.GetMIMEType(fh)
 			if tt.wantErr {
@@ -381,7 +381,7 @@ func TestValidateSize(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var fh *multipart.FileHeader
 			if tt.content != nil {
-				fh = createFileHeader("test.txt", tt.content, "")
+				fh = createFileHeader("test.txt", tt.content)
 			}
 			err := file.ValidateSize(fh, tt.maxBytes)
 			if tt.wantErr {
@@ -434,7 +434,7 @@ func TestValidateMIMEType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var fh *multipart.FileHeader
 			if tt.content != nil {
-				fh = createFileHeader(tt.filename, tt.content, "")
+				fh = createFileHeader(tt.filename, tt.content)
 			}
 			err := file.ValidateMIMEType(fh, tt.allowedTypes...)
 			if tt.wantErr {
@@ -473,7 +473,7 @@ func TestReadAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var fh *multipart.FileHeader
 			if tt.content != nil {
-				fh = createFileHeader("test.txt", tt.content, "")
+				fh = createFileHeader("test.txt", tt.content)
 			}
 			got, err := file.ReadAll(fh)
 			if tt.wantErr {
@@ -529,7 +529,7 @@ func TestHash(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var fh *multipart.FileHeader
 			if tt.content != nil {
-				fh = createFileHeader("test.txt", tt.content, "")
+				fh = createFileHeader("test.txt", tt.content)
 			}
 
 			got, err := file.Hash(fh, tt.hashFunc)

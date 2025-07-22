@@ -53,7 +53,7 @@ func TestLocalStorage_Save(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var fh *multipart.FileHeader
 			if tt.content != nil {
-				fh = createFileHeader("test-file.txt", tt.content, "")
+				fh = createFileHeader("test-file.txt", tt.content)
 			}
 
 			file, err := storage.Save(context.Background(), fh, tt.path)
@@ -420,7 +420,7 @@ func TestLocalStorage_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	content := []byte("integration test content")
-	fh := createFileHeader("integration.txt", content, "text/plain")
+	fh := createFileHeader("integration.txt", content)
 
 	savePath := filepath.Join(tempDir, "integration", "test.txt")
 	file, err := storage.Save(ctx, fh, savePath)
