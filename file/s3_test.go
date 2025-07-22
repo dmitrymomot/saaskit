@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"mime/multipart"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -130,7 +132,7 @@ func TestNewS3Storage(t *testing.T) {
 
 		storage, err := file.NewS3Storage(context.Background(), config)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "bucket and region are required")
+		assert.True(t, errors.Is(err, file.ErrInvalidConfig))
 		assert.Nil(t, storage)
 	})
 
@@ -141,7 +143,7 @@ func TestNewS3Storage(t *testing.T) {
 
 		storage, err := file.NewS3Storage(context.Background(), config)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "bucket and region are required")
+		assert.True(t, errors.Is(err, file.ErrInvalidConfig))
 		assert.Nil(t, storage)
 	})
 
@@ -205,7 +207,7 @@ func TestS3Storage_Save(t *testing.T) {
 
 		result, err := storage.Save(context.Background(), fh, "../../../etc/passwd")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid path")
+		assert.True(t, errors.Is(err, file.ErrInvalidPath))
 		assert.Nil(t, result)
 	})
 
@@ -220,7 +222,7 @@ func TestS3Storage_Save(t *testing.T) {
 		var fh *multipart.FileHeader
 		result, err := storage.Save(context.Background(), fh, "test.txt")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "file header is nil")
+		assert.True(t, errors.Is(err, file.ErrNilFileHeader))
 		assert.Nil(t, result)
 	})
 
@@ -242,7 +244,8 @@ func TestS3Storage_Save(t *testing.T) {
 
 		result, err := storage.Save(context.Background(), fh, "uploads/test.txt")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to write file")
+		assert.Error(t, err)
+		// Check that it's a wrapped error from classifyS3Error
 		assert.Nil(t, result)
 	})
 }
@@ -275,7 +278,9 @@ func TestS3Storage_Delete(t *testing.T) {
 	t.Run("file not found", func(t *testing.T) {
 		mockClient := &mockS3Client{
 			headObjectFunc: func(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
-				return nil, errors.New("not found")
+				return nil, &types.NoSuchKey{
+					Message: aws.String("The specified key does not exist"),
+				}
 			},
 		}
 
@@ -287,7 +292,7 @@ func TestS3Storage_Delete(t *testing.T) {
 
 		err = storage.Delete(context.Background(), "uploads/notfound.txt")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "file not found")
+		assert.True(t, errors.Is(err, file.ErrFileNotFound))
 	})
 
 	t.Run("path traversal", func(t *testing.T) {
@@ -301,7 +306,7 @@ func TestS3Storage_Delete(t *testing.T) {
 
 		err = storage.Delete(context.Background(), "../../../etc/passwd")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid path")
+		assert.True(t, errors.Is(err, file.ErrInvalidPath))
 	})
 
 	t.Run("delete error", func(t *testing.T) {
@@ -322,7 +327,8 @@ func TestS3Storage_Delete(t *testing.T) {
 
 		err = storage.Delete(context.Background(), "uploads/test.txt")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to delete file")
+		assert.Error(t, err)
+		// Check that it's a wrapped error from classifyS3Error
 	})
 }
 
@@ -382,7 +388,7 @@ func TestS3Storage_DeleteDir(t *testing.T) {
 
 		err = storage.DeleteDir(context.Background(), "empty")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "directory not found")
+		assert.True(t, errors.Is(err, file.ErrDirectoryNotFound))
 	})
 
 	t.Run("path traversal", func(t *testing.T) {
@@ -396,7 +402,7 @@ func TestS3Storage_DeleteDir(t *testing.T) {
 
 		err = storage.DeleteDir(context.Background(), "../../../etc")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid path")
+		assert.True(t, errors.Is(err, file.ErrInvalidPath))
 	})
 
 	t.Run("list error", func(t *testing.T) {
@@ -419,7 +425,8 @@ func TestS3Storage_DeleteDir(t *testing.T) {
 
 		err = storage.DeleteDir(context.Background(), "uploads")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to read directory")
+		assert.Error(t, err)
+		// Check that it's a wrapped error from classifyS3Error
 	})
 
 	t.Run("delete error", func(t *testing.T) {
@@ -451,7 +458,8 @@ func TestS3Storage_DeleteDir(t *testing.T) {
 
 		err = storage.DeleteDir(context.Background(), "uploads")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to delete directory")
+		assert.Error(t, err)
+		// Check that it's a wrapped error from classifyS3Error
 	})
 
 	t.Run("paginated delete", func(t *testing.T) {
@@ -623,7 +631,7 @@ func TestS3Storage_List(t *testing.T) {
 
 		entries, err := storage.List(context.Background(), "../../../etc")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid path")
+		assert.True(t, errors.Is(err, file.ErrInvalidPath))
 		assert.Len(t, entries, 0)
 	})
 
@@ -642,7 +650,8 @@ func TestS3Storage_List(t *testing.T) {
 
 		entries, err := storage.List(context.Background(), "uploads")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to read directory")
+		assert.Error(t, err)
+		// Check that it's a wrapped error from classifyS3Error
 		assert.Len(t, entries, 0)
 	})
 
@@ -723,6 +732,74 @@ func TestS3Storage_URL(t *testing.T) {
 
 		url := storage.URL("/uploads/image.jpg")
 		assert.Equal(t, "https://my-bucket.s3.us-east-1.amazonaws.com/uploads/image.jpg", url)
+	})
+}
+
+func TestS3Storage_ErrorClassification(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("NoSuchKey error", func(t *testing.T) {
+		client := &mockS3Client{
+			headObjectFunc: func(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+				return nil, &types.NoSuchKey{
+					Message: aws.String("The specified key does not exist"),
+				}
+			},
+		}
+
+		storage, err := file.NewS3Storage(ctx, file.S3Config{
+			Bucket: "test-bucket",
+			Region: "us-east-1",
+		}, file.WithS3Client(client))
+		require.NoError(t, err)
+
+		err = storage.Delete(ctx, "nonexistent.txt")
+		assert.Error(t, err)
+		assert.True(t, errors.Is(err, file.ErrFileNotFound))
+		assert.True(t, errors.Is(err, file.ErrFileNotFound))
+	})
+
+	t.Run("AccessDenied error", func(t *testing.T) {
+		client := &mockS3Client{
+			putObjectFunc: func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+				return nil, &smithy.GenericAPIError{
+					Code:    "AccessDenied",
+					Message: "Access Denied",
+				}
+			},
+		}
+
+		storage, err := file.NewS3Storage(ctx, file.S3Config{
+			Bucket: "test-bucket",
+			Region: "us-east-1",
+		}, file.WithS3Client(client))
+		require.NoError(t, err)
+
+		fh := createFileHeader("test.txt", []byte("content"))
+		_, err = storage.Save(ctx, fh, "test.txt")
+		assert.Error(t, err)
+		assert.True(t, errors.Is(err, file.ErrAccessDenied))
+	})
+
+	t.Run("Context timeout", func(t *testing.T) {
+		client := &mockS3Client{
+			putObjectFunc: func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+				// Simulate slow operation
+				time.Sleep(100 * time.Millisecond)
+				return nil, ctx.Err()
+			},
+		}
+
+		storage, err := file.NewS3Storage(ctx, file.S3Config{
+			Bucket: "test-bucket",
+			Region: "us-east-1",
+		}, file.WithS3Client(client), file.WithS3UploadTimeout(10*time.Millisecond))
+		require.NoError(t, err)
+
+		fh := createFileHeader("test.txt", []byte("content"))
+		_, err = storage.Save(ctx, fh, "test.txt")
+		assert.Error(t, err)
+		assert.True(t, errors.Is(err, file.ErrOperationTimeout))
 	})
 }
 

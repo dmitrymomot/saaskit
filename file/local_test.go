@@ -2,10 +2,12 @@ package file_test
 
 import (
 	"context"
+	"errors"
 	"mime/multipart"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -116,7 +118,7 @@ func TestLocalStorage_Delete(t *testing.T) {
 
 		err := storage.Delete(context.Background(), path)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "file not found")
+		assert.True(t, errors.Is(err, file.ErrFileNotFound))
 	})
 
 	t.Run("try to delete directory", func(t *testing.T) {
@@ -132,13 +134,13 @@ func TestLocalStorage_Delete(t *testing.T) {
 
 		err = storage.Delete(context.Background(), testDir)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "use DeleteDir instead")
+		assert.True(t, errors.Is(err, file.ErrIsDirectory))
 	})
 
 	t.Run("invalid path traversal", func(t *testing.T) {
 		err := storage.Delete(context.Background(), "../../../etc/passwd")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid path")
+		assert.True(t, errors.Is(err, file.ErrInvalidPath))
 	})
 }
 
@@ -176,7 +178,7 @@ func TestLocalStorage_DeleteDir(t *testing.T) {
 
 		err := storage.DeleteDir(context.Background(), path)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "directory not found")
+		assert.True(t, errors.Is(err, file.ErrDirectoryNotFound))
 	})
 
 	t.Run("try to delete file", func(t *testing.T) {
@@ -192,13 +194,13 @@ func TestLocalStorage_DeleteDir(t *testing.T) {
 
 		err = storage.DeleteDir(context.Background(), singleFile)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not a directory")
+		assert.True(t, errors.Is(err, file.ErrNotDirectory))
 	})
 
 	t.Run("invalid path traversal", func(t *testing.T) {
 		err := storage.DeleteDir(context.Background(), "../../../etc")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid path")
+		assert.True(t, errors.Is(err, file.ErrInvalidPath))
 	})
 }
 
@@ -307,7 +309,7 @@ func TestLocalStorage_List(t *testing.T) {
 
 		entries, err := storage.List(context.Background(), dir)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "directory not found")
+		assert.True(t, errors.Is(err, file.ErrDirectoryNotFound))
 		assert.Len(t, entries, 0)
 	})
 
@@ -324,14 +326,14 @@ func TestLocalStorage_List(t *testing.T) {
 
 		entries, err := storage.List(context.Background(), testFile)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not a directory")
+		assert.True(t, errors.Is(err, file.ErrNotDirectory))
 		assert.Len(t, entries, 0)
 	})
 
 	t.Run("invalid path traversal", func(t *testing.T) {
 		entries, err := storage.List(context.Background(), "../../../etc")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid path")
+		assert.True(t, errors.Is(err, file.ErrInvalidPath))
 		assert.Len(t, entries, 0)
 	})
 }
@@ -389,6 +391,44 @@ func TestLocalStorage_URL(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestLocalStorage_WithTimeout(t *testing.T) {
+	tempDir := t.TempDir()
+
+	t.Run("upload times out", func(t *testing.T) {
+		// Create storage with very short timeout
+		storage, err := file.NewLocalStorage(tempDir, "/files/", file.WithLocalUploadTimeout(1*time.Nanosecond))
+		require.NoError(t, err)
+
+		// Create a large file that will take time to copy
+		content := make([]byte, 10*1024*1024) // 10MB
+		fh := createFileHeader("large.bin", content)
+
+		ctx := context.Background()
+		_, err = storage.Save(ctx, fh, "timeout-test.bin")
+
+		// Should timeout
+		assert.Error(t, err)
+		assert.True(t, errors.Is(err, context.DeadlineExceeded))
+	})
+
+	t.Run("upload completes within timeout", func(t *testing.T) {
+		// Create storage with reasonable timeout
+		storage, err := file.NewLocalStorage(tempDir, "/files/", file.WithLocalUploadTimeout(5*time.Second))
+		require.NoError(t, err)
+
+		content := []byte("small file")
+		fh := createFileHeader("small.txt", content)
+
+		ctx := context.Background()
+		f, err := storage.Save(ctx, fh, "success-test.txt")
+
+		// Should succeed
+		require.NoError(t, err)
+		assert.Equal(t, "small.txt", f.Filename)
+		assert.Equal(t, int64(len(content)), f.Size)
+	})
 }
 
 func TestLocalStorage_Integration(t *testing.T) {
