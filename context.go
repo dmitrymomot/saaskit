@@ -77,6 +77,11 @@ func (c *httpContext) Value(key any) any {
 // It should be created as a package-level variable.
 type ContextKey struct{ name string }
 
+// String returns a string representation of the context key for debugging.
+func (c *ContextKey) String() string {
+	return c.name
+}
+
 // NewContextKey creates a new context key.
 // The name should be unique within your application.
 //
@@ -105,4 +110,24 @@ func NewContextKey(name string) *ContextKey {
 func ContextValue[T any](ctx context.Context, key any) T {
 	val, _ := ctx.Value(key).(T)
 	return val
+}
+
+// ContextValueOK retrieves a typed value from the context with an ok bool.
+// The bool indicates whether the key was present and had the expected type.
+// This allows distinguishing between a missing key and a zero value.
+//
+// Example:
+//
+//	var countKey = saaskit.NewContextKey("count")
+//
+//	// Check if value exists
+//	count, ok := saaskit.ContextValueOK[int](ctx, countKey)
+//	if !ok {
+//		// Key missing or wrong type
+//		return errors.New("count not found in context")
+//	}
+//	// Use count (which could be 0)
+func ContextValueOK[T any](ctx context.Context, key any) (T, bool) {
+	val, ok := ctx.Value(key).(T)
+	return val, ok
 }
