@@ -24,7 +24,7 @@ This package is internal to the project and provides request data binding functi
 ### Basic Example
 
 ```go
-import "github.com/dmitrymomot/saaskit/binder"
+import "github.com/dmitrymomot/saaskit/pkg/binder"
 
 // Define request struct with tags
 type CreateUserRequest struct {

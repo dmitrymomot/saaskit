@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dmitrymomot/saaskit/binder"
+	"github.com/dmitrymomot/saaskit/pkg/binder"
 )
 
 func BenchmarkCombinedBinders(b *testing.B) {

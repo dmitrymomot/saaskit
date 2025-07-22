@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dmitrymomot/saaskit/binder"
+	"github.com/dmitrymomot/saaskit/pkg/binder"
 )
 
 func BenchmarkBindToStruct_SmallStruct(b *testing.B) {
