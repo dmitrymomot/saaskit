@@ -30,6 +30,7 @@ type S3ListObjectsV2Paginator interface {
 }
 
 // S3Storage implements Storage interface for Amazon S3 and S3-compatible services.
+// It is safe for concurrent use.
 type S3Storage struct {
 	client           S3Client
 	bucket           string
