@@ -6,17 +6,14 @@ import (
 	"strings"
 )
 
-var (
+const (
 	// ScopeSeparator is used to separate multiple scopes in a string
-	// This can be modified to use a different separator (e.g., ",")
 	ScopeSeparator = " "
 
 	// ScopeWildcard represents a wildcard scope that matches everything
-	// This can be modified to use a different wildcard character (e.g., "?")
 	ScopeWildcard = "*"
 
 	// ScopeDelimiter is used to separate scope parts (e.g., "admin.read")
-	// This can be modified to use a different delimiter (e.g., ":")
 	ScopeDelimiter = "."
 )
 
@@ -357,14 +354,7 @@ func NormalizeScopes(scopes []string) []string {
 
 			// Simple deduplication
 			for i := range scopes {
-				isDuplicate := false
-				for j := range uniqueScopes {
-					if scopes[i] == uniqueScopes[j] {
-						isDuplicate = true
-						break
-					}
-				}
-				if !isDuplicate {
+				if !slices.Contains(uniqueScopes, scopes[i]) {
 					uniqueScopes = append(uniqueScopes, scopes[i])
 				}
 			}
