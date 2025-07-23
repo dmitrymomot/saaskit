@@ -87,7 +87,9 @@ func (m *mockPaginator) NextPage(ctx context.Context, optFns ...func(*s3.Options
 }
 
 func TestNewS3Storage(t *testing.T) {
+	t.Parallel()
 	t.Run("valid config", func(t *testing.T) {
+		t.Parallel()
 		config := file.S3Config{
 			Bucket:      "test-bucket",
 			Region:      "us-east-1",
@@ -101,6 +103,7 @@ func TestNewS3Storage(t *testing.T) {
 	})
 
 	t.Run("with custom endpoint", func(t *testing.T) {
+		t.Parallel()
 		config := file.S3Config{
 			Bucket:         "test-bucket",
 			Region:         "us-east-1",
@@ -114,6 +117,7 @@ func TestNewS3Storage(t *testing.T) {
 	})
 
 	t.Run("with custom base URL", func(t *testing.T) {
+		t.Parallel()
 		config := file.S3Config{
 			Bucket:  "test-bucket",
 			Region:  "us-east-1",
@@ -126,6 +130,7 @@ func TestNewS3Storage(t *testing.T) {
 	})
 
 	t.Run("missing bucket", func(t *testing.T) {
+		t.Parallel()
 		config := file.S3Config{
 			Region: "us-east-1",
 		}
@@ -137,6 +142,7 @@ func TestNewS3Storage(t *testing.T) {
 	})
 
 	t.Run("missing region", func(t *testing.T) {
+		t.Parallel()
 		config := file.S3Config{
 			Bucket: "test-bucket",
 		}
@@ -148,6 +154,7 @@ func TestNewS3Storage(t *testing.T) {
 	})
 
 	t.Run("with mock client", func(t *testing.T) {
+		t.Parallel()
 		config := file.S3Config{
 			Bucket: "test-bucket",
 			Region: "us-east-1",
@@ -164,7 +171,9 @@ func TestNewS3Storage(t *testing.T) {
 }
 
 func TestS3Storage_Save(t *testing.T) {
+	t.Parallel()
 	t.Run("successful save", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{
 			putObjectFunc: func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
 				assert.Equal(t, "test-bucket", *params.Bucket)
@@ -195,6 +204,7 @@ func TestS3Storage_Save(t *testing.T) {
 	})
 
 	t.Run("path traversal attempt", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{}
 		storage, err := file.NewS3Storage(context.Background(), file.S3Config{
 			Bucket: "test-bucket",
@@ -212,6 +222,7 @@ func TestS3Storage_Save(t *testing.T) {
 	})
 
 	t.Run("nil file header", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{}
 		storage, err := file.NewS3Storage(context.Background(), file.S3Config{
 			Bucket: "test-bucket",
@@ -227,6 +238,7 @@ func TestS3Storage_Save(t *testing.T) {
 	})
 
 	t.Run("S3 error", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{
 			putObjectFunc: func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
 				return nil, errors.New("S3 error")
@@ -251,7 +263,9 @@ func TestS3Storage_Save(t *testing.T) {
 }
 
 func TestS3Storage_Delete(t *testing.T) {
+	t.Parallel()
 	t.Run("successful delete", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{
 			headObjectFunc: func(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
 				assert.Equal(t, "test-bucket", *params.Bucket)
@@ -276,6 +290,7 @@ func TestS3Storage_Delete(t *testing.T) {
 	})
 
 	t.Run("file not found", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{
 			headObjectFunc: func(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
 				return nil, &types.NoSuchKey{
@@ -296,6 +311,7 @@ func TestS3Storage_Delete(t *testing.T) {
 	})
 
 	t.Run("path traversal", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{}
 
 		storage, err := file.NewS3Storage(context.Background(), file.S3Config{
@@ -310,6 +326,7 @@ func TestS3Storage_Delete(t *testing.T) {
 	})
 
 	t.Run("delete error", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{
 			headObjectFunc: func(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
 				return &s3.HeadObjectOutput{}, nil
@@ -333,7 +350,9 @@ func TestS3Storage_Delete(t *testing.T) {
 }
 
 func TestS3Storage_DeleteDir(t *testing.T) {
+	t.Parallel()
 	t.Run("successful delete", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{
 			deleteObjectsFunc: func(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error) {
 				assert.Equal(t, "test-bucket", *params.Bucket)
@@ -368,6 +387,7 @@ func TestS3Storage_DeleteDir(t *testing.T) {
 	})
 
 	t.Run("empty directory", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{}
 
 		paginator := &mockPaginator{
@@ -392,6 +412,7 @@ func TestS3Storage_DeleteDir(t *testing.T) {
 	})
 
 	t.Run("path traversal", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{}
 
 		storage, err := file.NewS3Storage(context.Background(), file.S3Config{
@@ -406,6 +427,7 @@ func TestS3Storage_DeleteDir(t *testing.T) {
 	})
 
 	t.Run("list error", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{}
 
 		paginator := &mockPaginator{
@@ -430,6 +452,7 @@ func TestS3Storage_DeleteDir(t *testing.T) {
 	})
 
 	t.Run("delete error", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{
 			deleteObjectsFunc: func(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error) {
 				return nil, errors.New("delete failed")
@@ -463,6 +486,7 @@ func TestS3Storage_DeleteDir(t *testing.T) {
 	})
 
 	t.Run("paginated delete", func(t *testing.T) {
+		t.Parallel()
 		objects := make([]types.Object, 1500)
 		for i := 0; i < 1500; i++ {
 			objects[i] = types.Object{Key: aws.String(fmt.Sprintf("large-dir/file%d.txt", i))}
@@ -504,7 +528,9 @@ func TestS3Storage_DeleteDir(t *testing.T) {
 }
 
 func TestS3Storage_Exists(t *testing.T) {
+	t.Parallel()
 	t.Run("file exists", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{
 			headObjectFunc: func(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
 				assert.Equal(t, "test-bucket", *params.Bucket)
@@ -524,6 +550,7 @@ func TestS3Storage_Exists(t *testing.T) {
 	})
 
 	t.Run("file does not exist", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{
 			headObjectFunc: func(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
 				return nil, errors.New("not found")
@@ -541,6 +568,7 @@ func TestS3Storage_Exists(t *testing.T) {
 	})
 
 	t.Run("path traversal", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{}
 
 		storage, err := file.NewS3Storage(context.Background(), file.S3Config{
@@ -555,7 +583,9 @@ func TestS3Storage_Exists(t *testing.T) {
 }
 
 func TestS3Storage_List(t *testing.T) {
+	t.Parallel()
 	t.Run("list files and directories", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{
 			listObjectsFunc: func(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
 				assert.Equal(t, "test-bucket", *params.Bucket)
@@ -603,6 +633,7 @@ func TestS3Storage_List(t *testing.T) {
 	})
 
 	t.Run("empty directory", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{
 			listObjectsFunc: func(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
 				return &s3.ListObjectsV2Output{}, nil
@@ -621,6 +652,7 @@ func TestS3Storage_List(t *testing.T) {
 	})
 
 	t.Run("path traversal", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{}
 
 		storage, err := file.NewS3Storage(context.Background(), file.S3Config{
@@ -636,6 +668,7 @@ func TestS3Storage_List(t *testing.T) {
 	})
 
 	t.Run("list error", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{
 			listObjectsFunc: func(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
 				return nil, errors.New("list failed")
@@ -656,6 +689,7 @@ func TestS3Storage_List(t *testing.T) {
 	})
 
 	t.Run("root directory", func(t *testing.T) {
+		t.Parallel()
 		mockClient := &mockS3Client{
 			listObjectsFunc: func(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
 				assert.Equal(t, "", *params.Prefix)
@@ -680,7 +714,9 @@ func TestS3Storage_List(t *testing.T) {
 }
 
 func TestS3Storage_URL(t *testing.T) {
+	t.Parallel()
 	t.Run("default AWS URL", func(t *testing.T) {
+		t.Parallel()
 		config := file.S3Config{
 			Bucket: "my-bucket",
 			Region: "us-east-1",
@@ -694,6 +730,7 @@ func TestS3Storage_URL(t *testing.T) {
 	})
 
 	t.Run("custom endpoint", func(t *testing.T) {
+		t.Parallel()
 		config := file.S3Config{
 			Bucket:   "my-bucket",
 			Region:   "us-east-1",
@@ -708,6 +745,7 @@ func TestS3Storage_URL(t *testing.T) {
 	})
 
 	t.Run("custom base URL", func(t *testing.T) {
+		t.Parallel()
 		config := file.S3Config{
 			Bucket:  "my-bucket",
 			Region:  "us-east-1",
@@ -722,6 +760,7 @@ func TestS3Storage_URL(t *testing.T) {
 	})
 
 	t.Run("path with leading slash", func(t *testing.T) {
+		t.Parallel()
 		config := file.S3Config{
 			Bucket: "my-bucket",
 			Region: "us-east-1",
@@ -736,9 +775,11 @@ func TestS3Storage_URL(t *testing.T) {
 }
 
 func TestS3Storage_ErrorClassification(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("NoSuchKey error", func(t *testing.T) {
+		t.Parallel()
 		client := &mockS3Client{
 			headObjectFunc: func(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
 				return nil, &types.NoSuchKey{
@@ -760,6 +801,7 @@ func TestS3Storage_ErrorClassification(t *testing.T) {
 	})
 
 	t.Run("AccessDenied error", func(t *testing.T) {
+		t.Parallel()
 		client := &mockS3Client{
 			putObjectFunc: func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
 				return nil, &smithy.GenericAPIError{
@@ -782,6 +824,7 @@ func TestS3Storage_ErrorClassification(t *testing.T) {
 	})
 
 	t.Run("Context timeout", func(t *testing.T) {
+		t.Parallel()
 		client := &mockS3Client{
 			putObjectFunc: func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
 				// Simulate slow operation
@@ -804,6 +847,7 @@ func TestS3Storage_ErrorClassification(t *testing.T) {
 }
 
 func TestS3Storage_Integration(t *testing.T) {
+	t.Parallel()
 	operations := []string{}
 
 	mockClient := &mockS3Client{
