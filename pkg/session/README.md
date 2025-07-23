@@ -39,10 +39,10 @@ manager := session.New(
 func handler(w http.ResponseWriter, r *http.Request) {
     // Ensure session exists
     sess, err := manager.Ensure(r.Context(), w, r)
-    
+
     // Store data
     sess.Set("key", "value")
-    
+
     // Authenticate user
     manager.Authenticate(r.Context(), w, r, userID)
 }
@@ -88,14 +88,14 @@ manager := session.NewFromConfig(cfg,
 manager := session.New(
     // Set cookie name (default: "sid")
     session.WithCookieName("my-session"),
-    
+
     // Set timeouts
     session.WithIdleTimeout(30*time.Minute, 2*time.Hour), // anon, auth
     session.WithMaxLifetime(24*time.Hour, 30*24*time.Hour), // anon, auth
-    
+
     // Activity update threshold
     session.WithActivityUpdateThreshold(5*time.Minute),
-    
+
     // Cleanup interval (0 to disable)
     session.WithCleanupInterval(5*time.Minute),
 )
@@ -272,16 +272,16 @@ func main() {
 
     // Routes
     mux := http.NewServeMux()
-    
+
     // Public routes with optional session
     mux.Handle("/", sessionMgr.Middleware(homeHandler))
-    
+
     // Routes that need session
     mux.Handle("/cart", sessionMgr.EnsureSession(cartHandler))
-    
+
     // Protected routes
     mux.Handle("/account", sessionMgr.RequireAuth(accountHandler))
-    
+
     http.ListenAndServe(":8080", mux)
 }
 
@@ -313,7 +313,7 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
         http.Error(w, "Invalid session", 401)
         return
     }
-    
+
     // Process API request
 }
 ```
@@ -325,21 +325,21 @@ func TestMyHandler(t *testing.T) {
     // Setup manager with memory store
     cookieMgr, _ := cookie.New([]string{"test-secret"})
     manager := session.New(session.WithCookieManager(cookieMgr))
-    
+
     // Create test request
     w := httptest.NewRecorder()
     r := httptest.NewRequest("GET", "/", nil)
-    
+
     // Create session
     sess, _ := manager.Ensure(context.Background(), w, r)
     sess.Set("test", "value")
-    
+
     // Add cookie to next request
     r2 := httptest.NewRequest("GET", "/", nil)
     for _, c := range w.Result().Cookies() {
         r2.AddCookie(c)
     }
-    
+
     // Test with session
     handler := manager.Middleware(myHandler)
     handler.ServeHTTP(httptest.NewRecorder(), r2)
@@ -354,9 +354,9 @@ The package is designed for high performance:
 - Efficient memory store with concurrent access
 - Minimal overhead for session operations
 - Benchmark results (on typical hardware):
-  - Get session: ~200ns
-  - Set value: ~300ns
-  - Middleware: ~500ns
+    - Get session: ~200ns
+    - Set value: ~300ns
+    - Middleware: ~500ns
 
 ## Security Considerations
 
