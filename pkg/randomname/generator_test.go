@@ -232,7 +232,7 @@ func TestUniqueness(t *testing.T) {
 		names := make(map[string]bool)
 		iterations := 100
 
-		for i := 0; i < iterations; i++ {
+		for i := range iterations {
 			name := randomname.Simple()
 			if names[name] {
 				// Collision is possible with simple pattern
@@ -250,7 +250,7 @@ func TestUniqueness(t *testing.T) {
 		names := make(map[string]bool)
 		iterations := 1000
 
-		for i := 0; i < iterations; i++ {
+		for range iterations {
 			name := randomname.WithSuffix()
 			require.NotContains(t, names, name, "Should not have any collisions with hex suffix")
 			names[name] = true
@@ -261,7 +261,7 @@ func TestUniqueness(t *testing.T) {
 		names := make(map[string]bool)
 		iterations := 500
 
-		for i := 0; i < iterations; i++ {
+		for range iterations {
 			name := randomname.Descriptive()
 			names[name] = true
 		}
@@ -279,11 +279,11 @@ func TestConcurrency(t *testing.T) {
 	var wg sync.WaitGroup
 	names := make(chan string, workers*iterations)
 
-	for i := 0; i < workers; i++ {
+	for range workers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				name := randomname.Generate(&randomname.Options{
 					Pattern: []randomname.WordType{randomname.Adjective, randomname.Color, randomname.Noun},
 					Suffix:  randomname.Hex6,
@@ -344,7 +344,7 @@ func TestEdgeCases(t *testing.T) {
 
 	t.Run("numeric suffix range", func(t *testing.T) {
 		// Test that numeric suffix is always 4 digits (1000-9999)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			name := randomname.Generate(&randomname.Options{
 				Suffix: randomname.Numeric4,
 			})
