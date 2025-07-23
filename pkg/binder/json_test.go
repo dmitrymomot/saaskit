@@ -14,6 +14,7 @@ import (
 )
 
 func TestJSON(t *testing.T) {
+	t.Parallel()
 	type testStruct struct {
 		Name  string `json:"name"`
 		Age   int    `json:"age"`
@@ -21,6 +22,7 @@ func TestJSON(t *testing.T) {
 	}
 
 	t.Run("valid JSON binding", func(t *testing.T) {
+		t.Parallel()
 		jsonData := `{"name":"John Doe","age":30,"email":"john@example.com"}`
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "application/json")
@@ -36,6 +38,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("content type with charset", func(t *testing.T) {
+		t.Parallel()
 		jsonData := `{"name":"Jane","age":25}`
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "application/json; charset=utf-8")
@@ -50,6 +53,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("missing content type", func(t *testing.T) {
+		t.Parallel()
 		jsonData := `{"name":"Test"}`
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		// Don't set Content-Type
@@ -64,6 +68,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("wrong content type", func(t *testing.T) {
+		t.Parallel()
 		jsonData := `{"name":"Test"}`
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "text/plain")
@@ -78,6 +83,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("empty body", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(""))
 		req.Header.Set("Content-Type", "application/json")
 
@@ -91,6 +97,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("invalid JSON syntax", func(t *testing.T) {
+		t.Parallel()
 		jsonData := `{"name":"Test"` // Missing closing brace
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "application/json")
@@ -105,6 +112,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("invalid character in JSON", func(t *testing.T) {
+		t.Parallel()
 		jsonData := `{name:"Test"}` // Invalid JSON - unquoted key
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "application/json")
@@ -119,6 +127,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("type mismatch", func(t *testing.T) {
+		t.Parallel()
 		jsonData := `{"name":"Test","age":"not a number"}` // age should be int
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "application/json")
@@ -133,6 +142,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("unknown fields rejected", func(t *testing.T) {
+		t.Parallel()
 		jsonData := `{"name":"Test","age":25,"unknown_field":"value"}`
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "application/json")
@@ -148,6 +158,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("extra data after valid JSON", func(t *testing.T) {
+		t.Parallel()
 		jsonData := `{"name":"Test","age":25}{"extra":"data"}`
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "application/json")
@@ -162,6 +173,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("null values", func(t *testing.T) {
+		t.Parallel()
 		jsonData := `{"name":null,"age":null,"email":null}`
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "application/json")
@@ -177,6 +189,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("partial data", func(t *testing.T) {
+		t.Parallel()
 		jsonData := `{"name":"Partial"}`
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "application/json")
@@ -192,6 +205,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("nested structs", func(t *testing.T) {
+		t.Parallel()
 		type Address struct {
 			Street string `json:"street"`
 			City   string `json:"city"`
@@ -216,6 +230,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("arrays", func(t *testing.T) {
+		t.Parallel()
 		type Items struct {
 			Names []string `json:"names"`
 			Nums  []int    `json:"nums"`
@@ -235,6 +250,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("pointer fields", func(t *testing.T) {
+		t.Parallel()
 		type OptionalFields struct {
 			Name     *string `json:"name"`
 			Age      *int    `json:"age"`
@@ -257,6 +273,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("content type with multiple parameters", func(t *testing.T) {
+		t.Parallel()
 		jsonData := `{"name":"Test"}`
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "application/json; charset=utf-8; boundary=something")

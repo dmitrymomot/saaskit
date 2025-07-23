@@ -31,7 +31,9 @@ func (m mockTemplComponent) Render(ctx context.Context, w io.Writer) error {
 }
 
 func TestTempl(t *testing.T) {
+	t.Parallel()
 	t.Run("DataStar request without options", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/event-stream")
 
@@ -50,6 +52,7 @@ func TestTempl(t *testing.T) {
 	})
 
 	t.Run("DataStar request with target", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/event-stream")
 
@@ -69,6 +72,7 @@ func TestTempl(t *testing.T) {
 	})
 
 	t.Run("DataStar request with patch mode", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/event-stream")
 
@@ -90,6 +94,7 @@ func TestTempl(t *testing.T) {
 	})
 
 	t.Run("Regular HTTP request", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/html")
 
@@ -106,6 +111,7 @@ func TestTempl(t *testing.T) {
 	})
 
 	t.Run("Component render error", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/html")
 
@@ -120,7 +126,9 @@ func TestTempl(t *testing.T) {
 }
 
 func TestTemplPartial(t *testing.T) {
+	t.Parallel()
 	t.Run("DataStar request renders partial", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/event-stream")
 
@@ -141,6 +149,7 @@ func TestTemplPartial(t *testing.T) {
 	})
 
 	t.Run("DataStar request with options", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/event-stream")
 
@@ -163,6 +172,7 @@ func TestTemplPartial(t *testing.T) {
 	})
 
 	t.Run("Regular HTTP request renders full", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/html")
 
@@ -181,6 +191,7 @@ func TestTemplPartial(t *testing.T) {
 	})
 
 	t.Run("Partial render error", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/event-stream")
 
@@ -195,6 +206,7 @@ func TestTemplPartial(t *testing.T) {
 	})
 
 	t.Run("Full render error", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/html")
 
@@ -210,7 +222,9 @@ func TestTemplPartial(t *testing.T) {
 }
 
 func TestTemplMulti(t *testing.T) {
+	t.Parallel()
 	t.Run("DataStar request with multiple patches", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/event-stream")
 
@@ -255,6 +269,7 @@ func TestTemplMulti(t *testing.T) {
 	})
 
 	t.Run("Regular HTTP request concatenates all", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/html")
 
@@ -275,6 +290,7 @@ func TestTemplMulti(t *testing.T) {
 	})
 
 	t.Run("Empty patches list", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/event-stream")
 
@@ -289,6 +305,7 @@ func TestTemplMulti(t *testing.T) {
 	})
 
 	t.Run("Error in one patch stops processing", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/event-stream")
 
@@ -309,6 +326,7 @@ func TestTemplMulti(t *testing.T) {
 	})
 
 	t.Run("Regular HTTP error in concatenation", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/html")
 
@@ -325,7 +343,9 @@ func TestTemplMulti(t *testing.T) {
 }
 
 func TestPatch(t *testing.T) {
+	t.Parallel()
 	t.Run("creates patch with component only", func(t *testing.T) {
+		t.Parallel()
 		component := mockTemplComponent{content: "<div>Test</div>"}
 		patch := saaskit.Patch(component)
 
@@ -334,6 +354,7 @@ func TestPatch(t *testing.T) {
 	})
 
 	t.Run("creates patch with options", func(t *testing.T) {
+		t.Parallel()
 		component := mockTemplComponent{content: "<div>Test</div>"}
 		patch := saaskit.Patch(component,
 			saaskit.WithTarget("#target"),
@@ -346,7 +367,9 @@ func TestPatch(t *testing.T) {
 }
 
 func TestWithTarget(t *testing.T) {
+	t.Parallel()
 	t.Run("creates selector option", func(t *testing.T) {
+		t.Parallel()
 		opt := saaskit.WithTarget("#my-element")
 		// Since we can't inspect the internal option directly,
 		// we test it by using it in a response
@@ -366,7 +389,9 @@ func TestWithTarget(t *testing.T) {
 }
 
 func TestWithPatchMode(t *testing.T) {
+	t.Parallel()
 	t.Run("creates mode option", func(t *testing.T) {
+		t.Parallel()
 		opt := saaskit.WithPatchMode(datastar.ElementPatchModeAppend)
 		// Test by using it in a response
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -386,7 +411,9 @@ func TestWithPatchMode(t *testing.T) {
 
 // Integration test with multiple components
 func TestTemplResponseIntegration(t *testing.T) {
+	t.Parallel()
 	t.Run("complex multi-update scenario", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodPost, "/update-order", nil)
 		req.Header.Set("Accept", "text/event-stream")
 

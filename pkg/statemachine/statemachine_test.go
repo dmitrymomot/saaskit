@@ -10,6 +10,7 @@ import (
 )
 
 func TestSimpleStateMachine(t *testing.T) {
+	t.Parallel()
 	// Define states
 	const (
 		Draft     = statemachine.StringState("draft")
@@ -29,6 +30,7 @@ func TestSimpleStateMachine(t *testing.T) {
 	)
 
 	t.Run("Basic Transitions", func(t *testing.T) {
+		t.Parallel()
 		// Create a state machine
 		sm := statemachine.NewSimpleStateMachine(Draft)
 
@@ -79,6 +81,7 @@ func TestSimpleStateMachine(t *testing.T) {
 	})
 
 	t.Run("Guards", func(t *testing.T) {
+		t.Parallel()
 		// Create a state machine
 		sm := statemachine.NewSimpleStateMachine(Draft)
 
@@ -146,6 +149,7 @@ func TestSimpleStateMachine(t *testing.T) {
 	})
 
 	t.Run("Actions", func(t *testing.T) {
+		t.Parallel()
 		// Create a state machine
 		sm := statemachine.NewSimpleStateMachine(Draft)
 
@@ -216,6 +220,7 @@ func TestSimpleStateMachine(t *testing.T) {
 	})
 
 	t.Run("Invalid Transitions", func(t *testing.T) {
+		t.Parallel()
 		// Create a state machine
 		sm := statemachine.NewSimpleStateMachine(Draft)
 
@@ -247,6 +252,7 @@ func TestSimpleStateMachine(t *testing.T) {
 }
 
 func TestBuilder(t *testing.T) {
+	t.Parallel()
 	// Define states
 	const (
 		Draft     = statemachine.StringState("draft")
@@ -263,6 +269,7 @@ func TestBuilder(t *testing.T) {
 	)
 
 	t.Run("Basic Builder", func(t *testing.T) {
+		t.Parallel()
 		// Create a builder
 		builder := statemachine.NewBuilder(Draft)
 
@@ -309,6 +316,7 @@ func TestBuilder(t *testing.T) {
 	})
 
 	t.Run("Builder with Guards and Actions", func(t *testing.T) {
+		t.Parallel()
 		// Create a builder
 		builder := statemachine.NewBuilder(Draft)
 
@@ -366,6 +374,7 @@ func TestBuilder(t *testing.T) {
 	})
 
 	t.Run("WithTransition Shorthand", func(t *testing.T) {
+		t.Parallel()
 		// Create a builder
 		builder := statemachine.NewBuilder(Draft)
 

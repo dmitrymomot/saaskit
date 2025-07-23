@@ -12,6 +12,7 @@ import (
 )
 
 func TestQuery(t *testing.T) {
+	t.Parallel()
 	type basicStruct struct {
 		Name     string  `query:"name"`
 		Age      int     `query:"age"`
@@ -22,6 +23,7 @@ func TestQuery(t *testing.T) {
 	}
 
 	t.Run("valid query binding with all types", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test?name=John&age=30&height=5.9&active=true&page=2", nil)
 
 		var result basicStruct
@@ -38,6 +40,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("skips fields with dash tag", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test?name=Test&internal=secret", nil)
 
 		var result basicStruct
@@ -51,6 +54,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("empty query parameters", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		var result basicStruct
@@ -66,6 +70,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("partial query parameters", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test?name=Jane&age=25", nil)
 
 		var result basicStruct
@@ -80,6 +85,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("invalid int value", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test?age=notanumber", nil)
 
 		var result basicStruct
@@ -92,6 +98,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("invalid uint value", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test?page=-1", nil)
 
 		var result basicStruct
@@ -103,6 +110,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("invalid float value", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test?height=tall", nil)
 
 		var result basicStruct
@@ -115,6 +123,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("boolean variations", func(t *testing.T) {
+		t.Parallel()
 		tests := []struct {
 			value    string
 			expected bool
@@ -156,6 +165,7 @@ func TestQuery(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.value, func(t *testing.T) {
+				t.Parallel()
 				req := httptest.NewRequest(http.MethodGet, "/test?active="+tt.value, nil)
 
 				var result basicStruct
@@ -169,6 +179,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("invalid boolean value", func(t *testing.T) {
+		t.Parallel()
 		invalidValues := []string{
 			"maybe",
 			"unknown",
@@ -187,6 +198,7 @@ func TestQuery(t *testing.T) {
 
 		for _, value := range invalidValues {
 			t.Run(value, func(t *testing.T) {
+				t.Parallel()
 				req := httptest.NewRequest(http.MethodGet, "/test?active="+value, nil)
 
 				var result basicStruct
@@ -201,6 +213,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("slice parameters multiple values", func(t *testing.T) {
+		t.Parallel()
 		type sliceStruct struct {
 			Tags []string `query:"tags"`
 			IDs  []int    `query:"ids"`
@@ -218,6 +231,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("slice parameters comma separated", func(t *testing.T) {
+		t.Parallel()
 		type sliceStruct struct {
 			Tags   []string  `query:"tags"`
 			Scores []float64 `query:"scores"`
@@ -235,6 +249,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("slice parameters mixed format", func(t *testing.T) {
+		t.Parallel()
 		type sliceStruct struct {
 			Tags []string `query:"tags"`
 		}
@@ -250,6 +265,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("boolean slice parameters", func(t *testing.T) {
+		t.Parallel()
 		type boolSliceStruct struct {
 			Flags []bool `query:"flags"`
 		}
@@ -265,6 +281,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("boolean slice comma separated", func(t *testing.T) {
+		t.Parallel()
 		type boolSliceStruct struct {
 			Settings []bool `query:"settings"`
 		}
@@ -280,6 +297,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("pointer fields", func(t *testing.T) {
+		t.Parallel()
 		type pointerStruct struct {
 			Name     *string  `query:"name"`
 			Age      *int     `query:"age"`
@@ -305,6 +323,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("no struct tag uses lowercase field name", func(t *testing.T) {
+		t.Parallel()
 		type noTagStruct struct {
 			Name  string
 			Count int
@@ -322,6 +341,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("special characters in values", func(t *testing.T) {
+		t.Parallel()
 		type specialStruct struct {
 			Email   string `query:"email"`
 			URL     string `query:"url"`
@@ -341,6 +361,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("non-pointer target", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		var result basicStruct
@@ -352,6 +373,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("nil pointer target", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		var result *basicStruct
@@ -363,6 +385,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("non-struct target", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		var result string
@@ -374,6 +397,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("tags with options", func(t *testing.T) {
+		t.Parallel()
 		type tagOptionsStruct struct {
 			Name     string `query:"name,omitempty"`
 			Optional string `query:"opt,omitempty"`
@@ -393,6 +417,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("various numeric types", func(t *testing.T) {
+		t.Parallel()
 		type numericStruct struct {
 			Int8    int8    `query:"int8"`
 			Int16   int16   `query:"int16"`
@@ -424,6 +449,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("unexported fields are skipped", func(t *testing.T) {
+		t.Parallel()
 		type mixedStruct struct {
 			Public  string `query:"public"`
 			private string `query:"private"` // unexported
@@ -441,6 +467,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("trimmed values in comma-separated slices", func(t *testing.T) {
+		t.Parallel()
 		type sliceStruct struct {
 			Tags []string `query:"tags"`
 		}

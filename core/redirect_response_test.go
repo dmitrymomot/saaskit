@@ -12,7 +12,9 @@ import (
 )
 
 func TestRedirect(t *testing.T) {
+	t.Parallel()
 	t.Run("regular redirect", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 
@@ -25,6 +27,7 @@ func TestRedirect(t *testing.T) {
 	})
 
 	t.Run("datastar redirect", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set("Accept", "text/event-stream")
@@ -43,6 +46,7 @@ func TestRedirect(t *testing.T) {
 	})
 
 	t.Run("datastar redirect with query param", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/?datastar={}", nil)
 
@@ -60,7 +64,9 @@ func TestRedirect(t *testing.T) {
 }
 
 func TestRedirectWithCode(t *testing.T) {
+	t.Parallel()
 	t.Run("permanent redirect", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 
@@ -73,6 +79,7 @@ func TestRedirectWithCode(t *testing.T) {
 	})
 
 	t.Run("temporary redirect", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 
@@ -85,6 +92,7 @@ func TestRedirectWithCode(t *testing.T) {
 	})
 
 	t.Run("datastar redirect ignores code", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set("Accept", "text/event-stream")
@@ -103,7 +111,9 @@ func TestRedirectWithCode(t *testing.T) {
 }
 
 func TestRedirectBack(t *testing.T) {
+	t.Parallel()
 	t.Run("redirect to referer", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Host = "example.com"
@@ -118,6 +128,7 @@ func TestRedirectBack(t *testing.T) {
 	})
 
 	t.Run("redirect to fallback when no referer", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Host = "example.com"
@@ -131,6 +142,7 @@ func TestRedirectBack(t *testing.T) {
 	})
 
 	t.Run("datastar redirect to referer", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Host = "example.com"
@@ -149,6 +161,7 @@ func TestRedirectBack(t *testing.T) {
 	})
 
 	t.Run("invalid referer URL falls back", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Host = "example.com"
@@ -163,6 +176,7 @@ func TestRedirectBack(t *testing.T) {
 	})
 
 	t.Run("different host referer rejected", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Host = "example.com"
@@ -177,6 +191,7 @@ func TestRedirectBack(t *testing.T) {
 	})
 
 	t.Run("datastar redirect to fallback when referer invalid", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Host = "example.com"
@@ -196,7 +211,9 @@ func TestRedirectBack(t *testing.T) {
 }
 
 func TestRedirectBackWithCode(t *testing.T) {
+	t.Parallel()
 	t.Run("regular redirect with custom code", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set("Referer", "http://example.com/previous")
@@ -211,6 +228,7 @@ func TestRedirectBackWithCode(t *testing.T) {
 	})
 
 	t.Run("datastar redirect back ignores code", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set("Referer", "http://example.com/previous")

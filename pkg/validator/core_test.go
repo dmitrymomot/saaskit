@@ -11,12 +11,15 @@ import (
 )
 
 func TestValidationErrors_Error(t *testing.T) {
+	t.Parallel()
 	t.Run("returns default message when no errors", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		assert.Equal(t, "validation failed", errs.Error())
 	})
 
 	t.Run("returns formatted message with single error", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		errs.Add(validator.ValidationError{
 			Field:   "email",
@@ -26,6 +29,7 @@ func TestValidationErrors_Error(t *testing.T) {
 	})
 
 	t.Run("returns formatted message with multiple errors", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		errs.Add(validator.ValidationError{
 			Field:   "email",
@@ -43,6 +47,7 @@ func TestValidationErrors_Error(t *testing.T) {
 	})
 
 	t.Run("returns formatted message with multiple errors for same field", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		errs.Add(validator.ValidationError{
 			Field:   "password",
@@ -60,7 +65,9 @@ func TestValidationErrors_Error(t *testing.T) {
 }
 
 func TestValidationErrors_Add(t *testing.T) {
+	t.Parallel()
 	t.Run("adds error to collection", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		err := validator.ValidationError{
 			Field:   "email",
@@ -73,6 +80,7 @@ func TestValidationErrors_Add(t *testing.T) {
 	})
 
 	t.Run("adds multiple errors to same field", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		errs.Add(validator.ValidationError{
 			Field:   "password",
@@ -89,7 +97,9 @@ func TestValidationErrors_Add(t *testing.T) {
 }
 
 func TestValidationErrors_Has(t *testing.T) {
+	t.Parallel()
 	t.Run("returns true for field with errors", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		errs.Add(validator.ValidationError{
 			Field:   "email",
@@ -100,6 +110,7 @@ func TestValidationErrors_Has(t *testing.T) {
 	})
 
 	t.Run("returns false for field without errors", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		errs.Add(validator.ValidationError{
 			Field:   "email",
@@ -110,6 +121,7 @@ func TestValidationErrors_Has(t *testing.T) {
 	})
 
 	t.Run("returns false for non-existent field", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 
 		assert.False(t, errs.Has("nonexistent"))
@@ -117,7 +129,9 @@ func TestValidationErrors_Has(t *testing.T) {
 }
 
 func TestValidationErrors_Get(t *testing.T) {
+	t.Parallel()
 	t.Run("returns errors for existing field", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		errs.Add(validator.ValidationError{
 			Field:   "email",
@@ -133,6 +147,7 @@ func TestValidationErrors_Get(t *testing.T) {
 	})
 
 	t.Run("returns empty slice for non-existent field", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 
 		result := errs.Get("nonexistent")
@@ -141,7 +156,9 @@ func TestValidationErrors_Get(t *testing.T) {
 }
 
 func TestValidationErrors_GetErrors(t *testing.T) {
+	t.Parallel()
 	t.Run("returns ValidationError objects for existing field", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		err1 := validator.ValidationError{
 			Field:             "email",
@@ -165,6 +182,7 @@ func TestValidationErrors_GetErrors(t *testing.T) {
 	})
 
 	t.Run("returns empty slice for non-existent field", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 
 		result := errs.GetErrors("nonexistent")
@@ -173,7 +191,9 @@ func TestValidationErrors_GetErrors(t *testing.T) {
 }
 
 func TestValidationErrors_Fields(t *testing.T) {
+	t.Parallel()
 	t.Run("returns all fields with errors", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		errs.Add(validator.ValidationError{Field: "email", Message: "is required"})
 		errs.Add(validator.ValidationError{Field: "password", Message: "too short"})
@@ -187,6 +207,7 @@ func TestValidationErrors_Fields(t *testing.T) {
 	})
 
 	t.Run("returns unique fields only", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		errs.Add(validator.ValidationError{Field: "email", Message: "is required"})
 		errs.Add(validator.ValidationError{Field: "email", Message: "invalid format"})
@@ -199,6 +220,7 @@ func TestValidationErrors_Fields(t *testing.T) {
 	})
 
 	t.Run("returns empty slice for no errors", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 
 		fields := errs.Fields()
@@ -207,13 +229,16 @@ func TestValidationErrors_Fields(t *testing.T) {
 }
 
 func TestValidationErrors_IsEmpty(t *testing.T) {
+	t.Parallel()
 	t.Run("returns true for empty errors", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 
 		assert.True(t, errs.IsEmpty())
 	})
 
 	t.Run("returns false for errors with content", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		errs.Add(validator.ValidationError{
 			Field:   "email",
@@ -225,7 +250,9 @@ func TestValidationErrors_IsEmpty(t *testing.T) {
 }
 
 func TestValidationErrors_GetTranslatableErrors(t *testing.T) {
+	t.Parallel()
 	t.Run("returns all errors with translation data", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		err1 := validator.ValidationError{
 			Field:             "email",
@@ -250,7 +277,9 @@ func TestValidationErrors_GetTranslatableErrors(t *testing.T) {
 }
 
 func TestApply(t *testing.T) {
+	t.Parallel()
 	t.Run("returns nil when all rules pass", func(t *testing.T) {
+		t.Parallel()
 		rules := []validator.Rule{
 			{
 				Check: func() bool { return true },
@@ -267,6 +296,7 @@ func TestApply(t *testing.T) {
 	})
 
 	t.Run("returns ValidationErrors when rules fail", func(t *testing.T) {
+		t.Parallel()
 		rules := []validator.Rule{
 			{
 				Check: func() bool { return false },
@@ -298,6 +328,7 @@ func TestApply(t *testing.T) {
 	})
 
 	t.Run("returns ValidationErrors for mixed results", func(t *testing.T) {
+		t.Parallel()
 		rules := []validator.Rule{
 			{
 				Check: func() bool { return false },
@@ -319,11 +350,13 @@ func TestApply(t *testing.T) {
 	})
 
 	t.Run("handles empty rules", func(t *testing.T) {
+		t.Parallel()
 		err := validator.Apply()
 		assert.NoError(t, err)
 	})
 
 	t.Run("collects multiple errors for same field", func(t *testing.T) {
+		t.Parallel()
 		rules := []validator.Rule{
 			{
 				Check: func() bool { return false },
@@ -349,7 +382,9 @@ func TestApply(t *testing.T) {
 }
 
 func TestExtractValidationErrors(t *testing.T) {
+	t.Parallel()
 	t.Run("extracts ValidationErrors from error", func(t *testing.T) {
+		t.Parallel()
 		var originalErrs validator.ValidationErrors
 		originalErrs.Add(validator.ValidationError{
 			Field:   "email",
@@ -362,6 +397,7 @@ func TestExtractValidationErrors(t *testing.T) {
 	})
 
 	t.Run("returns nil for non-ValidationErrors", func(t *testing.T) {
+		t.Parallel()
 		err := errors.New("regular error")
 
 		extractedErrs := validator.ExtractValidationErrors(err)
@@ -369,13 +405,16 @@ func TestExtractValidationErrors(t *testing.T) {
 	})
 
 	t.Run("returns nil for nil error", func(t *testing.T) {
+		t.Parallel()
 		extractedErrs := validator.ExtractValidationErrors(nil)
 		assert.Nil(t, extractedErrs)
 	})
 }
 
 func TestIsValidationError(t *testing.T) {
+	t.Parallel()
 	t.Run("returns true for ValidationErrors", func(t *testing.T) {
+		t.Parallel()
 		var errs validator.ValidationErrors
 		errs.Add(validator.ValidationError{
 			Field:   "email",
@@ -386,18 +425,22 @@ func TestIsValidationError(t *testing.T) {
 	})
 
 	t.Run("returns false for regular error", func(t *testing.T) {
+		t.Parallel()
 		err := errors.New("regular error")
 
 		assert.False(t, validator.IsValidationError(err))
 	})
 
 	t.Run("returns false for nil error", func(t *testing.T) {
+		t.Parallel()
 		assert.False(t, validator.IsValidationError(nil))
 	})
 }
 
 func TestRule(t *testing.T) {
+	t.Parallel()
 	t.Run("rule structure contains expected fields", func(t *testing.T) {
+		t.Parallel()
 		rule := validator.Rule{
 			Check: func() bool { return true },
 			Error: validator.ValidationError{
@@ -416,6 +459,7 @@ func TestRule(t *testing.T) {
 	})
 
 	t.Run("rule check function can return false", func(t *testing.T) {
+		t.Parallel()
 		rule := validator.Rule{
 			Check: func() bool { return false },
 			Error: validator.ValidationError{
@@ -429,7 +473,9 @@ func TestRule(t *testing.T) {
 }
 
 func TestValidationError(t *testing.T) {
+	t.Parallel()
 	t.Run("contains all expected fields", func(t *testing.T) {
+		t.Parallel()
 		err := validator.ValidationError{
 			Field:             "email",
 			Message:           "is required",
@@ -444,6 +490,7 @@ func TestValidationError(t *testing.T) {
 	})
 
 	t.Run("can have complex translation values", func(t *testing.T) {
+		t.Parallel()
 		err := validator.ValidationError{
 			Field:          "password",
 			Message:        "must be between 8 and 50 characters",

@@ -11,6 +11,8 @@ import (
 )
 
 func TestIsDataStar(t *testing.T) {
+	t.Parallel()
+	
 	tests := []struct {
 		name     string
 		headers  map[string]string
@@ -51,6 +53,8 @@ func TestIsDataStar(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			
 			req := httptest.NewRequest(http.MethodGet, "/test"+tt.query, nil)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
@@ -63,7 +67,11 @@ func TestIsDataStar(t *testing.T) {
 }
 
 func TestDataStarRedirect(t *testing.T) {
+	t.Parallel()
+	
 	t.Run("DataStar request", func(t *testing.T) {
+		t.Parallel()
+		
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/event-stream")
 
@@ -82,6 +90,8 @@ func TestDataStarRedirect(t *testing.T) {
 	})
 
 	t.Run("Regular request", func(t *testing.T) {
+		t.Parallel()
+		
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", "text/html")
 
@@ -96,7 +106,11 @@ func TestDataStarRedirect(t *testing.T) {
 }
 
 func TestRedirectResponseWithDataStar(t *testing.T) {
+	t.Parallel()
+	
 	t.Run("DataStar redirect", func(t *testing.T) {
+		t.Parallel()
+		
 		req := httptest.NewRequest(http.MethodPost, "/submit", nil)
 		req.Header.Set("Accept", "text/event-stream")
 
@@ -113,6 +127,8 @@ func TestRedirectResponseWithDataStar(t *testing.T) {
 	})
 
 	t.Run("Regular redirect", func(t *testing.T) {
+		t.Parallel()
+		
 		req := httptest.NewRequest(http.MethodPost, "/submit", nil)
 
 		w := httptest.NewRecorder()
@@ -127,7 +143,11 @@ func TestRedirectResponseWithDataStar(t *testing.T) {
 }
 
 func TestRedirectBackWithDataStar(t *testing.T) {
+	t.Parallel()
+	
 	t.Run("DataStar redirect back with referer", func(t *testing.T) {
+		t.Parallel()
+		
 		req := httptest.NewRequest(http.MethodPost, "/delete", nil)
 		req.Header.Set("Accept", "text/event-stream")
 		req.Header.Set("Referer", "/items")
@@ -146,6 +166,8 @@ func TestRedirectBackWithDataStar(t *testing.T) {
 	})
 
 	t.Run("DataStar redirect back with fallback", func(t *testing.T) {
+		t.Parallel()
+		
 		req := httptest.NewRequest(http.MethodPost, "/delete", nil)
 		req.Header.Set("Accept", "text/event-stream")
 		// No referer header
@@ -163,6 +185,8 @@ func TestRedirectBackWithDataStar(t *testing.T) {
 	})
 
 	t.Run("Regular redirect back", func(t *testing.T) {
+		t.Parallel()
+		
 		req := httptest.NewRequest(http.MethodPost, "/delete", nil)
 		req.Header.Set("Referer", "/items")
 		req.Host = "example.com"

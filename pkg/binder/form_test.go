@@ -17,6 +17,7 @@ import (
 )
 
 func TestForm(t *testing.T) {
+	t.Parallel()
 	type basicForm struct {
 		Name     string  `form:"name"`
 		Age      int     `form:"age"`
@@ -27,6 +28,7 @@ func TestForm(t *testing.T) {
 	}
 
 	t.Run("valid form binding with all types", func(t *testing.T) {
+		t.Parallel()
 		formData := url.Values{
 			"name":   {"John"},
 			"age":    {"30"},
@@ -51,6 +53,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("skips fields with dash tag", func(t *testing.T) {
+		t.Parallel()
 		formData := url.Values{
 			"name":     {"Test"},
 			"internal": {"secret"},
@@ -69,6 +72,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("content type with charset", func(t *testing.T) {
+		t.Parallel()
 		formData := url.Values{
 			"name": {"Jane"},
 			"age":  {"25"},
@@ -86,6 +90,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("missing content type", func(t *testing.T) {
+		t.Parallel()
 		formData := url.Values{"name": {"Test"}}
 		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(formData.Encode()))
 		// Don't set Content-Type
@@ -100,6 +105,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("wrong content type", func(t *testing.T) {
+		t.Parallel()
 		formData := url.Values{"name": {"Test"}}
 		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(formData.Encode()))
 		req.Header.Set("Content-Type", "application/json")
@@ -114,6 +120,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("empty form data", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(""))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -130,6 +137,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("partial form data", func(t *testing.T) {
+		t.Parallel()
 		formData := url.Values{
 			"name": {"Jane"},
 			"age":  {"25"},
@@ -149,6 +157,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("invalid int value", func(t *testing.T) {
+		t.Parallel()
 		formData := url.Values{"age": {"notanumber"}}
 		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(formData.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -163,6 +172,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("slice parameters multiple values", func(t *testing.T) {
+		t.Parallel()
 		type sliceForm struct {
 			Tags []string `form:"tags"`
 			IDs  []int    `form:"ids"`
@@ -185,6 +195,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("slice parameters comma separated", func(t *testing.T) {
+		t.Parallel()
 		type sliceForm struct {
 			Tags   []string  `form:"tags"`
 			Scores []float64 `form:"scores"`
@@ -207,6 +218,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("boolean slice parameters", func(t *testing.T) {
+		t.Parallel()
 		type boolSliceForm struct {
 			Flags []bool `form:"flags"`
 		}
@@ -226,6 +238,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("boolean slice comma separated", func(t *testing.T) {
+		t.Parallel()
 		type boolSliceForm struct {
 			Settings []bool `form:"settings"`
 		}
@@ -245,6 +258,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("pointer fields", func(t *testing.T) {
+		t.Parallel()
 		type pointerForm struct {
 			Name     *string  `form:"name"`
 			Age      *int     `form:"age"`
@@ -276,6 +290,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("fields without tags are skipped", func(t *testing.T) {
+		t.Parallel()
 		type noTagForm struct {
 			Name  string // No tag, should be skipped
 			Count int    // No tag, should be skipped
@@ -301,6 +316,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("special characters in values", func(t *testing.T) {
+		t.Parallel()
 		type specialForm struct {
 			Email   string `form:"email"`
 			URL     string `form:"url"`
@@ -326,6 +342,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("non-pointer target", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(""))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -338,6 +355,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("boolean variations", func(t *testing.T) {
+		t.Parallel()
 		tests := []struct {
 			value    string
 			expected bool
@@ -378,6 +396,7 @@ func TestForm(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.value, func(t *testing.T) {
+				t.Parallel()
 				formData := url.Values{"active": {tt.value}}
 				req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(formData.Encode()))
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -393,6 +412,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("invalid boolean values", func(t *testing.T) {
+		t.Parallel()
 		invalidValues := []string{
 			"maybe",
 			"unknown",
@@ -411,6 +431,7 @@ func TestForm(t *testing.T) {
 
 		for _, value := range invalidValues {
 			t.Run(value, func(t *testing.T) {
+				t.Parallel()
 				formData := url.Values{"active": {value}}
 				req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(formData.Encode()))
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -427,6 +448,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("tags with options", func(t *testing.T) {
+		t.Parallel()
 		type tagOptionsForm struct {
 			Name     string `form:"name,omitempty"`
 			Optional string `form:"opt,omitempty"`
@@ -451,6 +473,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("empty tag values are skipped", func(t *testing.T) {
+		t.Parallel()
 		type emptyTagForm struct {
 			Field1 string `form:""`           // Empty form tag, should be skipped
 			Field2 string `form:"name"`       // Valid tag
@@ -475,6 +498,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("enterprise application settings form", func(t *testing.T) {
+		t.Parallel()
 		// Realistic large configuration form for enterprise SaaS application
 		type AppSettings struct {
 			// General Settings
@@ -618,6 +642,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("invalid form data", func(t *testing.T) {
+		t.Parallel()
 		// Send malformed form data
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString("%ZZ"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -631,6 +656,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("empty values in form", func(t *testing.T) {
+		t.Parallel()
 		formData := url.Values{
 			"name":   {""},
 			"active": {""},
@@ -648,6 +674,7 @@ func TestForm(t *testing.T) {
 	})
 
 	t.Run("multipart form content type", func(t *testing.T) {
+		t.Parallel()
 		// Create a proper multipart form
 		var b bytes.Buffer
 		w := multipart.NewWriter(&b)
@@ -670,6 +697,7 @@ func TestForm(t *testing.T) {
 }
 
 func TestFormWithFiles(t *testing.T) {
+	t.Parallel()
 	type uploadForm struct {
 		Title    string                  `form:"title"`
 		Category string                  `form:"category"`
@@ -682,6 +710,7 @@ func TestFormWithFiles(t *testing.T) {
 	}
 
 	t.Run("form and file fields together", func(t *testing.T) {
+		t.Parallel()
 		body, contentType := createMultipartFormWithFiles(t,
 			map[string]string{
 				"title":    "My Upload",
@@ -708,6 +737,7 @@ func TestFormWithFiles(t *testing.T) {
 	})
 
 	t.Run("optional file present", func(t *testing.T) {
+		t.Parallel()
 		body, contentType := createMultipartFormWithFiles(t,
 			map[string]string{"title": "Test"},
 			map[string][]fileData{
@@ -729,6 +759,7 @@ func TestFormWithFiles(t *testing.T) {
 	})
 
 	t.Run("multiple files", func(t *testing.T) {
+		t.Parallel()
 		body, contentType := createMultipartFormWithFiles(t,
 			map[string]string{"title": "Gallery"},
 			map[string][]fileData{
@@ -755,6 +786,7 @@ func TestFormWithFiles(t *testing.T) {
 	})
 
 	t.Run("skip fields with dash tag", func(t *testing.T) {
+		t.Parallel()
 		body, contentType := createMultipartFormWithFiles(t,
 			map[string]string{"title": "Test"},
 			map[string][]fileData{
@@ -774,6 +806,7 @@ func TestFormWithFiles(t *testing.T) {
 	})
 
 	t.Run("filename sanitization", func(t *testing.T) {
+		t.Parallel()
 		dangerousFilenames := []struct {
 			input    string
 			expected string
@@ -790,6 +823,7 @@ func TestFormWithFiles(t *testing.T) {
 
 		for _, tc := range dangerousFilenames {
 			t.Run(tc.input, func(t *testing.T) {
+				t.Parallel()
 				body, contentType := createMultipartFormWithFiles(t,
 					map[string]string{"title": "Test"},
 					map[string][]fileData{
@@ -812,6 +846,7 @@ func TestFormWithFiles(t *testing.T) {
 	})
 
 	t.Run("unsupported file field type", func(t *testing.T) {
+		t.Parallel()
 		type invalidForm struct {
 			File string `file:"file"` // Wrong type
 		}
@@ -835,6 +870,7 @@ func TestFormWithFiles(t *testing.T) {
 	})
 
 	t.Run("empty file tag values are skipped", func(t *testing.T) {
+		t.Parallel()
 		type emptyFileTagForm struct {
 			Title string                `form:"title"`
 			File1 *multipart.FileHeader `file:""`       // Empty file tag, should be skipped
@@ -864,6 +900,7 @@ func TestFormWithFiles(t *testing.T) {
 	})
 
 	t.Run("url-encoded form skips file tags", func(t *testing.T) {
+		t.Parallel()
 		// File tags should be ignored for non-multipart forms
 		formData := url.Values{
 			"title":  {"Test"},

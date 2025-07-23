@@ -14,7 +14,9 @@ import (
 )
 
 func TestRealWorldSaaSQueryScenarios(t *testing.T) {
+	t.Parallel()
 	t.Run("pagination parameters", func(t *testing.T) {
+		t.Parallel()
 		type PaginationParams struct {
 			Page     int    `query:"page"`
 			Limit    int    `query:"limit"`
@@ -56,6 +58,7 @@ func TestRealWorldSaaSQueryScenarios(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 				req := httptest.NewRequest(http.MethodGet, "/api/users?"+tt.query, nil)
 
 				var result PaginationParams
@@ -69,6 +72,7 @@ func TestRealWorldSaaSQueryScenarios(t *testing.T) {
 	})
 
 	t.Run("sorting and filtering", func(t *testing.T) {
+		t.Parallel()
 		type FilterParams struct {
 			SortBy   string   `query:"sort_by"`
 			Order    string   `query:"order"`
@@ -103,6 +107,7 @@ func TestRealWorldSaaSQueryScenarios(t *testing.T) {
 	})
 
 	t.Run("date range filtering", func(t *testing.T) {
+		t.Parallel()
 		type DateRangeParams struct {
 			StartDate    string `query:"start_date"`
 			EndDate      string `query:"end_date"`
@@ -128,6 +133,7 @@ func TestRealWorldSaaSQueryScenarios(t *testing.T) {
 	})
 
 	t.Run("complex search with includes and excludes", func(t *testing.T) {
+		t.Parallel()
 		type SearchParams struct {
 			Query      string   `query:"q"`
 			Include    []string `query:"include"`
@@ -157,6 +163,7 @@ func TestRealWorldSaaSQueryScenarios(t *testing.T) {
 	})
 
 	t.Run("analytics and metrics parameters", func(t *testing.T) {
+		t.Parallel()
 		type AnalyticsParams struct {
 			MetricType  string   `query:"metric"`
 			GroupBy     []string `query:"group_by"`
@@ -187,7 +194,9 @@ func TestRealWorldSaaSQueryScenarios(t *testing.T) {
 }
 
 func TestRealWorldSaaSFormScenarios(t *testing.T) {
+	t.Parallel()
 	t.Run("user profile update form", func(t *testing.T) {
+		t.Parallel()
 		type UserProfileForm struct {
 			FirstName     string   `form:"first_name"`
 			LastName      string   `form:"last_name"`
@@ -243,6 +252,7 @@ func TestRealWorldSaaSFormScenarios(t *testing.T) {
 	})
 
 	t.Run("subscription checkout form", func(t *testing.T) {
+		t.Parallel()
 		type CheckoutForm struct {
 			PlanID         string   `form:"plan_id"`
 			BillingCycle   string   `form:"billing_cycle"`
@@ -299,6 +309,7 @@ func TestRealWorldSaaSFormScenarios(t *testing.T) {
 	})
 
 	t.Run("project settings form", func(t *testing.T) {
+		t.Parallel()
 		type ProjectSettings struct {
 			ProjectName       string   `form:"project_name"`
 			Description       string   `form:"description"`

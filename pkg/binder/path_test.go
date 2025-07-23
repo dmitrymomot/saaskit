@@ -12,6 +12,7 @@ import (
 )
 
 func TestPath(t *testing.T) {
+	t.Parallel()
 	type basicStruct struct {
 		ID       string  `path:"id"`
 		Username string  `path:"username"`
@@ -23,6 +24,7 @@ func TestPath(t *testing.T) {
 	}
 
 	t.Run("custom extractor function", func(t *testing.T) {
+		t.Parallel()
 		// Simulate a simple path params map
 		pathParams := map[string]string{
 			"id":       "123",
@@ -55,6 +57,7 @@ func TestPath(t *testing.T) {
 	})
 
 	t.Run("missing path params", func(t *testing.T) {
+		t.Parallel()
 		extractor := func(r *http.Request, fieldName string) string {
 			return "" // Always return empty
 		}
@@ -73,6 +76,7 @@ func TestPath(t *testing.T) {
 	})
 
 	t.Run("nil extractor", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		var result basicStruct
@@ -84,6 +88,7 @@ func TestPath(t *testing.T) {
 	})
 
 	t.Run("nil target", func(t *testing.T) {
+		t.Parallel()
 		extractor := func(r *http.Request, fieldName string) string {
 			return "value"
 		}
@@ -98,6 +103,7 @@ func TestPath(t *testing.T) {
 	})
 
 	t.Run("non-pointer target", func(t *testing.T) {
+		t.Parallel()
 		extractor := func(r *http.Request, fieldName string) string {
 			return "value"
 		}
@@ -113,6 +119,7 @@ func TestPath(t *testing.T) {
 	})
 
 	t.Run("pointer to non-struct", func(t *testing.T) {
+		t.Parallel()
 		extractor := func(r *http.Request, fieldName string) string {
 			return "value"
 		}
@@ -128,6 +135,7 @@ func TestPath(t *testing.T) {
 	})
 
 	t.Run("skips fields with dash tag", func(t *testing.T) {
+		t.Parallel()
 		pathParams := map[string]string{
 			"id":       "123",
 			"internal": "secret", // This should be ignored
@@ -150,6 +158,7 @@ func TestPath(t *testing.T) {
 	})
 
 	t.Run("no tag uses field name", func(t *testing.T) {
+		t.Parallel()
 		type noTagStruct struct {
 			UserID string // No tag, should use "userid" (lowercase)
 			Count  int
@@ -176,6 +185,7 @@ func TestPath(t *testing.T) {
 	})
 
 	t.Run("pointer fields", func(t *testing.T) {
+		t.Parallel()
 		type pointerStruct struct {
 			ID      *string  `path:"id"`
 			Age     *int     `path:"age"`
@@ -214,6 +224,7 @@ func TestPath(t *testing.T) {
 	})
 
 	t.Run("invalid numeric values", func(t *testing.T) {
+		t.Parallel()
 		pathParams := map[string]string{
 			"age":    "not-a-number",
 			"height": "invalid",
@@ -235,6 +246,7 @@ func TestPath(t *testing.T) {
 	})
 
 	t.Run("chi router style extractor", func(t *testing.T) {
+		t.Parallel()
 		// Simulate chi router URL params
 		urlParams := map[string]string{
 			"id":       "chi123",
@@ -259,6 +271,7 @@ func TestPath(t *testing.T) {
 	})
 
 	t.Run("gorilla mux style extractor", func(t *testing.T) {
+		t.Parallel()
 		// Simulate gorilla/mux vars
 		muxVars := map[string]string{
 			"id":       "mux456",

@@ -30,7 +30,9 @@ func (m mockResponse) Render(w http.ResponseWriter, r *http.Request) error {
 }
 
 func TestWrap(t *testing.T) {
+	t.Parallel()
 	t.Run("basic handler without options", func(t *testing.T) {
+		t.Parallel()
 		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
 			assert.NotNil(t, ctx)
 			assert.Equal(t, "", req) // zero value
@@ -49,6 +51,7 @@ func TestWrap(t *testing.T) {
 	})
 
 	t.Run("handler with render error", func(t *testing.T) {
+		t.Parallel()
 		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
 			return mockResponse{renderErr: errors.New("render failed")}
 		})
@@ -65,6 +68,7 @@ func TestWrap(t *testing.T) {
 	})
 
 	t.Run("handler returns nil response", func(t *testing.T) {
+		t.Parallel()
 		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
 			return nil
 		})
@@ -81,6 +85,7 @@ func TestWrap(t *testing.T) {
 	})
 
 	t.Run("with custom context factory", func(t *testing.T) {
+		t.Parallel()
 		customContextCreated := false
 		customFactory := func(w http.ResponseWriter, r *http.Request) saaskit.Context {
 			customContextCreated = true
@@ -103,6 +108,7 @@ func TestWrap(t *testing.T) {
 	})
 
 	t.Run("with custom binder", func(t *testing.T) {
+		t.Parallel()
 		type testRequest struct {
 			Name string
 		}
@@ -131,6 +137,7 @@ func TestWrap(t *testing.T) {
 	})
 
 	t.Run("with multiple binders", func(t *testing.T) {
+		t.Parallel()
 		type testRequest struct {
 			Field1 string
 			Field2 string
@@ -168,6 +175,7 @@ func TestWrap(t *testing.T) {
 	})
 
 	t.Run("multiple binders execution order", func(t *testing.T) {
+		t.Parallel()
 		type testRequest struct {
 			Value string
 		}
@@ -208,6 +216,7 @@ func TestWrap(t *testing.T) {
 	})
 
 	t.Run("multiple binders with error in chain", func(t *testing.T) {
+		t.Parallel()
 		type testRequest struct {
 			Field1 string
 			Field2 string
@@ -259,6 +268,7 @@ func TestWrap(t *testing.T) {
 	})
 
 	t.Run("with binder error and custom error handler", func(t *testing.T) {
+		t.Parallel()
 		binderErr := errors.New("binding failed")
 		errorHandlerCalled := false
 
@@ -294,6 +304,7 @@ func TestWrap(t *testing.T) {
 	})
 
 	t.Run("with nil options", func(t *testing.T) {
+		t.Parallel()
 		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
 			return mockResponse{statusCode: http.StatusOK, body: "ok"}
 		})
@@ -316,6 +327,7 @@ func TestWrap(t *testing.T) {
 	})
 
 	t.Run("nil response with custom error handler", func(t *testing.T) {
+		t.Parallel()
 		var capturedErr error
 		customErrorHandler := func(ctx saaskit.Context, err error) {
 			capturedErr = err
@@ -341,6 +353,7 @@ func TestWrap(t *testing.T) {
 	})
 
 	t.Run("handler returns HTTPError", func(t *testing.T) {
+		t.Parallel()
 		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
 			return mockResponse{renderErr: saaskit.ErrNotFound}
 		})
@@ -357,6 +370,7 @@ func TestWrap(t *testing.T) {
 	})
 
 	t.Run("handler returns wrapped HTTPError", func(t *testing.T) {
+		t.Parallel()
 		// Wrap the HTTPError to test errors.As functionality
 		wrappedErr := fmt.Errorf("validation failed: %w", saaskit.ErrUnprocessableEntity)
 
@@ -376,6 +390,7 @@ func TestWrap(t *testing.T) {
 	})
 
 	t.Run("handler returns non-HTTPError", func(t *testing.T) {
+		t.Parallel()
 		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
 			return mockResponse{renderErr: errors.New("database connection failed")}
 		})
@@ -416,7 +431,9 @@ func newTestCustomContext(w http.ResponseWriter, r *http.Request) customContext 
 }
 
 func TestWrapWithCustomContext(t *testing.T) {
+	t.Parallel()
 	t.Run("handler with custom context", func(t *testing.T) {
+		t.Parallel()
 		handler := saaskit.HandlerFunc[customContext, string](func(ctx customContext, req string) saaskit.Response {
 			// Direct access to custom context methods
 			userID := ctx.UserID()
@@ -438,6 +455,7 @@ func TestWrapWithCustomContext(t *testing.T) {
 	})
 
 	t.Run("custom context with binder", func(t *testing.T) {
+		t.Parallel()
 		type userRequest struct {
 			Name string
 		}
@@ -470,6 +488,7 @@ func TestWrapWithCustomContext(t *testing.T) {
 	})
 
 	t.Run("custom context without factory panics", func(t *testing.T) {
+		t.Parallel()
 		handler := saaskit.HandlerFunc[customContext, string](func(ctx customContext, req string) saaskit.Response {
 			// This should never be called
 			t.Fatal("handler should not be called")
@@ -489,7 +508,9 @@ func TestWrapWithCustomContext(t *testing.T) {
 }
 
 func TestDefaultContextFactory(t *testing.T) {
+	t.Parallel()
 	t.Run("standard context uses default factory", func(t *testing.T) {
+		t.Parallel()
 		handler := saaskit.HandlerFunc[saaskit.Context, string](func(ctx saaskit.Context, req string) saaskit.Response {
 			// Verify we got a valid context
 			assert.NotNil(t, ctx)
@@ -511,6 +532,7 @@ func TestDefaultContextFactory(t *testing.T) {
 	})
 
 	t.Run("overriding default factory works", func(t *testing.T) {
+		t.Parallel()
 		customFactoryCalled := false
 		customFactory := func(w http.ResponseWriter, r *http.Request) saaskit.Context {
 			customFactoryCalled = true
@@ -536,6 +558,7 @@ func TestDefaultContextFactory(t *testing.T) {
 	})
 
 	t.Run("panic message contains helpful text", func(t *testing.T) {
+		t.Parallel()
 		handler := saaskit.HandlerFunc[customContext, string](func(ctx customContext, req string) saaskit.Response {
 			return nil
 		})
@@ -562,7 +585,9 @@ func TestDefaultContextFactory(t *testing.T) {
 }
 
 func TestWrapWithDecorators(t *testing.T) {
+	t.Parallel()
 	t.Run("single decorator", func(t *testing.T) {
+		t.Parallel()
 		var decoratorCalled bool
 		decorator := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
 			return func(ctx saaskit.Context, req string) saaskit.Response {
@@ -590,6 +615,7 @@ func TestWrapWithDecorators(t *testing.T) {
 	})
 
 	t.Run("multiple decorators order", func(t *testing.T) {
+		t.Parallel()
 		var order []string
 
 		decorator1 := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
@@ -637,6 +663,7 @@ func TestWrapWithDecorators(t *testing.T) {
 	})
 
 	t.Run("decorator modifying response", func(t *testing.T) {
+		t.Parallel()
 		decorator := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
 			return func(ctx saaskit.Context, req string) saaskit.Response {
 				// Call original handler but ignore response
@@ -664,6 +691,7 @@ func TestWrapWithDecorators(t *testing.T) {
 	})
 
 	t.Run("decorator short-circuiting", func(t *testing.T) {
+		t.Parallel()
 		handlerCalled := false
 		decorator := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
 			return func(ctx saaskit.Context, req string) saaskit.Response {
@@ -692,6 +720,7 @@ func TestWrapWithDecorators(t *testing.T) {
 	})
 
 	t.Run("decorators with custom context", func(t *testing.T) {
+		t.Parallel()
 		type userRequest struct {
 			Name string
 		}
@@ -732,6 +761,7 @@ func TestWrapWithDecorators(t *testing.T) {
 	})
 
 	t.Run("decorator error handling", func(t *testing.T) {
+		t.Parallel()
 		decorator := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {
 			return func(ctx saaskit.Context, req string) saaskit.Response {
 				return mockResponse{renderErr: errors.New("decorator error")}
@@ -756,6 +786,7 @@ func TestWrapWithDecorators(t *testing.T) {
 	})
 
 	t.Run("multiple WithDecorators calls", func(t *testing.T) {
+		t.Parallel()
 		var order []string
 
 		decorator1 := func(next saaskit.HandlerFunc[saaskit.Context, string]) saaskit.HandlerFunc[saaskit.Context, string] {

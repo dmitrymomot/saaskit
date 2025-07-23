@@ -13,6 +13,8 @@ import (
 )
 
 func TestJSON(t *testing.T) {
+	t.Parallel()
+	
 	tests := []struct {
 		name     string
 		code     string
@@ -54,6 +56,7 @@ func TestJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodGet, "/", nil)
 
@@ -73,6 +76,8 @@ func TestJSON(t *testing.T) {
 }
 
 func TestJSONError(t *testing.T) {
+	t.Parallel()
+	
 	tests := []struct {
 		name         string
 		err          error
@@ -177,6 +182,7 @@ func TestJSONError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodGet, "/", nil)
 
@@ -206,6 +212,8 @@ func TestJSONError(t *testing.T) {
 }
 
 func TestJSONResponse_OmitEmpty(t *testing.T) {
+	t.Parallel()
+	
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 

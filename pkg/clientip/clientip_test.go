@@ -10,6 +10,7 @@ import (
 )
 
 func TestGetIP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		headers    map[string]string
@@ -132,6 +133,7 @@ func TestGetIP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := createTestRequest(tt.headers, tt.remoteAddr)
 			ip := clientip.GetIP(req)
 
@@ -143,6 +145,7 @@ func TestGetIP(t *testing.T) {
 }
 
 func TestGetIPConsistency(t *testing.T) {
+	t.Parallel()
 	headers := map[string]string{
 		"DO-Connecting-IP": "198.51.100.178",
 		"X-Forwarded-For":  "192.168.1.1",
@@ -165,6 +168,7 @@ func TestGetIPConsistency(t *testing.T) {
 }
 
 func TestGetIPDifferentHeaders(t *testing.T) {
+	t.Parallel()
 	req1 := createTestRequest(map[string]string{
 		"CF-Connecting-IP": "203.0.113.195",
 	}, "10.0.0.1:54321")
@@ -191,6 +195,7 @@ func TestGetIPDifferentHeaders(t *testing.T) {
 
 
 func TestDigitalOceanAppPlatformScenarios(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		headers  map[string]string
@@ -239,6 +244,7 @@ func TestDigitalOceanAppPlatformScenarios(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := createTestRequest(tt.headers, "10.0.0.1:54321")
 			ip := clientip.GetIP(req)
 
@@ -292,6 +298,7 @@ func BenchmarkGetIPWithLongForwardedChain(b *testing.B) {
 
 // Performance requirement test
 func TestPerformanceRequirement(t *testing.T) {
+	t.Parallel()
 	headers := map[string]string{
 		"CF-Connecting-IP": "203.0.113.195",
 		"DO-Connecting-IP": "198.51.100.178",
