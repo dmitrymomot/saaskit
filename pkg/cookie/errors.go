@@ -3,10 +3,11 @@ package cookie
 import "errors"
 
 var (
-	ErrNoSecret         = errors.New("cookie.no_secret")
-	ErrSecretTooShort   = errors.New("cookie.secret_too_short")
-	ErrInvalidSignature = errors.New("cookie.invalid_signature")
-	ErrDecryptionFailed = errors.New("cookie.decryption_failed")
-	ErrCookieNotFound   = errors.New("cookie.not_found")
-	ErrInvalidFormat    = errors.New("cookie.invalid_format")
+	ErrNoSecret            = errors.New("no secret provided for cookie manager")
+	ErrSecretTooShort      = errors.New("secret must be at least 32 characters long")
+	ErrInvalidSignature    = errors.New("cookie signature verification failed")
+	ErrDecryptionFailed    = errors.New("failed to decrypt cookie value")
+	ErrCookieNotFound      = errors.New("cookie not found in request")
+	ErrInvalidFormat       = errors.New("invalid cookie format")
+	ErrInvalidSecretLength = errors.New("secret length is invalid for AES encryption")
 )
