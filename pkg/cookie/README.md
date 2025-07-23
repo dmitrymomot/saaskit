@@ -45,6 +45,33 @@ if err != nil {
 }
 ```
 
+### Configuration-Based Setup
+
+For applications using environment-based configuration:
+
+```go
+// Using the Config struct with environment variables
+cfg := cookie.DefaultConfig()
+// cfg will be populated from environment variables if using caarlos0/env
+
+cookieMgr, err := cookie.NewFromConfig(cfg,
+    // Additional options can override config values
+    cookie.WithSecure(true),
+)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Environment variables:
+// COOKIE_SECRETS=secret1,secret2,secret3  # Comma-separated list
+// COOKIE_PATH=/
+// COOKIE_DOMAIN=.example.com
+// COOKIE_MAX_AGE=86400
+// COOKIE_SECURE=true
+// COOKIE_HTTP_ONLY=true
+// COOKIE_SAME_SITE=2  # 0=None, 1=Strict, 2=Lax
+```
+
 ### Additional Usage Scenarios
 
 #### Basic Cookies
@@ -198,6 +225,17 @@ type Options struct {
 
 // Option is a functional option for configuring cookies
 type Option func(*Options)
+
+// Config holds cookie manager configuration for environment-based setup
+type Config struct {
+    Secrets  string        `env:"COOKIE_SECRETS" envDefault:""`
+    Path     string        `env:"COOKIE_PATH" envDefault:"/"`
+    Domain   string        `env:"COOKIE_DOMAIN" envDefault:""`
+    MaxAge   int           `env:"COOKIE_MAX_AGE" envDefault:"0"`
+    Secure   bool          `env:"COOKIE_SECURE" envDefault:"false"`
+    HttpOnly bool          `env:"COOKIE_HTTP_ONLY" envDefault:"true"`
+    SameSite http.SameSite `env:"COOKIE_SAME_SITE" envDefault:"2"` // 2 = SameSiteLaxMode
+}
 ```
 
 ### Functions
@@ -205,6 +243,12 @@ type Option func(*Options)
 ```go
 // New creates a new cookie manager with the provided secrets
 func New(secrets []string, opts ...Option) (*Manager, error)
+
+// NewFromConfig creates a new Manager from the provided Config
+func NewFromConfig(cfg Config, opts ...Option) (*Manager, error)
+
+// DefaultConfig returns default cookie configuration
+func DefaultConfig() Config
 
 // Option constructors
 func WithPath(path string) Option
@@ -240,11 +284,12 @@ func (m *Manager) GetFlash(w http.ResponseWriter, r *http.Request, key string, d
 
 ```go
 var (
-    ErrNoSecret         = errors.New("cookie.no_secret")         // No secrets provided
-    ErrSecretTooShort   = errors.New("cookie.secret_too_short")  // Secret less than 32 characters
-    ErrInvalidSignature = errors.New("cookie.invalid_signature") // Signature verification failed
-    ErrDecryptionFailed = errors.New("cookie.decryption_failed") // Decryption failed
-    ErrCookieNotFound   = errors.New("cookie.not_found")         // Cookie not present
-    ErrInvalidFormat    = errors.New("cookie.invalid_format")    // Malformed cookie value
+    ErrNoSecret            = errors.New("no secret provided for cookie manager")
+    ErrSecretTooShort      = errors.New("secret must be at least 32 characters long")
+    ErrInvalidSignature    = errors.New("cookie signature verification failed")
+    ErrDecryptionFailed    = errors.New("failed to decrypt cookie value")
+    ErrCookieNotFound      = errors.New("cookie not found in request")
+    ErrInvalidFormat       = errors.New("invalid cookie format")
+    ErrInvalidSecretLength = errors.New("secret length is invalid for AES encryption")
 )
 ```
