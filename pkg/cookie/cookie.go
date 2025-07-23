@@ -194,9 +194,6 @@ func (m *Manager) verify(signed string) (string, error) {
 }
 
 func (m *Manager) encrypt(value string) (string, error) {
-	if len(m.secrets[0]) < 32 {
-		return "", ErrInvalidSecretLength
-	}
 	block, err := aes.NewCipher([]byte(m.secrets[0][:32]))
 	if err != nil {
 		return "", err
@@ -224,10 +221,6 @@ func (m *Manager) decrypt(encrypted string) (string, error) {
 
 	var lastErr error
 	for _, secret := range m.secrets {
-		if len(secret) < 32 {
-			lastErr = ErrInvalidSecretLength
-			continue
-		}
 		block, err := aes.NewCipher([]byte(secret[:32]))
 		if err != nil {
 			lastErr = err
