@@ -5,7 +5,7 @@ A flexible, type-safe state machine implementation for Go applications.
 ## Installation
 
 ```bash
-go get github.com/dmitrymomot/gokit/statemachine
+go get github.com/dmitrymomot/saaskit/pkg/statemachine
 ```
 
 ## Overview
@@ -29,7 +29,7 @@ The `statemachine` package provides a clean, flexible implementation of the stat
 ```go
 import (
 	"context"
-	"github.com/dmitrymomot/gokit/statemachine"
+	"github.com/dmitrymomot/saaskit/pkg/statemachine"
 )
 
 // Define states using string constants
@@ -78,7 +78,7 @@ machine.Fire(ctx, Approve, nil)
 ```go
 import (
 	"context"
-	"github.com/dmitrymomot/gokit/statemachine"
+	"github.com/dmitrymomot/saaskit/pkg/statemachine"
 )
 
 // Add conditional transition with a guard
@@ -122,7 +122,7 @@ err = machine.Fire(context.Background(), statemachine.StringEvent("start"), unau
 ```go
 import (
 	"context"
-	"github.com/dmitrymomot/gokit/statemachine"
+	"github.com/dmitrymomot/saaskit/pkg/statemachine"
 )
 
 // Define custom state type
@@ -169,7 +169,7 @@ machine.Fire(context.Background(), process, nil)
 ```go
 import (
 	"context"
-	"github.com/dmitrymomot/gokit/statemachine"
+	"github.com/dmitrymomot/saaskit/pkg/statemachine"
 )
 
 // Setup a simple state machine
@@ -213,24 +213,24 @@ if err != nil {
 ## Best Practices
 
 1. **State Machine Design**:
-   - Keep your state machines small and focused on a single responsibility
-   - Use descriptive names for states and events
-   - Document the allowed transitions in your code
-   - Consider using a diagram tool to visualize complex state machines
+    - Keep your state machines small and focused on a single responsibility
+    - Use descriptive names for states and events
+    - Document the allowed transitions in your code
+    - Consider using a diagram tool to visualize complex state machines
 
 2. **Guards and Actions**:
-   - Keep guards simple - they should only check conditions, not modify state
-   - Actions should handle side effects but avoid changing the state machine itself
-   - Handle errors from actions appropriately
+    - Keep guards simple - they should only check conditions, not modify state
+    - Actions should handle side effects but avoid changing the state machine itself
+    - Handle errors from actions appropriately
 
 3. **Thread Safety**:
-   - The state machine is thread-safe internally, but ensure your guards and actions are also thread-safe
-   - Consider locking if you're accessing shared resources in guards or actions
+    - The state machine is thread-safe internally, but ensure your guards and actions are also thread-safe
+    - Consider locking if you're accessing shared resources in guards or actions
 
 4. **Error Handling**:
-   - Use the error type checking functions rather than comparing error strings
-   - Handle each error type appropriately in your application
-   - Log state transition errors for debugging
+    - Use the error type checking functions rather than comparing error strings
+    - Handle each error type appropriately in your application
+    - Log state transition errors for debugging
 
 ## API Reference
 
@@ -241,6 +241,7 @@ type State interface {
 	Name() string
 }
 ```
+
 Interface for state objects. Implement this for custom states.
 
 ```go
@@ -248,16 +249,19 @@ type Event interface {
 	Name() string
 }
 ```
+
 Interface for event objects. Implement this for custom events.
 
 ```go
 type Guard func(ctx context.Context, from State, event Event, data any) bool
 ```
+
 Function type for conditional transitions. Returns true if the transition is allowed.
 
 ```go
 type Action func(ctx context.Context, from, to State, event Event, data any) error
 ```
+
 Function type for side effects during transitions. Return an error to abort the transition.
 
 ```go
@@ -269,6 +273,7 @@ type Transition struct {
 	Actions []Action
 }
 ```
+
 Structure representing a possible state change in the state machine.
 
 ```go
@@ -280,6 +285,7 @@ type StateMachine interface {
 	Reset() error
 }
 ```
+
 Core interface for state machine implementations.
 
 ### Functions
@@ -287,31 +293,37 @@ Core interface for state machine implementations.
 ```go
 func NewBuilder(initialState State) *Builder
 ```
+
 Creates a new state machine builder with the specified initial state.
 
 ```go
 func NewSimpleStateMachine(initialState State) StateMachine
 ```
+
 Creates a new simple state machine with the specified initial state.
 
 ```go
 func StringState(name string) State
 ```
+
 Creates a simple string-based state implementation.
 
 ```go
 func StringEvent(name string) Event
 ```
+
 Creates a simple string-based event implementation.
 
 ```go
 func IsNoTransitionAvailableError(err error) bool
 ```
+
 Checks if an error is a "no transition available" error.
 
 ```go
 func IsTransitionRejectedError(err error) bool
 ```
+
 Checks if an error is a "transition rejected by guard" error.
 
 ### Error Types
@@ -320,8 +332,10 @@ Checks if an error is a "transition rejected by guard" error.
 var ErrInvalidTransition = errors.New("invalid transition: from, to, or event cannot be nil")
 var ErrInvalidEvent = errors.New("invalid event: event cannot be nil")
 ```
+
 Errors returned when attempting to add invalid transitions or fire invalid events.
 
 Custom error types:
+
 - `ErrNoTransitionAvailable` - when there's no transition for the current state and event
 - `ErrTransitionRejected` - when all transitions are rejected by their guards

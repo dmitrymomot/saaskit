@@ -93,26 +93,17 @@ if !scopes.ValidateScopes(userScopes, validScopes) {
 }
 ```
 
-### Customizing Separators and Delimiters
+### Constants
+
+The package defines the following constants that control parsing and matching behavior:
 
 ```go
-// Customize the separator (default is space " ")
-scopes.ScopeSeparator = ","
-
-// Parse comma-separated scopes
-scopes := scopes.ParseScopes("read,write,admin.users")
-// Returns: []string{"read", "write", "admin.users"}
-
-// Customize the delimiter (default is ".")
-scopes.ScopeDelimiter = ":"
-
-// Customize the wildcard character (default is "*")
-scopes.ScopeWildcard = "?"
-
-// Now wildcards work with the new format
-hasScope := scopes.HasScope([]string{"admin:?"}, "admin:users")
-// Returns: true
+const ScopeSeparator = " "  // Separator used between scopes in a string
+const ScopeWildcard = "*"   // Wildcard character for scope matching
+const ScopeDelimiter = "."  // Delimiter for hierarchical scope parts
 ```
+
+These values are fixed at compile time to ensure consistent behavior across all applications using the package.
 
 ## Best Practices
 
@@ -138,12 +129,12 @@ hasScope := scopes.HasScope([]string{"admin:?"}, "admin:users")
 
 ## API Reference
 
-### Configuration Variables
+### Constants
 
 ```go
-var ScopeSeparator = " " // Separator used between scopes in a string
-var ScopeWildcard = "*"   // Wildcard character for scope matching
-var ScopeDelimiter = "." // Delimiter for hierarchical scope parts
+const ScopeSeparator = " " // Separator used between scopes in a string
+const ScopeWildcard = "*"   // Wildcard character for scope matching
+const ScopeDelimiter = "." // Delimiter for hierarchical scope parts
 ```
 
 ### Functions
