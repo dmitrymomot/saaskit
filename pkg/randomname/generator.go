@@ -1,128 +1,179 @@
 package randomname
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
-	"math/rand"
+	"strings"
 	"sync"
-	"time"
 )
 
-var adjectives = []string{
-	"brave", "calm", "eager", "fancy", "gentle", "happy", "jolly", "kind",
-	"lively", "nice", "proud", "silly", "witty", "zealous", "mighty", "swift",
-	"sharp", "bold", "courageous", "resilient", "daring", "bright", "creative",
-	"innovative", "dynamic", "energetic", "vibrant", "radiant", "sincere", "honest",
-	"steadfast", "ardent", "spirited", "graceful", "gritty", "focused", "optimistic",
-	"robust", "stalwart", "resolute", "vigorous", "agile", "ambitious", "ancient",
-	"artistic", "authentic", "balanced", "brilliant", "charming", "cheerful", "clever",
-	"confident", "cosmic", "crisp", "curious", "dazzling", "determined", "diligent",
-	"elegant", "enchanted", "epic", "fearless", "fierce", "flexible", "flowing",
-	"friendly", "frosty", "gallant", "generous", "gleaming", "glorious", "golden",
-	"harmonious", "heroic", "humble", "illustrious", "immense", "incredible", "inspired",
-	"intelligent", "intrepid", "legendary", "luminous", "majestic", "marvelous", "mindful",
-	"modern", "mystical", "noble", "peaceful", "persistent", "playful", "polished",
-	"powerful", "precious", "pristine", "quick", "quirky", "radiant", "refreshing",
-	"remarkable", "royal", "sage", "savvy", "serene", "shining", "skillful",
-	"sleek", "smooth", "sophisticated", "sparkling", "spectacular", "splendid", "stellar",
-	"strong", "stunning", "sublime", "subtle", "sunny", "super", "supreme",
-	"tactical", "talented", "tenacious", "thoughtful", "thriving", "tidy", "tranquil",
-	"trusty", "ultimate", "unique", "valiant", "versatile", "vivid", "warm",
-	"whimsical", "wise", "wonderful", "worthy", "youthful", "zesty", "zippy",
+// builderPool is used to reduce allocations when building names.
+var builderPool = &sync.Pool{
+	New: func() any {
+		return &strings.Builder{}
+	},
 }
 
-var nouns = []string{
-	"squirrel", "tiger", "eagle", "dolphin", "panther", "lion", "panda", "koala",
-	"whale", "shark", "wolf", "falcon", "otter", "rabbit", "bear", "fox", "hedgehog",
-	"owl", "leopard", "cheetah", "hyena", "buffalo", "zebra", "giraffe", "coyote",
-	"raccoon", "badger", "moose", "stallion", "gazelle", "mongoose", "cougar", "jaguar",
-	"bison", "viper", "python", "cobra", "lizard", "frog", "beaver", "porcupine",
-	"skunk", "antelope", "hamster", "gerbil", "alpaca", "armadillo", "barracuda",
-	"beetle", "bobcat", "butterfly", "camel", "canary", "cardinal", "caribou",
-	"cassowary", "chameleon", "chinchilla", "chipmunk", "condor", "cormorant", "crab",
-	"crane", "cricket", "crocodile", "crow", "deer", "dingo", "dragonfly",
-	"duck", "elephant", "elk", "emu", "ferret", "finch", "firefly",
-	"flamingo", "gecko", "goose", "gorilla", "grasshopper", "hawk", "heron",
-	"hippo", "horse", "hummingbird", "iguana", "impala", "jackal", "jellyfish",
-	"kangaroo", "kestrel", "kingfisher", "kiwi", "ladybug", "lemur", "llama",
-	"lobster", "lynx", "macaw", "magpie", "mammoth", "manatee", "manta",
-	"marlin", "meerkat", "monkey", "narwhal", "newt", "octopus", "ocelot",
-	"okapi", "orangutan", "orca", "oriole", "osprey", "ostrich", "oyster",
-	"parrot", "peacock", "pelican", "penguin", "phoenix", "platypus", "puma",
-	"quail", "quokka", "raven", "reindeer", "rhino", "robin", "rooster",
-	"salamander", "salmon", "scorpion", "seagull", "seahorse", "seal", "sparrow",
-	"spider", "squid", "starfish", "stingray", "swan", "tapir", "toucan",
-	"trout", "tuna", "turkey", "turtle", "unicorn", "walrus", "warthog",
-	"wasp", "weasel", "woodpecker", "wombat", "yak", "yellowfin", "zebu",
-}
+// Generate creates a random name based on the provided options.
+// If options is nil, uses default pattern (adjective-noun).
+// The function always returns a valid name and never returns an error.
+func Generate(opts *Options) string {
+	options := opts.merge(defaultOptions())
 
-var (
-	rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
-	mu  sync.Mutex
-	// used keeps track of generated names to ensure uniqueness within a session
-	used = make(map[string]bool)
-)
-
-// generate is a helper function that handles the common logic for generating names.
-// If withSuffix is true, it adds a 6-character hexadecimal suffix to the name.
-// This version reserves the candidate name immediately to avoid race conditions:
-// 1. Generate and reserve the candidate under lock.
-// 2. Release the lock and execute the callback.
-// 3. If the callback rejects the candidate, remove it from the reservation.
-func generate(check func(name string) bool, withSuffix bool) string {
-	for {
-		// Generate candidate name and reserve it.
-		mu.Lock()
-		adj := adjectives[rnd.Intn(len(adjectives))]
-		noun := nouns[rnd.Intn(len(nouns))]
-		var candidate string
-
-		if withSuffix {
-			suffix := rnd.Intn(1 << 24) // random 24-bit number
-			candidate = fmt.Sprintf("%s-%s-%06x", adj, noun, suffix)
-		} else {
-			candidate = fmt.Sprintf("%s-%s", adj, noun)
-		}
-
-		if used[candidate] {
-			mu.Unlock()
-			continue
-		}
-
-		// Reserve the candidate immediately.
-		used[candidate] = true
-		mu.Unlock()
-
-		// Execute callback outside the lock.
-		if check != nil && !check(candidate) {
-			// Callback rejected the candidate, so remove it.
-			mu.Lock()
-			delete(used, candidate)
-			mu.Unlock()
-			continue
-		}
-
-		return candidate
+	// Validate pattern has at least one word type
+	if len(options.Pattern) == 0 {
+		options.Pattern = defaultOptions().Pattern
 	}
+
+	// Get a string builder from the pool
+	builder := builderPool.Get().(*strings.Builder)
+	defer func() {
+		builder.Reset()
+		builderPool.Put(builder)
+	}()
+
+	const maxRetries = 100
+	for range maxRetries {
+		builder.Reset()
+
+		// Build the name based on pattern
+		validWords := 0
+		for _, wordType := range options.Pattern {
+			words := getWords(wordType, options.Words)
+			if len(words) == 0 {
+				continue // Skip if no words available for this type
+			}
+
+			if validWords > 0 {
+				builder.WriteString(options.Separator)
+			}
+
+			// Select a random word
+			index := secureRandInt(len(words))
+			builder.WriteString(words[index])
+			validWords++
+		}
+
+		// If no valid words found in pattern, fall back to default
+		if validWords == 0 {
+			return Generate(&Options{
+				Pattern:   defaultOptions().Pattern,
+				Separator: options.Separator,
+				Suffix:    options.Suffix,
+				Validator: options.Validator,
+			})
+		}
+
+		// Add suffix if requested
+		if options.Suffix != NoSuffix {
+			if builder.Len() > 0 {
+				builder.WriteString(options.Separator)
+			}
+			builder.WriteString(generateSuffix(options.Suffix))
+		}
+
+		name := builder.String()
+
+		// Validate if callback provided
+		if options.Validator == nil || options.Validator(name) {
+			return name
+		}
+	}
+
+	// If validation failed after max retries, return the last generated name
+	return builder.String()
 }
 
-// Generate returns a random name in the format "adjective-noun-xxxxxx".
-// The "xxxxxx" suffix is a 6-character hexadecimal number, making collisions extremely unlikely.
-// It ensures uniqueness within the current session and allows for external validation through
-// the optional check callback.
-func Generate(check func(name string) bool) string {
-	return generate(check, true)
+// Simple generates a name with pattern: adjective-noun
+func Simple() string {
+	return Generate(nil)
 }
 
-// GenerateSimple returns a random name in the format "adjective-noun"
-// without the hexadecimal suffix. Note that this has a higher chance of collisions
-// due to the smaller namespace.
-func GenerateSimple(check func(name string) bool) string {
-	return generate(check, false)
+// Colorful generates a name with pattern: color-noun
+func Colorful() string {
+	return Generate(&Options{
+		Pattern: []WordType{Color, Noun},
+	})
 }
 
-// Reset clears the internal cache of used names.
-func Reset() {
-	mu.Lock()
-	used = make(map[string]bool)
-	mu.Unlock()
+// Descriptive generates a name with pattern: adjective-color-noun
+func Descriptive() string {
+	return Generate(&Options{
+		Pattern: []WordType{Adjective, Color, Noun},
+	})
+}
+
+// WithSuffix generates a name with pattern: adjective-noun-hex6
+func WithSuffix() string {
+	return Generate(&Options{
+		Suffix: Hex6,
+	})
+}
+
+// Sized generates a name with pattern: size-noun
+func Sized() string {
+	return Generate(&Options{
+		Pattern: []WordType{Size, Noun},
+	})
+}
+
+// Complex generates a name with pattern: size-adjective-noun
+func Complex() string {
+	return Generate(&Options{
+		Pattern: []WordType{Size, Adjective, Noun},
+	})
+}
+
+// Full generates a name with pattern: size-adjective-color-noun
+func Full() string {
+	return Generate(&Options{
+		Pattern: []WordType{Size, Adjective, Color, Noun},
+	})
+}
+
+// secureRandInt returns a cryptographically secure random integer in range [0, max).
+func secureRandInt(max int) int {
+	if max <= 0 {
+		return 0
+	}
+
+	// Use crypto/rand for better randomness
+	var n uint32
+	if err := binary.Read(rand.Reader, binary.LittleEndian, &n); err != nil {
+		// Fallback to less secure but always available method
+		n = uint32(max)
+	}
+	return int(n) % max
+}
+
+// generateSuffix creates a suffix based on the specified type.
+func generateSuffix(suffixType SuffixType) string {
+	switch suffixType {
+	case Hex6:
+		// Generate 3 random bytes = 6 hex characters
+		bytes := make([]byte, 3)
+		if _, err := rand.Read(bytes); err != nil {
+			// Fallback to zeros on error
+			return "000000"
+		}
+		return fmt.Sprintf("%x", bytes)
+
+	case Hex8:
+		// Generate 4 random bytes = 8 hex characters
+		bytes := make([]byte, 4)
+		if _, err := rand.Read(bytes); err != nil {
+			// Fallback to zeros on error
+			return "00000000"
+		}
+		return fmt.Sprintf("%x", bytes)
+
+	case Numeric4:
+		// Generate a 4-digit number (1000-9999)
+		n := secureRandInt(9000) + 1000
+		return fmt.Sprintf("%04d", n)
+
+	default:
+		return ""
+	}
 }
