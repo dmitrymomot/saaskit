@@ -3,6 +3,7 @@ package jwt
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -140,7 +141,7 @@ func (s *Service) Parse(tokenString string, claims any) error {
 	// Verify the signature
 	payload := headerEncoded + "." + claimsEncoded
 	expectedSignature := s.sign(payload)
-	if signatureEncoded != expectedSignature {
+	if subtle.ConstantTimeCompare([]byte(signatureEncoded), []byte(expectedSignature)) != 1 {
 		return ErrInvalidSignature
 	}
 
