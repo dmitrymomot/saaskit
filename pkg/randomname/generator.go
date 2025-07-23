@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
 
 // builderPool is used to reduce allocations when building names.
@@ -151,13 +152,10 @@ func secureRandInt(max int) int {
 	for range maxRetries {
 		var n uint32
 		if err := binary.Read(rand.Reader, binary.LittleEndian, &n); err != nil {
-			// Fallback: use simple modulo (with potential bias)
-			var fallback uint32
-			if err := binary.Read(rand.Reader, binary.LittleEndian, &fallback); err != nil {
-				// Last resort: return 0
-				return 0
-			}
-			return int(fallback % nBig)
+			// If crypto/rand fails, don't give up - use time-based seed
+			// This can happen in some CI environments
+			n = uint32(time.Now().UnixNano())
+			return int(n % nBig)
 		}
 
 		// Reject values that would cause modulo bias
@@ -170,7 +168,8 @@ func secureRandInt(max int) int {
 	// After max retries, fall back to simple modulo (tiny bias acceptable)
 	var n uint32
 	if err := binary.Read(rand.Reader, binary.LittleEndian, &n); err != nil {
-		return 0
+		// Use time-based fallback instead of returning 0
+		n = uint32(time.Now().UnixNano())
 	}
 	return int(n % nBig)
 }
