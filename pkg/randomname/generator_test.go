@@ -1,190 +1,361 @@
-package randomname
+package randomname_test
 
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
-	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dmitrymomot/saaskit/pkg/randomname"
 )
 
 func TestGenerate(t *testing.T) {
-	pattern := regexp.MustCompile(`^[a-z]+-[a-z]+-[0-9a-f]{6}$`)
+	t.Run("default pattern", func(t *testing.T) {
+		name := randomname.Generate(nil)
+		assert.Regexp(t, `^[a-z]+-[a-z]+$`, name)
+		parts := strings.Split(name, "-")
+		assert.Len(t, parts, 2)
+	})
 
-	name := Generate(nil)
-	if !pattern.MatchString(name) {
-		t.Errorf("Generated name %q doesn't match pattern %v", name, pattern)
-	}
+	t.Run("custom patterns", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			pattern []randomname.WordType
+			regex   string
+			parts   int
+		}{
+			{
+				name:    "single word",
+				pattern: []randomname.WordType{randomname.Noun},
+				regex:   `^[a-z]+$`,
+				parts:   1,
+			},
+			{
+				name:    "color-noun",
+				pattern: []randomname.WordType{randomname.Color, randomname.Noun},
+				regex:   `^[a-z]+-[a-z]+$`,
+				parts:   2,
+			},
+			{
+				name:    "three words",
+				pattern: []randomname.WordType{randomname.Adjective, randomname.Color, randomname.Noun},
+				regex:   `^[a-z]+-[a-z]+-[a-z]+$`,
+				parts:   3,
+			},
+			{
+				name:    "four words",
+				pattern: []randomname.WordType{randomname.Size, randomname.Adjective, randomname.Color, randomname.Noun},
+				regex:   `^[a-z]+-[a-z]+-[a-z]+-[a-z]+$`,
+				parts:   4,
+			},
+		}
 
-	name = Generate(func(string) bool { return true })
-	if !pattern.MatchString(name) {
-		t.Errorf("Generated name %q doesn't match pattern %v", name, pattern)
-	}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				name := randomname.Generate(&randomname.Options{
+					Pattern: tt.pattern,
+				})
+				assert.Regexp(t, tt.regex, name)
+				if tt.parts > 1 {
+					parts := strings.Split(name, "-")
+					assert.Len(t, parts, tt.parts)
+				}
+			})
+		}
+	})
+
+	t.Run("custom separator", func(t *testing.T) {
+		separators := []string{"_", ".", " ", "--"}
+		for _, sep := range separators {
+			t.Run(fmt.Sprintf("separator=%q", sep), func(t *testing.T) {
+				name := randomname.Generate(&randomname.Options{
+					Separator: sep,
+				})
+				assert.Contains(t, name, sep)
+			})
+		}
+
+		// Empty separator is not supported since it merges to default
+		t.Run("empty separator uses default", func(t *testing.T) {
+			name := randomname.Generate(&randomname.Options{
+				Separator: "",
+			})
+			assert.Contains(t, name, "-")
+		})
+	})
+
+	t.Run("with suffixes", func(t *testing.T) {
+		tests := []struct {
+			suffix  randomname.SuffixType
+			pattern string
+		}{
+			{randomname.Hex6, `^[a-z]+-[a-z]+-[0-9a-f]{6}$`},
+			{randomname.Hex8, `^[a-z]+-[a-z]+-[0-9a-f]{8}$`},
+			{randomname.Numeric4, `^[a-z]+-[a-z]+-\d{4}$`},
+		}
+
+		for _, tt := range tests {
+			t.Run(fmt.Sprintf("suffix=%v", tt.suffix), func(t *testing.T) {
+				name := randomname.Generate(&randomname.Options{
+					Suffix: tt.suffix,
+				})
+				assert.Regexp(t, tt.pattern, name)
+			})
+		}
+	})
+
+	t.Run("custom words", func(t *testing.T) {
+		customWords := map[randomname.WordType][]string{
+			randomname.Adjective: {"custom", "test"},
+			randomname.Noun:      {"word", "name"},
+		}
+
+		// Generate many names to ensure we see custom words
+		seen := make(map[string]bool)
+		for i := 0; i < 100; i++ {
+			name := randomname.Generate(&randomname.Options{
+				Words: customWords,
+			})
+			parts := strings.Split(name, "-")
+			if len(parts) >= 2 {
+				seen[parts[0]] = true
+				seen[parts[1]] = true
+			}
+		}
+
+		// Should see at least one custom word
+		hasCustom := false
+		for word := range seen {
+			if word == "custom" || word == "test" || word == "word" || word == "name" {
+				hasCustom = true
+				break
+			}
+		}
+		assert.True(t, hasCustom, "Should use custom words")
+	})
+
+	t.Run("empty custom words still uses defaults", func(t *testing.T) {
+		name := randomname.Generate(&randomname.Options{
+			Words: map[randomname.WordType][]string{
+				randomname.Adjective: {}, // Empty custom list
+			},
+		})
+		assert.Regexp(t, `^[a-z]+-[a-z]+$`, name)
+	})
+
+	t.Run("validator callback", func(t *testing.T) {
+		// Test that validator is called and respected
+		rejected := make(map[string]bool)
+		name := randomname.Generate(&randomname.Options{
+			Validator: func(s string) bool {
+				if len(rejected) < 3 {
+					rejected[s] = true
+					return false
+				}
+				return true
+			},
+		})
+
+		assert.NotEmpty(t, name)
+		assert.Len(t, rejected, 3, "Should have rejected exactly 3 names")
+		assert.NotContains(t, rejected, name, "Final name should not be in rejected list")
+	})
 }
 
-func TestGenerateSimple(t *testing.T) {
-	pattern := regexp.MustCompile(`^[a-z]+-[a-z]+$`)
-
-	name := GenerateSimple(nil)
-	if !pattern.MatchString(name) {
-		t.Errorf("Generated name %q doesn't match pattern %v", name, pattern)
+func TestConvenienceFunctions(t *testing.T) {
+	tests := []struct {
+		name     string
+		fn       func() string
+		pattern  string
+		minParts int
+	}{
+		{
+			name:     "Simple",
+			fn:       randomname.Simple,
+			pattern:  `^[a-z]+-[a-z]+$`,
+			minParts: 2,
+		},
+		{
+			name:     "Colorful",
+			fn:       randomname.Colorful,
+			pattern:  `^[a-z]+-[a-z]+$`,
+			minParts: 2,
+		},
+		{
+			name:     "Descriptive",
+			fn:       randomname.Descriptive,
+			pattern:  `^[a-z]+-[a-z]+-[a-z]+$`,
+			minParts: 3,
+		},
+		{
+			name:     "WithSuffix",
+			fn:       randomname.WithSuffix,
+			pattern:  `^[a-z]+-[a-z]+-[0-9a-f]{6}$`,
+			minParts: 3,
+		},
+		{
+			name:     "Sized",
+			fn:       randomname.Sized,
+			pattern:  `^[a-z]+-[a-z]+$`,
+			minParts: 2,
+		},
+		{
+			name:     "Complex",
+			fn:       randomname.Complex,
+			pattern:  `^[a-z]+-[a-z]+-[a-z]+$`,
+			minParts: 3,
+		},
+		{
+			name:     "Full",
+			fn:       randomname.Full,
+			pattern:  `^[a-z]+-[a-z]+-[a-z]+-[a-z]+$`,
+			minParts: 4,
+		},
 	}
 
-	name = GenerateSimple(func(string) bool { return true })
-	if !pattern.MatchString(name) {
-		t.Errorf("Generated name %q doesn't match pattern %v", name, pattern)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name := tt.fn()
+			assert.Regexp(t, tt.pattern, name)
+			parts := strings.Split(name, "-")
+			assert.GreaterOrEqual(t, len(parts), tt.minParts)
+		})
 	}
 }
 
 func TestUniqueness(t *testing.T) {
-	// Reset the used map before testing
-	Reset()
+	t.Run("simple pattern", func(t *testing.T) {
+		names := make(map[string]bool)
+		iterations := 100
 
-	// Generate a set of names and ensure they're unique
-	iterations := 1000
-	names := make(map[string]bool)
-
-	for i := 0; i < iterations; i++ {
-		name := Generate(nil)
-		if names[name] {
-			t.Errorf("Generate() produced duplicate name: %s", name)
+		for i := 0; i < iterations; i++ {
+			name := randomname.Simple()
+			if names[name] {
+				// Collision is possible with simple pattern
+				t.Logf("Collision detected at iteration %d: %s", i, name)
+			}
+			names[name] = true
 		}
-		names[name] = true
-	}
 
-	// Test simple names as well
-	Reset()
-	simpleNames := make(map[string]bool)
+		// With 100 iterations on 22k combinations, collisions are unlikely but possible
+		uniqueRatio := float64(len(names)) / float64(iterations)
+		assert.Greater(t, uniqueRatio, 0.8, "Should have at least 80% unique names")
+	})
 
-	// Since there are fewer possible combinations for simple names,
-	// we'll test with a smaller set
-	iterations = 100
-	for i := 0; i < iterations; i++ {
-		name := GenerateSimple(nil)
-		if simpleNames[name] {
-			t.Errorf("GenerateSimple() produced duplicate name: %s", name)
+	t.Run("with hex suffix", func(t *testing.T) {
+		names := make(map[string]bool)
+		iterations := 1000
+
+		for i := 0; i < iterations; i++ {
+			name := randomname.WithSuffix()
+			require.NotContains(t, names, name, "Should not have any collisions with hex suffix")
+			names[name] = true
 		}
-		simpleNames[name] = true
-	}
-}
+	})
 
-func TestCallbackRejection(t *testing.T) {
-	Reset()
+	t.Run("descriptive pattern", func(t *testing.T) {
+		names := make(map[string]bool)
+		iterations := 500
 
-	// Create a deterministic pattern to test
-	attempts := 0
-	check := func(name string) bool {
-		attempts++
-		// Accept only after 3 attempts
-		return attempts > 3
-	}
-
-	// Generate a name - should take exactly 4 attempts
-	name := Generate(check)
-	if attempts != 4 {
-		t.Errorf("Expected 4 attempts, got %d", attempts)
-	}
-
-	// Verify the accepted name is in the used map
-	if !used[name] {
-		t.Errorf("Accepted name %s not stored in used map", name)
-	}
-}
-
-func TestWordListCoverage(t *testing.T) {
-	Reset()
-
-	// Create maps to track word usage
-	adjUsed := make(map[string]bool)
-	nounUsed := make(map[string]bool)
-
-	// Run a reasonable number of iterations to get good coverage
-	maxIterations := len(adjectives) * len(nouns) / 10
-	for i := 0; i < maxIterations; i++ {
-		name := GenerateSimple(nil)
-		parts := regexp.MustCompile(`-`).Split(name, 2)
-		if len(parts) != 2 {
-			t.Errorf("Generated name %s doesn't contain exactly one hyphen", name)
-			continue
+		for i := 0; i < iterations; i++ {
+			name := randomname.Descriptive()
+			names[name] = true
 		}
-		adjUsed[parts[0]] = true
-		nounUsed[parts[1]] = true
 
-		// Break early if we've seen all words
-		if len(adjUsed) == len(adjectives) && len(nounUsed) == len(nouns) {
-			break
-		}
-	}
-
-	// Report coverage percentages instead of failing
-	adjCoverage := float64(len(adjUsed)) / float64(len(adjectives)) * 100
-	nounCoverage := float64(len(nounUsed)) / float64(len(nouns)) * 100
-
-	t.Logf("Adjective coverage: %.1f%% (%d/%d)", adjCoverage, len(adjUsed), len(adjectives))
-	t.Logf("Noun coverage: %.1f%% (%d/%d)", nounCoverage, len(nounUsed), len(nouns))
-
-	// Warn if coverage is suspiciously low
-	if adjCoverage < 50 {
-		t.Errorf("Suspiciously low adjective coverage: %.1f%%", adjCoverage)
-	}
-	if nounCoverage < 50 {
-		t.Errorf("Suspiciously low noun coverage: %.1f%%", nounCoverage)
-	}
+		// With 500 iterations on 908k combinations, collisions are very unlikely
+		assert.Equal(t, iterations, len(names), "Should have no collisions with descriptive pattern")
+	})
 }
 
 func TestConcurrency(t *testing.T) {
-	Reset()
-
-	// Reduced number of workers and iterations for faster testing
-	workers := 5
-	iterations := 20
-	timeout := time.After(5 * time.Second)
+	// Test that multiple goroutines can generate names concurrently
+	workers := 10
+	iterations := 100
 
 	var wg sync.WaitGroup
-	namesChan := make(chan string, workers*iterations)
-	errorChan := make(chan error, workers)
+	names := make(chan string, workers*iterations)
 
-	// Launch workers
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for j := 0; j < iterations; j++ {
-				select {
-				case <-timeout:
-					errorChan <- fmt.Errorf("timeout reached")
-					return
-				default:
-					name := Generate(nil)
-					namesChan <- name
-				}
+				name := randomname.Generate(&randomname.Options{
+					Pattern: []randomname.WordType{randomname.Adjective, randomname.Color, randomname.Noun},
+					Suffix:  randomname.Hex6,
+				})
+				names <- name
 			}
 		}()
 	}
 
-	// Wait for completion or timeout
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(namesChan)
-		close(done)
-	}()
+	wg.Wait()
+	close(names)
 
-	select {
-	case <-timeout:
-		t.Fatal("Test timed out")
-	case err := <-errorChan:
-		t.Fatal(err)
-	case <-done:
-		// Success path
+	// Verify all names are valid and unique
+	seen := make(map[string]bool)
+	pattern := regexp.MustCompile(`^[a-z]+-[a-z]+-[a-z]+-[0-9a-f]{6}$`)
+
+	for name := range names {
+		assert.Regexp(t, pattern, name)
+		assert.NotContains(t, seen, name, "Should not have duplicates")
+		seen[name] = true
 	}
 
-	// Check for uniqueness
-	names := make(map[string]bool)
-	for name := range namesChan {
-		if names[name] {
-			t.Errorf("Duplicate name generated: %s", name)
+	assert.Equal(t, workers*iterations, len(seen))
+}
+
+func TestEdgeCases(t *testing.T) {
+	t.Run("empty pattern with suffix", func(t *testing.T) {
+		// Should fall back to default pattern
+		name := randomname.Generate(&randomname.Options{
+			Pattern: []randomname.WordType{},
+			Suffix:  randomname.Hex6,
+		})
+		assert.Regexp(t, `^[a-z]+-[a-z]+-[0-9a-f]{6}$`, name)
+	})
+
+	t.Run("pattern with unavailable word type", func(t *testing.T) {
+		// Using an invalid WordType by casting
+		name := randomname.Generate(&randomname.Options{
+			Pattern: []randomname.WordType{randomname.WordType(999)},
+		})
+		// Should fall back to default pattern when no valid words
+		assert.Regexp(t, `^[a-z]+-[a-z]+$`, name)
+	})
+
+	t.Run("very long pattern", func(t *testing.T) {
+		pattern := make([]randomname.WordType, 10)
+		for i := range pattern {
+			pattern[i] = randomname.Adjective
 		}
-		names[name] = true
-	}
+
+		name := randomname.Generate(&randomname.Options{
+			Pattern: pattern,
+		})
+
+		parts := strings.Split(name, "-")
+		assert.Len(t, parts, 10)
+	})
+
+	t.Run("numeric suffix range", func(t *testing.T) {
+		// Test that numeric suffix is always 4 digits (1000-9999)
+		for i := 0; i < 100; i++ {
+			name := randomname.Generate(&randomname.Options{
+				Suffix: randomname.Numeric4,
+			})
+			parts := strings.Split(name, "-")
+			suffix := parts[len(parts)-1]
+			assert.Regexp(t, `^\d{4}$`, suffix)
+
+			num := 0
+			fmt.Sscanf(suffix, "%d", &num)
+			assert.GreaterOrEqual(t, num, 1000)
+			assert.LessOrEqual(t, num, 9999)
+		}
+	})
 }
