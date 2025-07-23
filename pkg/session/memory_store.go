@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"maps"
 	"sync"
 	"time"
 
@@ -43,9 +44,7 @@ func (m *MemoryStore) Create(ctx context.Context, session *Session) error {
 	sessionCopy := *session
 	if session.Data != nil {
 		sessionCopy.Data = make(map[string]any, len(session.Data))
-		for k, v := range session.Data {
-			sessionCopy.Data[k] = v
-		}
+		maps.Copy(sessionCopy.Data, session.Data)
 	}
 
 	m.sessions[session.Token] = &sessionCopy
@@ -72,9 +71,7 @@ func (m *MemoryStore) Get(ctx context.Context, token string) (*Session, error) {
 	sessionCopy := *session
 	if session.Data != nil {
 		sessionCopy.Data = make(map[string]any, len(session.Data))
-		for k, v := range session.Data {
-			sessionCopy.Data[k] = v
-		}
+		maps.Copy(sessionCopy.Data, session.Data)
 	}
 
 	return &sessionCopy, nil
@@ -96,9 +93,7 @@ func (m *MemoryStore) Update(ctx context.Context, session *Session) error {
 	sessionCopy := *session
 	if session.Data != nil {
 		sessionCopy.Data = make(map[string]any, len(session.Data))
-		for k, v := range session.Data {
-			sessionCopy.Data[k] = v
-		}
+		maps.Copy(sessionCopy.Data, session.Data)
 	}
 
 	m.sessions[session.Token] = &sessionCopy
