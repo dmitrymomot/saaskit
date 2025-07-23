@@ -138,13 +138,41 @@ func secureRandInt(max int) int {
 		return 0
 	}
 
-	// Use crypto/rand for better randomness
+	// To avoid modulo bias, we need to generate within a range that's
+	// a multiple of max
+	nBig := uint32(max)
+	maxValid := (^uint32(0) / nBig) * nBig
+
+	// For typical word list sizes (< 1000), we'll need very few retries
+	// The probability of needing a retry is (2^32 - maxValid) / 2^32
+	// For max=1000, this is ~0.0023% chance per iteration
+	const maxRetries = 10
+
+	for range maxRetries {
+		var n uint32
+		if err := binary.Read(rand.Reader, binary.LittleEndian, &n); err != nil {
+			// Fallback: use simple modulo (with potential bias)
+			var fallback uint32
+			if err := binary.Read(rand.Reader, binary.LittleEndian, &fallback); err != nil {
+				// Last resort: return 0
+				return 0
+			}
+			return int(fallback % nBig)
+		}
+
+		// Reject values that would cause modulo bias
+		if n < maxValid {
+			return int(n % nBig)
+		}
+		// Try again if we got a biased value
+	}
+
+	// After max retries, fall back to simple modulo (tiny bias acceptable)
 	var n uint32
 	if err := binary.Read(rand.Reader, binary.LittleEndian, &n); err != nil {
-		// Fallback to less secure but always available method
-		n = uint32(max)
+		return 0
 	}
-	return int(n) % max
+	return int(n % nBig)
 }
 
 // generateSuffix creates a suffix based on the specified type.
