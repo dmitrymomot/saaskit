@@ -11,6 +11,7 @@ import (
 )
 
 func TestPastDate(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 
 	t.Run("valid past dates", func(t *testing.T) {
@@ -51,6 +52,7 @@ func TestPastDate(t *testing.T) {
 }
 
 func TestFutureDate(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 
 	t.Run("valid future dates", func(t *testing.T) {
@@ -91,6 +93,7 @@ func TestFutureDate(t *testing.T) {
 }
 
 func TestDateAfter(t *testing.T) {
+	t.Parallel()
 	referenceDate := time.Date(2023, 6, 15, 0, 0, 0, 0, time.UTC)
 
 	t.Run("valid dates after reference", func(t *testing.T) {
@@ -129,6 +132,7 @@ func TestDateAfter(t *testing.T) {
 }
 
 func TestDateBefore(t *testing.T) {
+	t.Parallel()
 	referenceDate := time.Date(2023, 6, 15, 0, 0, 0, 0, time.UTC)
 
 	t.Run("valid dates before reference", func(t *testing.T) {
@@ -167,6 +171,7 @@ func TestDateBefore(t *testing.T) {
 }
 
 func TestDateBetween(t *testing.T) {
+	t.Parallel()
 	startDate := time.Date(2023, 6, 1, 0, 0, 0, 0, time.UTC)
 	endDate := time.Date(2023, 6, 30, 0, 0, 0, 0, time.UTC)
 
@@ -207,6 +212,7 @@ func TestDateBetween(t *testing.T) {
 }
 
 func TestMinAge(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 
 	t.Run("valid minimum ages", func(t *testing.T) {
@@ -256,6 +262,7 @@ func TestMinAge(t *testing.T) {
 }
 
 func TestMaxAge(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 
 	t.Run("valid maximum ages", func(t *testing.T) {
@@ -304,6 +311,7 @@ func TestMaxAge(t *testing.T) {
 }
 
 func TestAgeBetween(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 
 	t.Run("valid age ranges", func(t *testing.T) {
@@ -353,6 +361,7 @@ func TestAgeBetween(t *testing.T) {
 }
 
 func TestBusinessHours(t *testing.T) {
+	t.Parallel()
 	t.Run("valid business hours", func(t *testing.T) {
 		validTimes := []time.Time{
 			time.Date(2023, 6, 15, 9, 0, 0, 0, time.UTC),   // 9 AM
@@ -389,6 +398,7 @@ func TestBusinessHours(t *testing.T) {
 }
 
 func TestWorkingDay(t *testing.T) {
+	t.Parallel()
 	t.Run("valid working days", func(t *testing.T) {
 		// June 2023: 5th=Monday, 6th=Tuesday, 7th=Wednesday, 8th=Thursday, 9th=Friday
 		workingDays := []time.Time{
@@ -428,6 +438,7 @@ func TestWorkingDay(t *testing.T) {
 }
 
 func TestWeekend(t *testing.T) {
+	t.Parallel()
 	t.Run("valid weekend days", func(t *testing.T) {
 		weekendDays := []time.Time{
 			time.Date(2023, 6, 3, 0, 0, 0, 0, time.UTC),  // Saturday
@@ -465,6 +476,7 @@ func TestWeekend(t *testing.T) {
 }
 
 func TestTimeAfter(t *testing.T) {
+	t.Parallel()
 	referenceTime := time.Date(2023, 6, 15, 12, 0, 0, 0, time.UTC) // 12:00 PM
 
 	t.Run("valid times after reference", func(t *testing.T) {
@@ -503,6 +515,7 @@ func TestTimeAfter(t *testing.T) {
 }
 
 func TestTimeBefore(t *testing.T) {
+	t.Parallel()
 	referenceTime := time.Date(2023, 6, 15, 12, 0, 0, 0, time.UTC) // 12:00 PM
 
 	t.Run("valid times before reference", func(t *testing.T) {
@@ -541,6 +554,7 @@ func TestTimeBefore(t *testing.T) {
 }
 
 func TestTimeBetween(t *testing.T) {
+	t.Parallel()
 	startTime := time.Date(2023, 6, 15, 9, 0, 0, 0, time.UTC) // 9:00 AM
 	endTime := time.Date(2023, 6, 15, 17, 0, 0, 0, time.UTC)  // 5:00 PM
 
@@ -581,6 +595,7 @@ func TestTimeBetween(t *testing.T) {
 }
 
 func TestValidBirthdate(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 
 	t.Run("valid birthdates", func(t *testing.T) {

@@ -9,6 +9,8 @@ import (
 )
 
 func TestNormalizeEmail(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -48,6 +50,8 @@ func TestNormalizeEmail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.NormalizeEmail(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -55,6 +59,8 @@ func TestNormalizeEmail(t *testing.T) {
 }
 
 func TestExtractEmailDomain(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -84,6 +90,8 @@ func TestExtractEmailDomain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ExtractEmailDomain(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -91,6 +99,8 @@ func TestExtractEmailDomain(t *testing.T) {
 }
 
 func TestMaskEmail(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -125,6 +135,8 @@ func TestMaskEmail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.MaskEmail(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -132,6 +144,8 @@ func TestMaskEmail(t *testing.T) {
 }
 
 func TestNormalizePhone(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -166,6 +180,8 @@ func TestNormalizePhone(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.NormalizePhone(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -173,6 +189,8 @@ func TestNormalizePhone(t *testing.T) {
 }
 
 func TestFormatPhoneUS(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -207,6 +225,8 @@ func TestFormatPhoneUS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.FormatPhoneUS(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -214,6 +234,8 @@ func TestFormatPhoneUS(t *testing.T) {
 }
 
 func TestMaskPhone(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -243,6 +265,8 @@ func TestMaskPhone(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.MaskPhone(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -250,6 +274,8 @@ func TestMaskPhone(t *testing.T) {
 }
 
 func TestNormalizeURL(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -289,6 +315,8 @@ func TestNormalizeURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.NormalizeURL(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -296,6 +324,8 @@ func TestNormalizeURL(t *testing.T) {
 }
 
 func TestExtractDomain(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -330,6 +360,8 @@ func TestExtractDomain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ExtractDomain(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -337,6 +369,8 @@ func TestExtractDomain(t *testing.T) {
 }
 
 func TestRemoveQueryParams(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -366,6 +400,8 @@ func TestRemoveQueryParams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.RemoveQueryParams(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -373,6 +409,8 @@ func TestRemoveQueryParams(t *testing.T) {
 }
 
 func TestRemoveFragment(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -402,6 +440,8 @@ func TestRemoveFragment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.RemoveFragment(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -409,6 +449,8 @@ func TestRemoveFragment(t *testing.T) {
 }
 
 func TestNormalizeCreditCard(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -438,6 +480,8 @@ func TestNormalizeCreditCard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.NormalizeCreditCard(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -445,6 +489,8 @@ func TestNormalizeCreditCard(t *testing.T) {
 }
 
 func TestMaskCreditCard(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -474,6 +520,8 @@ func TestMaskCreditCard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.MaskCreditCard(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -481,6 +529,8 @@ func TestMaskCreditCard(t *testing.T) {
 }
 
 func TestFormatCreditCard(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -515,6 +565,8 @@ func TestFormatCreditCard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.FormatCreditCard(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -522,6 +574,8 @@ func TestFormatCreditCard(t *testing.T) {
 }
 
 func TestNormalizeSSN(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -551,6 +605,8 @@ func TestNormalizeSSN(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.NormalizeSSN(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -558,6 +614,8 @@ func TestNormalizeSSN(t *testing.T) {
 }
 
 func TestMaskSSN(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -587,6 +645,8 @@ func TestMaskSSN(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.MaskSSN(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -594,6 +654,8 @@ func TestMaskSSN(t *testing.T) {
 }
 
 func TestFormatSSN(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -623,6 +685,8 @@ func TestFormatSSN(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.FormatSSN(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -630,6 +694,8 @@ func TestFormatSSN(t *testing.T) {
 }
 
 func TestNormalizePostalCode(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -659,6 +725,8 @@ func TestNormalizePostalCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.NormalizePostalCode(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -666,6 +734,8 @@ func TestNormalizePostalCode(t *testing.T) {
 }
 
 func TestFormatPostalCodeUS(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -700,6 +770,8 @@ func TestFormatPostalCodeUS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.FormatPostalCodeUS(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -707,6 +779,8 @@ func TestFormatPostalCodeUS(t *testing.T) {
 }
 
 func TestFormatPostalCodeCA(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -736,6 +810,8 @@ func TestFormatPostalCodeCA(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.FormatPostalCodeCA(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -743,6 +819,8 @@ func TestFormatPostalCodeCA(t *testing.T) {
 }
 
 func TestMaskString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		input        string
@@ -783,6 +861,8 @@ func TestMaskString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.MaskString(tt.input, tt.visibleChars)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -790,6 +870,8 @@ func TestMaskString(t *testing.T) {
 }
 
 func TestRemoveNonAlphanumeric(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -819,6 +901,8 @@ func TestRemoveNonAlphanumeric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.RemoveNonAlphanumeric(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -826,6 +910,8 @@ func TestRemoveNonAlphanumeric(t *testing.T) {
 }
 
 func TestNormalizeWhitespace(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -860,6 +946,8 @@ func TestNormalizeWhitespace(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.NormalizeWhitespace(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -867,6 +955,8 @@ func TestNormalizeWhitespace(t *testing.T) {
 }
 
 func TestExtractNumbers(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -901,6 +991,8 @@ func TestExtractNumbers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ExtractNumbers(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -908,6 +1000,8 @@ func TestExtractNumbers(t *testing.T) {
 }
 
 func TestSanitizeFilename(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -942,6 +1036,8 @@ func TestSanitizeFilename(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SanitizeFilename(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -949,7 +1045,11 @@ func TestSanitizeFilename(t *testing.T) {
 }
 
 func TestFormatApplyPattern(t *testing.T) {
+	t.Parallel()
+
 	t.Run("apply pattern with format functions", func(t *testing.T) {
+		t.Parallel()
+
 		// Test email sanitization pipeline
 		dirtyEmail := "  USER..NAME@EXAMPLE.COM  "
 		cleanEmail := sanitizer.Apply(dirtyEmail,
@@ -959,6 +1059,8 @@ func TestFormatApplyPattern(t *testing.T) {
 	})
 
 	t.Run("compose format transformations", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a phone sanitizer
 		phoneSanitizer := sanitizer.Compose(
 			sanitizer.NormalizePhone,
@@ -970,6 +1072,8 @@ func TestFormatApplyPattern(t *testing.T) {
 	})
 
 	t.Run("compose URL cleaning pipeline", func(t *testing.T) {
+		t.Parallel()
+
 		// Create URL cleaner
 		urlCleaner := sanitizer.Compose(
 			sanitizer.NormalizeURL,
@@ -983,7 +1087,11 @@ func TestFormatApplyPattern(t *testing.T) {
 }
 
 func TestRealWorldFormatUsage(t *testing.T) {
+	t.Parallel()
+
 	t.Run("user profile sanitization", func(t *testing.T) {
+		t.Parallel()
+
 		// Create sanitizers for different profile fields
 		emailSanitizer := sanitizer.Compose(
 			sanitizer.NormalizeEmail,
@@ -1006,6 +1114,8 @@ func TestRealWorldFormatUsage(t *testing.T) {
 	})
 
 	t.Run("payment form sanitization", func(t *testing.T) {
+		t.Parallel()
+
 		// Create credit card sanitizer
 		cardSanitizer := sanitizer.Compose(
 			sanitizer.NormalizeCreditCard,
@@ -1018,6 +1128,8 @@ func TestRealWorldFormatUsage(t *testing.T) {
 	})
 
 	t.Run("address form sanitization", func(t *testing.T) {
+		t.Parallel()
+
 		// Create postal code sanitizer
 		zipSanitizer := sanitizer.Compose(
 			sanitizer.FormatPostalCodeUS,

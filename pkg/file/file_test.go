@@ -55,31 +55,37 @@ func createFileHeader(filename string, content []byte) *multipart.FileHeader {
 }
 
 func TestIsImage(t *testing.T) {
+	t.Parallel()
 	t.Run("jpeg image", func(t *testing.T) {
+		t.Parallel()
 		fh := createFileHeader("test.jpg", []byte{0xFF, 0xD8, 0xFF})
 		got := file.IsImage(fh)
 		assert.True(t, got)
 	})
 
 	t.Run("png image", func(t *testing.T) {
+		t.Parallel()
 		fh := createFileHeader("test.png", []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})
 		got := file.IsImage(fh)
 		assert.True(t, got)
 	})
 
 	t.Run("text file", func(t *testing.T) {
+		t.Parallel()
 		fh := createFileHeader("test.txt", []byte("hello world"))
 		got := file.IsImage(fh)
 		assert.False(t, got)
 	})
 
 	t.Run("gif image", func(t *testing.T) {
+		t.Parallel()
 		fh := createFileHeader("test.gif", []byte{0x47, 0x49, 0x46, 0x38, 0x39, 0x61})
 		got := file.IsImage(fh)
 		assert.True(t, got)
 	})
 
 	t.Run("nil file header", func(t *testing.T) {
+		t.Parallel()
 		var fh *multipart.FileHeader
 		got := file.IsImage(fh)
 		assert.False(t, got)
@@ -87,19 +93,23 @@ func TestIsImage(t *testing.T) {
 }
 
 func TestIsVideo(t *testing.T) {
+	t.Parallel()
 	t.Run("webm video", func(t *testing.T) {
+		t.Parallel()
 		fh := createFileHeader("test.webm", []byte{0x1A, 0x45, 0xDF, 0xA3})
 		got := file.IsVideo(fh)
 		assert.True(t, got)
 	})
 
 	t.Run("not a video", func(t *testing.T) {
+		t.Parallel()
 		fh := createFileHeader("test.jpg", []byte{0xFF, 0xD8, 0xFF})
 		got := file.IsVideo(fh)
 		assert.False(t, got)
 	})
 
 	t.Run("nil file header", func(t *testing.T) {
+		t.Parallel()
 		var fh *multipart.FileHeader
 		got := file.IsVideo(fh)
 		assert.False(t, got)
@@ -107,13 +117,16 @@ func TestIsVideo(t *testing.T) {
 }
 
 func TestIsAudio(t *testing.T) {
+	t.Parallel()
 	t.Run("not audio", func(t *testing.T) {
+		t.Parallel()
 		fh := createFileHeader("test.txt", []byte("hello"))
 		got := file.IsAudio(fh)
 		assert.False(t, got)
 	})
 
 	t.Run("nil file header", func(t *testing.T) {
+		t.Parallel()
 		var fh *multipart.FileHeader
 		got := file.IsAudio(fh)
 		assert.False(t, got)
@@ -121,19 +134,23 @@ func TestIsAudio(t *testing.T) {
 }
 
 func TestIsPDF(t *testing.T) {
+	t.Parallel()
 	t.Run("pdf file", func(t *testing.T) {
+		t.Parallel()
 		fh := createFileHeader("test.pdf", []byte("%PDF-1.4"))
 		got := file.IsPDF(fh)
 		assert.True(t, got)
 	})
 
 	t.Run("pdf by extension", func(t *testing.T) {
+		t.Parallel()
 		fh := createFileHeader("test.pdf", []byte("not really pdf"))
 		got := file.IsPDF(fh)
 		assert.True(t, got)
 	})
 
 	t.Run("not pdf", func(t *testing.T) {
+		t.Parallel()
 		fh := createFileHeader("test.doc", []byte("word doc"))
 		got := file.IsPDF(fh)
 		assert.False(t, got)
@@ -141,6 +158,7 @@ func TestIsPDF(t *testing.T) {
 }
 
 func TestGetExtension(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		filename string
@@ -175,6 +193,7 @@ func TestGetExtension(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var fh *multipart.FileHeader
 			if tt.filename != "" {
 				fh = createFileHeader(tt.filename, []byte("content"))
@@ -186,6 +205,7 @@ func TestGetExtension(t *testing.T) {
 }
 
 func TestGetMIMEType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		filename    string
@@ -238,6 +258,7 @@ func TestGetMIMEType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var fh *multipart.FileHeader
 			if tt.content != nil {
 				fh = createFileHeader(tt.filename, tt.content)
@@ -254,6 +275,7 @@ func TestGetMIMEType(t *testing.T) {
 }
 
 func TestValidateSize(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		content  []byte
@@ -288,6 +310,7 @@ func TestValidateSize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var fh *multipart.FileHeader
 			if tt.content != nil {
 				fh = createFileHeader("test.txt", tt.content)
@@ -303,6 +326,7 @@ func TestValidateSize(t *testing.T) {
 }
 
 func TestValidateMIMEType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		filename     string
@@ -341,6 +365,7 @@ func TestValidateMIMEType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var fh *multipart.FileHeader
 			if tt.content != nil {
 				fh = createFileHeader(tt.filename, tt.content)
@@ -356,6 +381,7 @@ func TestValidateMIMEType(t *testing.T) {
 }
 
 func TestReadAll(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		content []byte
@@ -380,6 +406,7 @@ func TestReadAll(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var fh *multipart.FileHeader
 			if tt.content != nil {
 				fh = createFileHeader("test.txt", tt.content)
@@ -436,6 +463,7 @@ func TestHash(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var fh *multipart.FileHeader
 			if tt.content != nil {
 				fh = createFileHeader("test.txt", tt.content)
@@ -513,6 +541,7 @@ func TestSanitizeFilename(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := file.SanitizeFilename(tt.filename)
 			assert.Equal(t, tt.want, got)
 		})

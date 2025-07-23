@@ -7,14 +7,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dmitrymomot/saaskit/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dmitrymomot/saaskit/core"
 )
 
 func TestJSON(t *testing.T) {
 	t.Parallel()
-	
+
 	tests := []struct {
 		name     string
 		code     string
@@ -77,7 +78,7 @@ func TestJSON(t *testing.T) {
 
 func TestJSONError(t *testing.T) {
 	t.Parallel()
-	
+
 	tests := []struct {
 		name         string
 		err          error
@@ -213,7 +214,7 @@ func TestJSONError(t *testing.T) {
 
 func TestJSONResponse_OmitEmpty(t *testing.T) {
 	t.Parallel()
-	
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 

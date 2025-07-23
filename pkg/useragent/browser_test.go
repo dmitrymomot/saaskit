@@ -10,6 +10,7 @@ import (
 
 // TestBrowserInfo tests the BrowserInfo method
 func TestBrowserInfo(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		ua       useragent.UserAgent
@@ -64,6 +65,7 @@ func TestBrowserInfo(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			browserInfo := tc.ua.BrowserInfo()
 			assert.Equal(t, tc.expected.Name, browserInfo.Name)
 			assert.Equal(t, tc.expected.Version, browserInfo.Version)

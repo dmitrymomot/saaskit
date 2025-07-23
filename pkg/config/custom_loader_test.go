@@ -4,9 +4,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dmitrymomot/saaskit/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dmitrymomot/saaskit/pkg/config"
 )
 
 // Test configuration structs for custom env loading

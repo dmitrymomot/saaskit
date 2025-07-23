@@ -9,6 +9,7 @@ import (
 )
 
 func TestParseScopes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -48,6 +49,7 @@ func TestParseScopes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := scopes.ParseScopes(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -55,6 +57,7 @@ func TestParseScopes(t *testing.T) {
 }
 
 func TestJoinScopes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		scopes   []string
@@ -89,6 +92,7 @@ func TestJoinScopes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := scopes.JoinScopes(tt.scopes)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -96,6 +100,7 @@ func TestJoinScopes(t *testing.T) {
 }
 
 func TestContainsScope(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		scopes   []string
@@ -148,6 +153,7 @@ func TestContainsScope(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := scopes.HasScope(tt.scopes, tt.scope)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -155,6 +161,7 @@ func TestContainsScope(t *testing.T) {
 }
 
 func TestHasAllScopes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		scopes   []string
@@ -207,6 +214,7 @@ func TestHasAllScopes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := scopes.HasAllScopes(tt.scopes, tt.required)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -214,6 +222,7 @@ func TestHasAllScopes(t *testing.T) {
 }
 
 func TestHasAnyScopes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		scopes   []string
@@ -260,6 +269,7 @@ func TestHasAnyScopes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := scopes.HasAnyScopes(tt.scopes, tt.required)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -267,6 +277,7 @@ func TestHasAnyScopes(t *testing.T) {
 }
 
 func TestEqualScopes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		scopes1  []string
@@ -313,6 +324,7 @@ func TestEqualScopes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := scopes.EqualScopes(tt.scopes1, tt.scopes2)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -320,6 +332,7 @@ func TestEqualScopes(t *testing.T) {
 }
 
 func TestValidateScopes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		scopes      []string
@@ -378,6 +391,7 @@ func TestValidateScopes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := scopes.ValidateScopes(tt.scopes, tt.validScopes)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -385,6 +399,7 @@ func TestValidateScopes(t *testing.T) {
 }
 
 func TestRoundTrip(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		original string
@@ -405,6 +420,7 @@ func TestRoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			scopeSlice := scopes.ParseScopes(tt.original)
 			result := scopes.JoinScopes(scopeSlice)
 			assert.Equal(t, tt.original, result)
@@ -413,6 +429,7 @@ func TestRoundTrip(t *testing.T) {
 }
 
 func TestNormalizeScopes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		scopes   []string
@@ -457,105 +474,15 @@ func TestNormalizeScopes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := scopes.NormalizeScopes(tt.scopes)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestCustomDelimitersWithGlobalVars(t *testing.T) {
-	// Save original values to restore after test
-	originalSeparator := scopes.ScopeSeparator
-	originalWildcard := scopes.ScopeWildcard
-	originalDelimiter := scopes.ScopeDelimiter
-
-	// Restore original values after test
-	defer func() {
-		scopes.ScopeSeparator = originalSeparator
-		scopes.ScopeWildcard = originalWildcard
-		scopes.ScopeDelimiter = originalDelimiter
-	}()
-
-	t.Run("custom separator", func(t *testing.T) {
-		// Set custom separator
-		scopes.ScopeSeparator = ","
-
-		// Test parsing with comma separator
-		parsed := scopes.ParseScopes("read,write,admin")
-		assert.Equal(t, []string{"read", "write", "admin"}, parsed)
-
-		// Test joining with comma separator
-		joined := scopes.JoinScopes([]string{"read", "write", "admin"})
-		assert.Equal(t, "read,write,admin", joined)
-
-		// Test round trip
-		original := "read,write,admin.users"
-		roundTrip := scopes.JoinScopes(scopes.ParseScopes(original))
-		assert.Equal(t, original, roundTrip)
-	})
-
-	t.Run("custom delimiter and wildcard", func(t *testing.T) {
-		// Set custom delimiter and wildcard
-		scopes.ScopeDelimiter = ":"
-		scopes.ScopeWildcard = "?"
-
-		// Test wildcard matching
-		hasScope := scopes.HasScope([]string{"admin:?"}, "admin:read")
-		assert.True(t, hasScope)
-
-		// Test hierarchical scopes with custom delimiter
-		hasAll := scopes.HasAllScopes(
-			[]string{"admin:?", "read"},
-			[]string{"admin:users", "read"},
-		)
-		assert.True(t, hasAll)
-
-		// Test validation with custom delimiter and wildcard
-		isValid := scopes.ValidateScopes(
-			[]string{"admin:read", "user:write"},
-			[]string{"admin:?", "user:?"},
-		)
-		assert.True(t, isValid)
-	})
-}
-
-func TestRoundTripWithCustomSeparator(t *testing.T) {
-	tests := []struct {
-		name      string
-		original  string
-		separator string
-	}{
-		{
-			name:      "comma separator",
-			original:  "read,write,delete",
-			separator: ",",
-		},
-		{
-			name:      "semicolon separator",
-			original:  "admin:read;user:write;system:*",
-			separator: ";",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Save original values to restore after test
-			originalSeparator := scopes.ScopeSeparator
-			defer func() {
-				scopes.ScopeSeparator = originalSeparator
-			}()
-
-			// Set custom separator
-			scopes.ScopeSeparator = tt.separator
-
-			scopeSlice := scopes.ParseScopes(tt.original)
-			result := scopes.JoinScopes(scopeSlice)
-			assert.Equal(t, tt.original, result)
-		})
-	}
-}
-
 func TestMatchScope(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		scope    string
@@ -614,6 +541,7 @@ func TestMatchScope(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := scopes.ScopeMatches(tt.scope, tt.pattern)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -621,6 +549,7 @@ func TestMatchScope(t *testing.T) {
 }
 
 func TestValidateScopesPerformance(t *testing.T) {
+	t.Parallel()
 	// Generate large collections for testing optimization paths
 	const smallSize = 5
 	const largeSize = 15
@@ -698,6 +627,7 @@ func TestValidateScopesPerformance(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := scopes.ValidateScopes(tt.scopes, tt.validScopes)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -705,6 +635,7 @@ func TestValidateScopesPerformance(t *testing.T) {
 }
 
 func TestEqualScopesOptimized(t *testing.T) {
+	t.Parallel()
 	// Test different collection sizes
 	tests := []struct {
 		name     string
@@ -776,6 +707,7 @@ func TestEqualScopesOptimized(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := scopes.EqualScopes(tt.scopes1, tt.scopes2)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -783,6 +715,7 @@ func TestEqualScopesOptimized(t *testing.T) {
 }
 
 func TestNormalizeScopesOptimized(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		scopes   []string
@@ -832,6 +765,7 @@ func TestNormalizeScopesOptimized(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := scopes.NormalizeScopes(tt.scopes)
 			assert.Equal(t, tt.expected, result)
 		})

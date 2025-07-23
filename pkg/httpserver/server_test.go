@@ -29,6 +29,7 @@ func freeAddr(t *testing.T) string {
 }
 
 func TestRunAndShutdown(t *testing.T) {
+	t.Parallel()
 	addr := freeAddr(t)
 	srv := httpserver.New(httpserver.WithAddr(addr), httpserver.WithShutdownTimeout(100*time.Millisecond))
 	ctx, cancel := context.WithCancel(context.Background())
@@ -70,6 +71,7 @@ func TestRunAndShutdown(t *testing.T) {
 }
 
 func TestManualShutdown(t *testing.T) {
+	t.Parallel()
 	addr := freeAddr(t)
 	start := make(chan struct{})
 	srv := httpserver.New(
@@ -97,6 +99,7 @@ func TestManualShutdown(t *testing.T) {
 }
 
 func TestStartError(t *testing.T) {
+	t.Parallel()
 	srv := httpserver.New(httpserver.WithAddr(":invalid"))
 	err := srv.Run(context.Background(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	if err == nil || !errors.Is(err, httpserver.ErrStart) {
@@ -105,6 +108,7 @@ func TestStartError(t *testing.T) {
 }
 
 func TestHooks(t *testing.T) {
+	t.Parallel()
 	addr := freeAddr(t)
 	var started, stopped atomic.Bool
 	start := make(chan struct{})
@@ -140,6 +144,7 @@ func TestHooks(t *testing.T) {
 }
 
 func TestAlreadyRunning(t *testing.T) {
+	t.Parallel()
 	addr := freeAddr(t)
 	started := make(chan struct{})
 	srv := httpserver.New(
@@ -159,6 +164,7 @@ func TestAlreadyRunning(t *testing.T) {
 }
 
 func TestDoubleShutdown(t *testing.T) {
+	t.Parallel()
 	addr := freeAddr(t)
 	start := make(chan struct{})
 	srv := httpserver.New(
@@ -186,6 +192,7 @@ func TestDoubleShutdown(t *testing.T) {
 }
 
 func TestWithServer(t *testing.T) {
+	t.Parallel()
 	addr := freeAddr(t)
 	hs := &http.Server{ReadTimeout: time.Second}
 	start := make(chan struct{})
@@ -212,6 +219,7 @@ func TestWithServer(t *testing.T) {
 }
 
 func TestSignalShutdown(t *testing.T) {
+	t.Parallel()
 	addr := freeAddr(t)
 	srv := httpserver.New(
 		httpserver.WithAddr(addr),
@@ -240,6 +248,7 @@ func TestSignalShutdown(t *testing.T) {
 }
 
 func TestOptionPanics(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		fn   func()
@@ -255,6 +264,7 @@ func TestOptionPanics(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			defer func() {
 				if recover() == nil {
 					t.Fatal("expected panic")
@@ -265,12 +275,14 @@ func TestOptionPanics(t *testing.T) {
 	}
 
 	t.Run("logger nil allowed", func(t *testing.T) {
+		t.Parallel()
 		defer func() { _ = recover() }()
 		httpserver.WithLogger(nil)
 	})
 }
 
 func TestOptionsApply(t *testing.T) {
+	t.Parallel()
 	addr := freeAddr(t)
 	l := slog.New(slog.NewTextHandler(io.Discard, nil))
 	hs := &http.Server{}
@@ -302,6 +314,7 @@ func TestOptionsApply(t *testing.T) {
 }
 
 func TestTimeouts(t *testing.T) {
+	t.Parallel()
 	addr := freeAddr(t)
 	start := make(chan struct{})
 	hs := &http.Server{}

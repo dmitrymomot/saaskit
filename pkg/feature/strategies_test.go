@@ -11,9 +11,11 @@ import (
 )
 
 func TestAlwaysStrategy(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("AlwaysOn", func(t *testing.T) {
+		t.Parallel()
 		strategy := feature.NewAlwaysOnStrategy()
 		enabled, err := strategy.Evaluate(ctx)
 		require.NoError(t, err)
@@ -21,6 +23,7 @@ func TestAlwaysStrategy(t *testing.T) {
 	})
 
 	t.Run("AlwaysOff", func(t *testing.T) {
+		t.Parallel()
 		strategy := feature.NewAlwaysOffStrategy()
 		enabled, err := strategy.Evaluate(ctx)
 		require.NoError(t, err)
@@ -29,7 +32,9 @@ func TestAlwaysStrategy(t *testing.T) {
 }
 
 func TestTargetedStrategy(t *testing.T) {
+	t.Parallel()
 	t.Run("EmptyCriteria", func(t *testing.T) {
+		t.Parallel()
 		strategy := feature.NewTargetedStrategy(feature.TargetCriteria{})
 		enabled, err := strategy.Evaluate(context.Background())
 		require.Error(t, err)
@@ -38,6 +43,7 @@ func TestTargetedStrategy(t *testing.T) {
 	})
 
 	t.Run("SpecificUserIDs", func(t *testing.T) {
+		t.Parallel()
 		criteria := feature.TargetCriteria{
 			UserIDs: []string{"user1", "user2", "user3"},
 		}
@@ -62,6 +68,7 @@ func TestTargetedStrategy(t *testing.T) {
 	})
 
 	t.Run("UserGroups", func(t *testing.T) {
+		t.Parallel()
 		criteria := feature.TargetCriteria{
 			Groups: []string{"admin", "beta-testers"},
 		}
@@ -86,6 +93,7 @@ func TestTargetedStrategy(t *testing.T) {
 	})
 
 	t.Run("PercentageRollout", func(t *testing.T) {
+		t.Parallel()
 		// Set up a 50% rollout
 		percentage := 50
 		criteria := feature.TargetCriteria{
@@ -123,6 +131,7 @@ func TestTargetedStrategy(t *testing.T) {
 	})
 
 	t.Run("AllowDenyLists", func(t *testing.T) {
+		t.Parallel()
 		criteria := feature.TargetCriteria{
 			AllowList: []string{"special-user", "vip-user"},
 			DenyList:  []string{"banned-user"},
@@ -154,7 +163,9 @@ func TestTargetedStrategy(t *testing.T) {
 }
 
 func TestEnvironmentStrategy(t *testing.T) {
+	t.Parallel()
 	t.Run("EmptyEnvironments", func(t *testing.T) {
+		t.Parallel()
 		strategy := feature.NewEnvironmentStrategy()
 		enabled, err := strategy.Evaluate(context.Background())
 		require.Error(t, err)
@@ -163,6 +174,7 @@ func TestEnvironmentStrategy(t *testing.T) {
 	})
 
 	t.Run("MatchingEnvironment", func(t *testing.T) {
+		t.Parallel()
 		strategy := feature.NewEnvironmentStrategy("dev", "staging")
 
 		// Test with matching environment
@@ -185,7 +197,9 @@ func TestEnvironmentStrategy(t *testing.T) {
 }
 
 func TestCompositeStrategy(t *testing.T) {
+	t.Parallel()
 	t.Run("EmptyStrategies", func(t *testing.T) {
+		t.Parallel()
 		strategy := feature.NewAndStrategy()
 		enabled, err := strategy.Evaluate(context.Background())
 		require.Error(t, err)
@@ -200,6 +214,7 @@ func TestCompositeStrategy(t *testing.T) {
 	})
 
 	t.Run("AndStrategy", func(t *testing.T) {
+		t.Parallel()
 		// Create some test strategies
 		alwaysOn := feature.NewAlwaysOnStrategy()
 		alwaysOff := feature.NewAlwaysOffStrategy()
@@ -224,6 +239,7 @@ func TestCompositeStrategy(t *testing.T) {
 	})
 
 	t.Run("OrStrategy", func(t *testing.T) {
+		t.Parallel()
 		// Create some test strategies
 		alwaysOn := feature.NewAlwaysOnStrategy()
 		alwaysOff := feature.NewAlwaysOffStrategy()

@@ -9,6 +9,8 @@ import (
 )
 
 func TestClamp(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    int
@@ -55,6 +57,8 @@ func TestClamp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.Clamp(tt.value, tt.min, tt.max)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -62,6 +66,8 @@ func TestClamp(t *testing.T) {
 }
 
 func TestClampWithFloats(t *testing.T) {
+	t.Parallel()
+
 	result := sanitizer.Clamp(3.7, 1.5, 10.2)
 	assert.Equal(t, 3.7, result)
 
@@ -73,6 +79,8 @@ func TestClampWithFloats(t *testing.T) {
 }
 
 func TestClampMin(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    int
@@ -101,6 +109,8 @@ func TestClampMin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ClampMin(tt.value, tt.min)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -108,6 +118,8 @@ func TestClampMin(t *testing.T) {
 }
 
 func TestClampMax(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    int
@@ -136,6 +148,8 @@ func TestClampMax(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ClampMax(tt.value, tt.max)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -143,6 +157,8 @@ func TestClampMax(t *testing.T) {
 }
 
 func TestAbs(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    int
@@ -167,6 +183,8 @@ func TestAbs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.Abs(tt.value)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -174,6 +192,8 @@ func TestAbs(t *testing.T) {
 }
 
 func TestAbsWithFloats(t *testing.T) {
+	t.Parallel()
+
 	result := sanitizer.Abs(-3.14)
 	assert.Equal(t, 3.14, result)
 
@@ -182,6 +202,8 @@ func TestAbsWithFloats(t *testing.T) {
 }
 
 func TestZeroIfNegative(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    int
@@ -206,6 +228,8 @@ func TestZeroIfNegative(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ZeroIfNegative(tt.value)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -213,6 +237,8 @@ func TestZeroIfNegative(t *testing.T) {
 }
 
 func TestZeroIfPositive(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    int
@@ -237,6 +263,8 @@ func TestZeroIfPositive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ZeroIfPositive(tt.value)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -244,6 +272,8 @@ func TestZeroIfPositive(t *testing.T) {
 }
 
 func TestNonZero(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    int
@@ -268,6 +298,8 @@ func TestNonZero(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.NonZero(tt.value)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -275,6 +307,8 @@ func TestNonZero(t *testing.T) {
 }
 
 func TestRoundToDecimalPlaces(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    float64
@@ -315,6 +349,8 @@ func TestRoundToDecimalPlaces(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.RoundToDecimalPlaces(tt.value, tt.places)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -322,6 +358,8 @@ func TestRoundToDecimalPlaces(t *testing.T) {
 }
 
 func TestRoundUp(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    float64
@@ -351,6 +389,8 @@ func TestRoundUp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.RoundUp(tt.value)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -358,6 +398,8 @@ func TestRoundUp(t *testing.T) {
 }
 
 func TestRoundDown(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    float64
@@ -387,6 +429,8 @@ func TestRoundDown(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.RoundDown(tt.value)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -394,6 +438,8 @@ func TestRoundDown(t *testing.T) {
 }
 
 func TestRound(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    float64
@@ -423,6 +469,8 @@ func TestRound(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.Round(tt.value)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -430,6 +478,8 @@ func TestRound(t *testing.T) {
 }
 
 func TestTruncateToInt(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    float64
@@ -459,6 +509,8 @@ func TestTruncateToInt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.TruncateToInt(tt.value)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -466,6 +518,8 @@ func TestTruncateToInt(t *testing.T) {
 }
 
 func TestClampPrecision(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		value         float64
@@ -502,6 +556,8 @@ func TestClampPrecision(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ClampPrecision(tt.value, tt.min, tt.max, tt.decimalPlaces)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -509,6 +565,8 @@ func TestClampPrecision(t *testing.T) {
 }
 
 func TestSafeDivide(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		numerator   int
@@ -541,6 +599,8 @@ func TestSafeDivide(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SafeDivide(tt.numerator, tt.denominator, tt.fallback)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -548,6 +608,8 @@ func TestSafeDivide(t *testing.T) {
 }
 
 func TestSafeDivideWithFloats(t *testing.T) {
+	t.Parallel()
+
 	result := sanitizer.SafeDivide(10.0, 3.0, -1.0)
 	assert.InDelta(t, 3.333333333333333, result, 0.000001)
 
@@ -556,6 +618,8 @@ func TestSafeDivideWithFloats(t *testing.T) {
 }
 
 func TestPercentage(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		part     int
@@ -602,6 +666,8 @@ func TestPercentage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.Percentage(tt.part, tt.whole)
 			assert.InDelta(t, tt.expected, result, 0.000001)
 		})
@@ -609,6 +675,8 @@ func TestPercentage(t *testing.T) {
 }
 
 func TestNormalizeToRange(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    float64
@@ -667,6 +735,8 @@ func TestNormalizeToRange(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.NormalizeToRange(tt.value, tt.fromMin, tt.fromMax, tt.toMin, tt.toMax)
 			assert.InDelta(t, tt.expected, result, 0.000001)
 		})
@@ -674,6 +744,8 @@ func TestNormalizeToRange(t *testing.T) {
 }
 
 func TestClampToPositive(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    int
@@ -698,6 +770,8 @@ func TestClampToPositive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ClampToPositive(tt.value)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -705,6 +779,8 @@ func TestClampToPositive(t *testing.T) {
 }
 
 func TestClampToPositiveWithFloats(t *testing.T) {
+	t.Parallel()
+
 	result := sanitizer.ClampToPositive(3.14)
 	assert.Equal(t, 3.14, result)
 
@@ -716,6 +792,8 @@ func TestClampToPositiveWithFloats(t *testing.T) {
 }
 
 func TestClampToNonNegative(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    int
@@ -740,6 +818,8 @@ func TestClampToNonNegative(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ClampToNonNegative(tt.value)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -747,6 +827,8 @@ func TestClampToNonNegative(t *testing.T) {
 }
 
 func TestClampToNonNegativeWithFloats(t *testing.T) {
+	t.Parallel()
+
 	result := sanitizer.ClampToNonNegative(3.14)
 	assert.Equal(t, 3.14, result)
 
@@ -758,7 +840,11 @@ func TestClampToNonNegativeWithFloats(t *testing.T) {
 }
 
 func TestNumericApplyPattern(t *testing.T) {
+	t.Parallel()
+
 	t.Run("apply pattern with numeric functions", func(t *testing.T) {
+		t.Parallel()
+
 		// Test Apply pattern with numeric transformations
 		input := -15.789
 		result := sanitizer.Apply(input,
@@ -770,6 +856,8 @@ func TestNumericApplyPattern(t *testing.T) {
 	})
 
 	t.Run("compose numeric transformations", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a reusable price sanitizer
 		priceSanitizer := sanitizer.Compose(
 			func(v float64) float64 { return sanitizer.ClampToNonNegative(v) },
@@ -789,7 +877,11 @@ func TestNumericApplyPattern(t *testing.T) {
 }
 
 func TestRealWorldNumericUsage(t *testing.T) {
+	t.Parallel()
+
 	t.Run("user age sanitization", func(t *testing.T) {
+		t.Parallel()
+
 		// Create age sanitizer: non-negative, reasonable max age
 		ageSanitizer := sanitizer.Compose(
 			func(v int) int { return sanitizer.ClampToNonNegative(v) },
@@ -806,6 +898,8 @@ func TestRealWorldNumericUsage(t *testing.T) {
 	})
 
 	t.Run("percentage score sanitization", func(t *testing.T) {
+		t.Parallel()
+
 		// Create percentage sanitizer: 0-100 range, 1 decimal place
 		percentageSanitizer := sanitizer.Compose(
 			func(v float64) float64 { return sanitizer.Clamp(v, 0.0, 100.0) },
@@ -822,6 +916,8 @@ func TestRealWorldNumericUsage(t *testing.T) {
 	})
 
 	t.Run("quantity sanitization for e-commerce", func(t *testing.T) {
+		t.Parallel()
+
 		// Create quantity sanitizer: positive integers only, max 1000
 		quantitySanitizer := sanitizer.Compose(
 			func(v int) int { return sanitizer.ClampToPositive(v) },

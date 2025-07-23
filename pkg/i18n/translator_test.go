@@ -16,6 +16,7 @@ import (
 )
 
 func TestNewTranslator(t *testing.T) {
+	t.Parallel()
 	// Create a simple translation map
 	translations := map[string]map[string]any{
 		"en": {
@@ -55,6 +56,7 @@ func TestNewTranslator(t *testing.T) {
 }
 
 func TestTranslatorSupportedLanguages(t *testing.T) {
+	t.Parallel()
 	// Create a simple translation map
 	translations := map[string]map[string]any{
 		"en": {"hello": "Hello"},
@@ -82,6 +84,7 @@ func TestTranslatorSupportedLanguages(t *testing.T) {
 }
 
 func TestTranslatorHasTranslation(t *testing.T) {
+	t.Parallel()
 	// Create a simple translation map
 	translations := map[string]map[string]any{
 		"en": {
@@ -112,6 +115,7 @@ func TestTranslatorHasTranslation(t *testing.T) {
 }
 
 func TestTranslatorT(t *testing.T) {
+	t.Parallel()
 	// Create a simple translation map
 	translations := map[string]map[string]any{
 		"en": {
@@ -154,6 +158,7 @@ func TestTranslatorT(t *testing.T) {
 }
 
 func TestTranslatorTWithComplexCases(t *testing.T) {
+	t.Parallel()
 	// Create a translation map with complex structures
 	translations := map[string]map[string]any{
 		"en": {
@@ -218,6 +223,7 @@ func TestTranslatorTWithComplexCases(t *testing.T) {
 }
 
 func TestTranslatorN(t *testing.T) {
+	t.Parallel()
 	// Create a simple translation map
 	translations := map[string]map[string]any{
 		"en": {
@@ -273,6 +279,7 @@ func TestTranslatorN(t *testing.T) {
 }
 
 func TestTranslatorNWithComplexCases(t *testing.T) {
+	t.Parallel()
 	// Create a translation map with realistic nested plural structures
 	translations := map[string]map[string]any{
 		"en": {
@@ -315,6 +322,7 @@ func TestTranslatorNWithComplexCases(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Basic nested plural functionality", func(t *testing.T) {
+		t.Parallel()
 		// Test zero case
 		result := translator.N("en", "nested.items", 0, "count", "0")
 		assert.Equal(t, "No nested items", result)
@@ -329,6 +337,7 @@ func TestTranslatorNWithComplexCases(t *testing.T) {
 	})
 
 	t.Run("Deeply nested plural translations", func(t *testing.T) {
+		t.Parallel()
 		// Test zero case
 		result := translator.N("en", "products.inventory", 0, "count", "0")
 		assert.Equal(t, "Out of stock", result)
@@ -343,6 +352,7 @@ func TestTranslatorNWithComplexCases(t *testing.T) {
 	})
 
 	t.Run("Different languages support", func(t *testing.T) {
+		t.Parallel()
 		// Test French translations
 		result := translator.N("fr", "nested.items", 0, "count", "0")
 		assert.Equal(t, "Aucun élément imbriqué", result)
@@ -356,6 +366,7 @@ func TestTranslatorNWithComplexCases(t *testing.T) {
 }
 
 func TestTranslatorNErrorHandling(t *testing.T) {
+	t.Parallel()
 	// Create a translation map with invalid structures to test error handling
 	translations := map[string]map[string]any{
 		"en": {
@@ -381,6 +392,7 @@ func TestTranslatorNErrorHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Invalid plural format", func(t *testing.T) {
+		t.Parallel()
 		// When a plural key contains non-string values
 		result := translator.N("en", "invalid_plural", 0, "count", "0")
 		// Should fallback to key
@@ -388,6 +400,7 @@ func TestTranslatorNErrorHandling(t *testing.T) {
 	})
 
 	t.Run("String used for plural translation", func(t *testing.T) {
+		t.Parallel()
 		// When a string is used instead of a map for pluralization
 		result := translator.N("en", "string_plural", 0, "count", "0")
 		// Should return the string as-is
@@ -395,6 +408,7 @@ func TestTranslatorNErrorHandling(t *testing.T) {
 	})
 
 	t.Run("Missing translation key", func(t *testing.T) {
+		t.Parallel()
 		// When translation key doesn't exist
 		result := translator.N("en", "missing.key", 0, "count", "0")
 		// Should fallback to key
@@ -402,6 +416,7 @@ func TestTranslatorNErrorHandling(t *testing.T) {
 	})
 
 	t.Run("Missing language", func(t *testing.T) {
+		t.Parallel()
 		// When language isn't available
 		result := translator.N("de", "invalid_plural", 0, "count", "0")
 		// Should fallback to key
@@ -409,6 +424,7 @@ func TestTranslatorNErrorHandling(t *testing.T) {
 	})
 
 	t.Run("Fallback to key disabled", func(t *testing.T) {
+		t.Parallel()
 		// Create a translator with fallback to key disabled
 		noFallbackTranslator, err := i18n.NewTranslator(
 			context.Background(),
@@ -425,6 +441,7 @@ func TestTranslatorNErrorHandling(t *testing.T) {
 }
 
 func TestTranslatorParameterHandling(t *testing.T) {
+	t.Parallel()
 	translations := map[string]map[string]any{
 		"en": {
 			"greeting": map[string]any{
@@ -443,6 +460,7 @@ func TestTranslatorParameterHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Multiple parameters", func(t *testing.T) {
+		t.Parallel()
 		// Test with multiple parameters
 		result := translator.N("en", "greeting", 0, "name", "John", "count", "0")
 		assert.Equal(t, "Hello, John! You have no messages.", result)
@@ -456,6 +474,7 @@ func TestTranslatorParameterHandling(t *testing.T) {
 }
 
 func TestTranslatorWithEmptyLanguageSet(t *testing.T) {
+	t.Parallel()
 	// Create an empty adapter
 	emptyAdapter := &i18n.MapAdapter{
 		Data: make(map[string]map[string]any),
@@ -475,6 +494,7 @@ func TestTranslatorWithEmptyLanguageSet(t *testing.T) {
 }
 
 func TestTranslatorWithOptions(t *testing.T) {
+	t.Parallel()
 	// Create a simple translation map
 	translations := map[string]map[string]any{
 		"en": {"hello": "Hello"},
@@ -501,6 +521,7 @@ func TestTranslatorWithOptions(t *testing.T) {
 }
 
 func TestTranslatorWithLoggerOptions(t *testing.T) {
+	t.Parallel()
 	// Create a simple translation map
 	translations := map[string]map[string]any{
 		"en": {"hello": "Hello"},
@@ -564,6 +585,7 @@ func TestTranslatorWithLoggerOptions(t *testing.T) {
 }
 
 func TestTranslatorWithEmptyAdapter(t *testing.T) {
+	t.Parallel()
 	// Create an empty adapter
 	adapter := &i18n.MapAdapter{
 		Data: nil,
@@ -586,6 +608,7 @@ func TestTranslatorWithEmptyAdapter(t *testing.T) {
 }
 
 func TestTranslatorWithInvalidTranslations(t *testing.T) {
+	t.Parallel()
 	// Create a translation map with an empty language code
 	translations := map[string]map[string]any{
 		"": {"hello": "Hello"},
@@ -617,6 +640,7 @@ func TestTranslatorWithInvalidTranslations(t *testing.T) {
 }
 
 func TestTranslatorDuration(t *testing.T) {
+	t.Parallel()
 	// Create a translation map with duration translations
 	translations := map[string]map[string]any{
 		"en": {
@@ -710,6 +734,7 @@ func TestTranslatorDuration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := translator.Duration(tt.lang, tt.duration)
 			assert.Equal(t, tt.expected, result, "Duration did not match expected output")
 		})
@@ -717,6 +742,7 @@ func TestTranslatorDuration(t *testing.T) {
 }
 
 func TestTranslatorTimeSince(t *testing.T) {
+	t.Parallel()
 	// Create a translation map with time since translations
 	translations := map[string]map[string]any{
 		"en": {
@@ -825,6 +851,7 @@ func TestTranslatorTimeSince(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := translator.TimeSince(tt.lang, tt.time)
 			assert.Equal(t, tt.expected, result, "TimeSince did not match expected output")
 		})
@@ -832,6 +859,7 @@ func TestTranslatorTimeSince(t *testing.T) {
 }
 
 func TestTranslatorDurationWithMissingTranslations(t *testing.T) {
+	t.Parallel()
 	// Create a translation map with incomplete translations
 	translations := map[string]map[string]any{
 		"en": {
@@ -883,6 +911,7 @@ func TestTranslatorDurationWithMissingTranslations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := translator.Duration(tt.lang, tt.duration)
 			assert.Equal(t, tt.expected, result, "Duration did not handle missing translations correctly")
 		})
@@ -890,6 +919,7 @@ func TestTranslatorDurationWithMissingTranslations(t *testing.T) {
 }
 
 func TestTranslatorTimeSinceWithMissingTranslations(t *testing.T) {
+	t.Parallel()
 	// Create a translation map with incomplete translations
 	translations := map[string]map[string]any{
 		"en": {
@@ -947,6 +977,7 @@ func TestTranslatorTimeSinceWithMissingTranslations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := translator.TimeSince(tt.lang, tt.time)
 			assert.Equal(t, tt.expected, result, "TimeSince did not handle missing translations correctly")
 		})
@@ -954,6 +985,7 @@ func TestTranslatorTimeSinceWithMissingTranslations(t *testing.T) {
 }
 
 func TestTranslatorExportJSON(t *testing.T) {
+	t.Parallel()
 	// Create a translation map with various structures
 	translations := map[string]map[string]any{
 		"en": {
@@ -983,6 +1015,7 @@ func TestTranslatorExportJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("successful export", func(t *testing.T) {
+		t.Parallel()
 		// Export translations for English
 		jsonStr, err := translator.ExportJSON("en")
 		require.NoError(t, err)
@@ -1001,6 +1034,7 @@ func TestTranslatorExportJSON(t *testing.T) {
 	})
 
 	t.Run("language not supported", func(t *testing.T) {
+		t.Parallel()
 		// Try to export translations for a non-existent language
 		_, err := translator.ExportJSON("es")
 		require.Error(t, err)
@@ -1010,6 +1044,7 @@ func TestTranslatorExportJSON(t *testing.T) {
 }
 
 func TestTranslatorTd(t *testing.T) {
+	t.Parallel()
 	// Create a translation map
 	translations := map[string]map[string]any{
 		"en": {
@@ -1029,6 +1064,7 @@ func TestTranslatorTd(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("existing translation", func(t *testing.T) {
+		t.Parallel()
 		// Test with existing key
 		result := translator.Td("en", "hello", "Default Hello")
 		assert.Equal(t, "Hello", result)
@@ -1039,6 +1075,7 @@ func TestTranslatorTd(t *testing.T) {
 	})
 
 	t.Run("missing translation", func(t *testing.T) {
+		t.Parallel()
 		// Test with missing key
 		result := translator.Td("en", "missing", "Default Text")
 		assert.Equal(t, "Default Text", result)
@@ -1049,12 +1086,14 @@ func TestTranslatorTd(t *testing.T) {
 	})
 
 	t.Run("non-string translation", func(t *testing.T) {
+		t.Parallel()
 		// Test with non-string value
 		result := translator.Td("en", "non_string", "Default for non-string")
 		assert.Equal(t, "Default for non-string", result)
 	})
 
 	t.Run("language not supported", func(t *testing.T) {
+		t.Parallel()
 		// Test with non-existent language
 		result := translator.Td("fr", "hello", "Default Hello")
 		assert.Equal(t, "Default Hello", result)
@@ -1062,6 +1101,7 @@ func TestTranslatorTd(t *testing.T) {
 }
 
 func TestTranslatorTc(t *testing.T) {
+	t.Parallel()
 	// Create a translation map
 	translations := map[string]map[string]any{
 		"en": {
@@ -1090,6 +1130,7 @@ func TestTranslatorTc(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("uses language from context", func(t *testing.T) {
+		t.Parallel()
 		// Test with English context
 		ctx := i18n.SetLocale(context.Background(), "en")
 		result := translator.Tc(ctx, "hello")
@@ -1107,6 +1148,7 @@ func TestTranslatorTc(t *testing.T) {
 	})
 
 	t.Run("handles parameters from context", func(t *testing.T) {
+		t.Parallel()
 		ctx := i18n.SetLocale(context.Background(), "en")
 		result := translator.Tc(ctx, "welcome", "name", "John")
 		assert.Equal(t, "Welcome, John!", result)
@@ -1117,12 +1159,14 @@ func TestTranslatorTc(t *testing.T) {
 	})
 
 	t.Run("handles nested keys from context", func(t *testing.T) {
+		t.Parallel()
 		ctx := i18n.SetLocale(context.Background(), "en")
 		result := translator.Tc(ctx, "nested.greeting", "name", "Alice")
 		assert.Equal(t, "Hello, Alice!", result)
 	})
 
 	t.Run("falls back to default when no locale in context", func(t *testing.T) {
+		t.Parallel()
 		// Context without locale should use default language
 		ctx := context.Background()
 		result := translator.Tc(ctx, "hello")
@@ -1130,6 +1174,7 @@ func TestTranslatorTc(t *testing.T) {
 	})
 
 	t.Run("handles missing translation in context language", func(t *testing.T) {
+		t.Parallel()
 		// Spanish doesn't have 'welcome' translation
 		ctx := i18n.SetLocale(context.Background(), "es")
 		result := translator.Tc(ctx, "welcome")
@@ -1137,12 +1182,14 @@ func TestTranslatorTc(t *testing.T) {
 	})
 
 	t.Run("handles unsupported language in context", func(t *testing.T) {
+		t.Parallel()
 		ctx := i18n.SetLocale(context.Background(), "de")
 		result := translator.Tc(ctx, "hello")
 		assert.Equal(t, "hello", result) // Should fallback to key
 	})
 
 	t.Run("preserves other context values", func(t *testing.T) {
+		t.Parallel()
 		// Add custom value to context
 		type contextKey string
 		customKey := contextKey("custom")
@@ -1160,6 +1207,7 @@ func TestTranslatorTc(t *testing.T) {
 }
 
 func TestTranslatorNc(t *testing.T) {
+	t.Parallel()
 	// Create a translation map with pluralization
 	translations := map[string]map[string]any{
 		"en": {
@@ -1252,6 +1300,7 @@ func TestTranslatorNc(t *testing.T) {
 	})
 
 	t.Run("falls back to default when no locale in context", func(t *testing.T) {
+		t.Parallel()
 		// Context without locale should use default language
 		ctx := context.Background()
 
@@ -1270,12 +1319,14 @@ func TestTranslatorNc(t *testing.T) {
 	})
 
 	t.Run("handles unsupported language in context", func(t *testing.T) {
+		t.Parallel()
 		ctx := i18n.SetLocale(context.Background(), "de")
 		result := translator.Nc(ctx, "items", 1)
 		assert.Equal(t, "items", result) // Should fallback to key
 	})
 
 	t.Run("preserves other context values", func(t *testing.T) {
+		t.Parallel()
 		// Add custom value to context
 		type contextKey string
 		customKey := contextKey("custom")
@@ -1293,6 +1344,7 @@ func TestTranslatorNc(t *testing.T) {
 }
 
 func TestTranslatorContextIntegration(t *testing.T) {
+	t.Parallel()
 	// Create a comprehensive translation map
 	translations := map[string]map[string]any{
 		"en": {
@@ -1388,6 +1440,7 @@ func TestTranslatorContextIntegration(t *testing.T) {
 }
 
 func TestTranslatorConcurrency(t *testing.T) {
+	t.Parallel()
 	// Create a translation map
 	translations := map[string]map[string]any{
 		"en": {

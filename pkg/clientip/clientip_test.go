@@ -193,7 +193,6 @@ func TestGetIPDifferentHeaders(t *testing.T) {
 	}
 }
 
-
 func TestDigitalOceanAppPlatformScenarios(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -281,7 +280,6 @@ func BenchmarkGetIPFallback(b *testing.B) {
 		clientip.GetIP(req)
 	}
 }
-
 
 func BenchmarkGetIPWithLongForwardedChain(b *testing.B) {
 	// Test SplitSeq efficiency with a long chain of IPs

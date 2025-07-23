@@ -11,6 +11,7 @@ import (
 )
 
 func TestValidUUID(t *testing.T) {
+	t.Parallel()
 	t.Run("valid UUIDs", func(t *testing.T) {
 		validUUIDs := []string{
 			"550e8400-e29b-41d4-a716-446655440000",
@@ -52,6 +53,7 @@ func TestValidUUID(t *testing.T) {
 }
 
 func TestNonNilUUID(t *testing.T) {
+	t.Parallel()
 	t.Run("non-nil UUIDs", func(t *testing.T) {
 		nonNilUUIDs := []uuid.UUID{
 			uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
@@ -78,6 +80,7 @@ func TestNonNilUUID(t *testing.T) {
 }
 
 func TestNonNilUUIDString(t *testing.T) {
+	t.Parallel()
 	t.Run("non-nil UUID strings", func(t *testing.T) {
 		nonNilUUIDs := []string{
 			"550e8400-e29b-41d4-a716-446655440000",
@@ -114,6 +117,7 @@ func TestNonNilUUIDString(t *testing.T) {
 }
 
 func TestValidUUIDVersion(t *testing.T) {
+	t.Parallel()
 	t.Run("valid UUID version 4", func(t *testing.T) {
 		// Generate a few v4 UUIDs
 		for i := 0; i < 5; i++ {
@@ -138,6 +142,7 @@ func TestValidUUIDVersion(t *testing.T) {
 }
 
 func TestValidUUIDVersionString(t *testing.T) {
+	t.Parallel()
 	t.Run("valid UUID version string", func(t *testing.T) {
 		uuidV4Str := uuid.New().String()
 		rule := validator.ValidUUIDVersionString("uuid", uuidV4Str, 4)
@@ -171,6 +176,7 @@ func TestValidUUIDVersionString(t *testing.T) {
 }
 
 func TestValidUUIDv1(t *testing.T) {
+	t.Parallel()
 	t.Run("UUID v1 validation", func(t *testing.T) {
 		// Create a v1 UUID
 		uuidV1, err := uuid.NewUUID() // This generates v1
@@ -190,6 +196,7 @@ func TestValidUUIDv1(t *testing.T) {
 }
 
 func TestValidUUIDv1String(t *testing.T) {
+	t.Parallel()
 	t.Run("UUID v1 string validation", func(t *testing.T) {
 		uuidV1, err := uuid.NewUUID()
 		require.NoError(t, err)
@@ -201,6 +208,7 @@ func TestValidUUIDv1String(t *testing.T) {
 }
 
 func TestValidUUIDv4(t *testing.T) {
+	t.Parallel()
 	t.Run("UUID v4 validation", func(t *testing.T) {
 		uuidV4 := uuid.New()
 		rule := validator.ValidUUIDv4("uuid", uuidV4)
@@ -219,6 +227,7 @@ func TestValidUUIDv4(t *testing.T) {
 }
 
 func TestValidUUIDv4String(t *testing.T) {
+	t.Parallel()
 	t.Run("UUID v4 string validation", func(t *testing.T) {
 		uuidV4Str := uuid.New().String()
 		rule := validator.ValidUUIDv4String("uuid", uuidV4Str)
@@ -228,6 +237,7 @@ func TestValidUUIDv4String(t *testing.T) {
 }
 
 func TestValidUUIDv3(t *testing.T) {
+	t.Parallel()
 	t.Run("UUID v3 validation", func(t *testing.T) {
 		// Create a v3 UUID
 		namespace := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
@@ -247,6 +257,7 @@ func TestValidUUIDv3(t *testing.T) {
 }
 
 func TestValidUUIDv3String(t *testing.T) {
+	t.Parallel()
 	t.Run("UUID v3 string validation", func(t *testing.T) {
 		namespace := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 		uuidV3 := uuid.NewMD5(namespace, []byte("test"))
@@ -258,6 +269,7 @@ func TestValidUUIDv3String(t *testing.T) {
 }
 
 func TestValidUUIDv5(t *testing.T) {
+	t.Parallel()
 	t.Run("UUID v5 validation", func(t *testing.T) {
 		// Create a v5 UUID
 		namespace := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
@@ -277,6 +289,7 @@ func TestValidUUIDv5(t *testing.T) {
 }
 
 func TestValidUUIDv5String(t *testing.T) {
+	t.Parallel()
 	t.Run("UUID v5 string validation", func(t *testing.T) {
 		namespace := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 		uuidV5 := uuid.NewSHA1(namespace, []byte("test"))
@@ -288,6 +301,7 @@ func TestValidUUIDv5String(t *testing.T) {
 }
 
 func TestRequiredUUID(t *testing.T) {
+	t.Parallel()
 	t.Run("valid required UUIDs", func(t *testing.T) {
 		validUUIDs := []uuid.UUID{
 			uuid.New(),
@@ -320,6 +334,7 @@ func TestRequiredUUID(t *testing.T) {
 }
 
 func TestRequiredUUIDString(t *testing.T) {
+	t.Parallel()
 	t.Run("valid required UUID strings", func(t *testing.T) {
 		validUUIDs := []string{
 			uuid.New().String(),

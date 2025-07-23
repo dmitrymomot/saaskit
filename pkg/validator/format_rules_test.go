@@ -10,6 +10,7 @@ import (
 )
 
 func TestValidEmail(t *testing.T) {
+	t.Parallel()
 	t.Run("valid emails", func(t *testing.T) {
 		validEmails := []string{
 			"test@example.com",
@@ -57,6 +58,7 @@ func TestValidEmail(t *testing.T) {
 }
 
 func TestValidURL(t *testing.T) {
+	t.Parallel()
 	t.Run("valid URLs", func(t *testing.T) {
 		validURLs := []string{
 			"http://example.com",
@@ -100,6 +102,7 @@ func TestValidURL(t *testing.T) {
 }
 
 func TestValidURLWithScheme(t *testing.T) {
+	t.Parallel()
 	t.Run("valid URLs with allowed schemes", func(t *testing.T) {
 		schemes := []string{"https", "http"}
 		validURLs := []string{
@@ -135,6 +138,7 @@ func TestValidURLWithScheme(t *testing.T) {
 }
 
 func TestValidPhone(t *testing.T) {
+	t.Parallel()
 	t.Run("valid phone numbers", func(t *testing.T) {
 		validPhones := []string{
 			"+1234567890",
@@ -176,6 +180,7 @@ func TestValidPhone(t *testing.T) {
 }
 
 func TestValidIPv4(t *testing.T) {
+	t.Parallel()
 	t.Run("valid IPv4 addresses", func(t *testing.T) {
 		validIPs := []string{
 			"192.168.1.1",
@@ -216,6 +221,7 @@ func TestValidIPv4(t *testing.T) {
 }
 
 func TestValidIPv6(t *testing.T) {
+	t.Parallel()
 	t.Run("valid IPv6 addresses", func(t *testing.T) {
 		validIPs := []string{
 			"2001:db8::1",
@@ -255,6 +261,7 @@ func TestValidIPv6(t *testing.T) {
 }
 
 func TestValidIP(t *testing.T) {
+	t.Parallel()
 	t.Run("valid IP addresses", func(t *testing.T) {
 		validIPs := []string{
 			"192.168.1.1", // IPv4
@@ -292,6 +299,7 @@ func TestValidIP(t *testing.T) {
 }
 
 func TestValidMAC(t *testing.T) {
+	t.Parallel()
 	t.Run("valid MAC addresses", func(t *testing.T) {
 		validMACs := []string{
 			"AA:BB:CC:DD:EE:FF",
@@ -331,6 +339,7 @@ func TestValidMAC(t *testing.T) {
 }
 
 func TestValidAlphanumeric(t *testing.T) {
+	t.Parallel()
 	t.Run("valid alphanumeric strings", func(t *testing.T) {
 		validStrings := []string{
 			"abc123",
@@ -372,6 +381,7 @@ func TestValidAlphanumeric(t *testing.T) {
 }
 
 func TestValidAlpha(t *testing.T) {
+	t.Parallel()
 	t.Run("valid alphabetic strings", func(t *testing.T) {
 		validStrings := []string{
 			"abc",
@@ -412,6 +422,7 @@ func TestValidAlpha(t *testing.T) {
 }
 
 func TestValidNumericString(t *testing.T) {
+	t.Parallel()
 	t.Run("valid numeric strings", func(t *testing.T) {
 		validStrings := []string{
 			"123",

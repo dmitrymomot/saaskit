@@ -3,8 +3,9 @@ package core_test
 import (
 	"testing"
 
-	"github.com/dmitrymomot/saaskit/core"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dmitrymomot/saaskit/core"
 )
 
 func TestValidationError(t *testing.T) {

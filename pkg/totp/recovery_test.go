@@ -10,6 +10,7 @@ import (
 )
 
 func TestGenerateRecoveryCodes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		count   int
@@ -39,6 +40,7 @@ func TestGenerateRecoveryCodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			codes, err := totp.GenerateRecoveryCodes(tt.count)
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -61,6 +63,7 @@ func TestGenerateRecoveryCodes(t *testing.T) {
 }
 
 func TestHashRecoveryCode(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		code string
@@ -81,6 +84,7 @@ func TestHashRecoveryCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			hash := totp.HashRecoveryCode(tt.code)
 			assert.NotEmpty(t, hash)
 			assert.Len(t, hash, 64) // SHA-256 produces 32 bytes = 64 hex characters
@@ -93,6 +97,7 @@ func TestHashRecoveryCode(t *testing.T) {
 }
 
 func TestVerifyRecoveryCode(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		code       string
@@ -133,6 +138,7 @@ func TestVerifyRecoveryCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// Test the verification
 			result := totp.VerifyRecoveryCode(tt.code, tt.hashedCode)
 			assert.Equal(t, tt.wantResult, result)
@@ -142,6 +148,7 @@ func TestVerifyRecoveryCode(t *testing.T) {
 
 // TestVerifyRecoveryCodeSecurity performs basic security checks
 func TestVerifyRecoveryCodeSecurity(t *testing.T) {
+	t.Parallel()
 	// Test that the function is using constant-time comparison
 	code := "1234567890ABCDEF"
 	hash := totp.HashRecoveryCode(code)

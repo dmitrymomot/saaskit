@@ -10,6 +10,7 @@ import (
 )
 
 func TestEncryptDecryptString(t *testing.T) {
+	t.Parallel()
 	appKey, err := secrets.GenerateKey()
 	require.NoError(t, err)
 	workspaceKey, err := secrets.GenerateKey()
@@ -29,6 +30,7 @@ func TestEncryptDecryptString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// Encrypt
 			ciphertext, err := secrets.EncryptString(appKey, workspaceKey, tt.plaintext)
 			require.NoError(t, err)
@@ -49,6 +51,7 @@ func TestEncryptDecryptString(t *testing.T) {
 }
 
 func TestEncryptDecryptBytes(t *testing.T) {
+	t.Parallel()
 	appKey, err := secrets.GenerateKey()
 	require.NoError(t, err)
 	workspaceKey, err := secrets.GenerateKey()
@@ -66,6 +69,7 @@ func TestEncryptDecryptBytes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// Encrypt
 			ciphertext, err := secrets.EncryptBytes(appKey, workspaceKey, tt.data)
 			require.NoError(t, err)
@@ -88,6 +92,7 @@ func TestEncryptDecryptBytes(t *testing.T) {
 }
 
 func TestDifferentWorkspaceKeys(t *testing.T) {
+	t.Parallel()
 	appKey, err := secrets.GenerateKey()
 	require.NoError(t, err)
 	workspaceKey1, err := secrets.GenerateKey()
@@ -119,6 +124,7 @@ func TestDifferentWorkspaceKeys(t *testing.T) {
 }
 
 func TestInvalidKeys(t *testing.T) {
+	t.Parallel()
 	validKey, err := secrets.GenerateKey()
 	require.NoError(t, err)
 	plaintext := "test"
@@ -139,6 +145,7 @@ func TestInvalidKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := secrets.EncryptString(tt.appKey, tt.workspaceKey, plaintext)
 			require.Error(t, err)
 			require.ErrorIs(t, err, tt.wantErr)
@@ -147,6 +154,7 @@ func TestInvalidKeys(t *testing.T) {
 }
 
 func TestInvalidCiphertext(t *testing.T) {
+	t.Parallel()
 	appKey, err := secrets.GenerateKey()
 	require.NoError(t, err)
 	workspaceKey, err := secrets.GenerateKey()
@@ -164,6 +172,7 @@ func TestInvalidCiphertext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := secrets.DecryptString(appKey, workspaceKey, tt.ciphertext)
 			require.Error(t, err)
 		})
@@ -171,6 +180,7 @@ func TestInvalidCiphertext(t *testing.T) {
 }
 
 func TestGenerateKey(t *testing.T) {
+	t.Parallel()
 	// Generate multiple keys and ensure they're different
 	keys := make(map[string]bool)
 

@@ -10,6 +10,8 @@ import (
 )
 
 func TestEscapeHTML(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -39,6 +41,8 @@ func TestEscapeHTML(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.EscapeHTML(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -46,6 +50,8 @@ func TestEscapeHTML(t *testing.T) {
 }
 
 func TestUnescapeHTML(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -75,6 +81,8 @@ func TestUnescapeHTML(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.UnescapeHTML(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -82,6 +90,8 @@ func TestUnescapeHTML(t *testing.T) {
 }
 
 func TestStripScriptTags(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -116,6 +126,8 @@ func TestStripScriptTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.StripScriptTags(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -123,6 +135,8 @@ func TestStripScriptTags(t *testing.T) {
 }
 
 func TestRemoveJavaScriptEvents(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -157,6 +171,8 @@ func TestRemoveJavaScriptEvents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.RemoveJavaScriptEvents(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -164,6 +180,8 @@ func TestRemoveJavaScriptEvents(t *testing.T) {
 }
 
 func TestPreventXSS(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -193,6 +211,8 @@ func TestPreventXSS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.PreventXSS(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -200,6 +220,8 @@ func TestPreventXSS(t *testing.T) {
 }
 
 func TestEscapeSQLString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -229,6 +251,8 @@ func TestEscapeSQLString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.EscapeSQLString(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -236,6 +260,8 @@ func TestEscapeSQLString(t *testing.T) {
 }
 
 func TestRemoveSQLKeywords(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -270,6 +296,8 @@ func TestRemoveSQLKeywords(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.RemoveSQLKeywords(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -277,6 +305,8 @@ func TestRemoveSQLKeywords(t *testing.T) {
 }
 
 func TestSanitizeSQLIdentifier(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -311,6 +341,8 @@ func TestSanitizeSQLIdentifier(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SanitizeSQLIdentifier(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -318,6 +350,8 @@ func TestSanitizeSQLIdentifier(t *testing.T) {
 }
 
 func TestPreventPathTraversal(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -352,6 +386,8 @@ func TestPreventPathTraversal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.PreventPathTraversal(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -359,6 +395,8 @@ func TestPreventPathTraversal(t *testing.T) {
 }
 
 func TestSanitizePath(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -393,6 +431,8 @@ func TestSanitizePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SanitizePath(tt.input)
 			// Clean empty result to match filepath.Clean behavior
 			if result == "." && tt.expected == "" {
@@ -404,6 +444,8 @@ func TestSanitizePath(t *testing.T) {
 }
 
 func TestSanitizeShellArgument(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -438,6 +480,8 @@ func TestSanitizeShellArgument(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SanitizeShellArgument(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -445,6 +489,8 @@ func TestSanitizeShellArgument(t *testing.T) {
 }
 
 func TestRemoveNullBytes(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -474,6 +520,8 @@ func TestRemoveNullBytes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.RemoveNullBytes(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -481,6 +529,8 @@ func TestRemoveNullBytes(t *testing.T) {
 }
 
 func TestRemoveControlSequences(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -510,6 +560,8 @@ func TestRemoveControlSequences(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.RemoveControlSequences(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -517,6 +569,8 @@ func TestRemoveControlSequences(t *testing.T) {
 }
 
 func TestLimitLength(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     string
@@ -557,6 +611,8 @@ func TestLimitLength(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.LimitLength(tt.input, tt.maxLength)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -564,6 +620,8 @@ func TestLimitLength(t *testing.T) {
 }
 
 func TestSanitizeUserInput(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -593,6 +651,8 @@ func TestSanitizeUserInput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SanitizeUserInput(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -600,6 +660,8 @@ func TestSanitizeUserInput(t *testing.T) {
 }
 
 func TestPreventLDAPInjection(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -629,6 +691,8 @@ func TestPreventLDAPInjection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.PreventLDAPInjection(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -636,6 +700,8 @@ func TestPreventLDAPInjection(t *testing.T) {
 }
 
 func TestSanitizeEmail(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -665,6 +731,8 @@ func TestSanitizeEmail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SanitizeEmail(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -672,6 +740,8 @@ func TestSanitizeEmail(t *testing.T) {
 }
 
 func TestSanitizeURL(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -701,6 +771,8 @@ func TestSanitizeURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SanitizeURL(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -708,6 +780,8 @@ func TestSanitizeURL(t *testing.T) {
 }
 
 func TestPreventHeaderInjection(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -737,6 +811,8 @@ func TestPreventHeaderInjection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.PreventHeaderInjection(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -744,6 +820,8 @@ func TestPreventHeaderInjection(t *testing.T) {
 }
 
 func TestSanitizeSecureFilename(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -778,6 +856,8 @@ func TestSanitizeSecureFilename(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SanitizeSecureFilename(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -785,7 +865,11 @@ func TestSanitizeSecureFilename(t *testing.T) {
 }
 
 func TestSecurityApplyPattern(t *testing.T) {
+	t.Parallel()
+
 	t.Run("apply pattern with security functions", func(t *testing.T) {
+		t.Parallel()
+
 		// Test comprehensive security sanitization pipeline
 		maliciousInput := "<script>alert('xss')</script>user\x00input"
 		result := sanitizer.Apply(maliciousInput,
@@ -797,6 +881,8 @@ func TestSecurityApplyPattern(t *testing.T) {
 	})
 
 	t.Run("compose security transformations", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a comprehensive input sanitizer
 		inputSanitizer := sanitizer.Compose(
 			sanitizer.RemoveNullBytes,
@@ -812,7 +898,11 @@ func TestSecurityApplyPattern(t *testing.T) {
 }
 
 func TestRealWorldSecurityUsage(t *testing.T) {
+	t.Parallel()
+
 	t.Run("user comment sanitization", func(t *testing.T) {
+		t.Parallel()
+
 		// Create comment sanitizer for user-generated content
 		commentSanitizer := sanitizer.Compose(
 			sanitizer.RemoveNullBytes,
@@ -828,6 +918,8 @@ func TestRealWorldSecurityUsage(t *testing.T) {
 	})
 
 	t.Run("file upload sanitization", func(t *testing.T) {
+		t.Parallel()
+
 		// Create file path sanitizer
 		pathSanitizer := sanitizer.Compose(
 			sanitizer.PreventPathTraversal,
@@ -850,6 +942,8 @@ func TestRealWorldSecurityUsage(t *testing.T) {
 	})
 
 	t.Run("database input sanitization", func(t *testing.T) {
+		t.Parallel()
+
 		// Create SQL input sanitizer
 		sqlSanitizer := sanitizer.Compose(
 			sanitizer.RemoveNullBytes,

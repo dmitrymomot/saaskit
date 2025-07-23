@@ -11,9 +11,11 @@ import (
 )
 
 func TestJSONParser(t *testing.T) {
+	t.Parallel()
 	parser := i18n.NewJSONParser()
 
 	t.Run("Parse valid JSON", func(t *testing.T) {
+		t.Parallel()
 		content := `{
 			"en": {
 				"greeting": "Hello",
@@ -49,6 +51,7 @@ func TestJSONParser(t *testing.T) {
 	})
 
 	t.Run("Parse invalid JSON", func(t *testing.T) {
+		t.Parallel()
 		content := `{
 			"en": {
 				"greeting": "Hello",
@@ -63,6 +66,7 @@ func TestJSONParser(t *testing.T) {
 	})
 
 	t.Run("Context cancellation", func(t *testing.T) {
+		t.Parallel()
 		content := `{
 			"en": {
 				"greeting": "Hello"
@@ -81,9 +85,11 @@ func TestJSONParser(t *testing.T) {
 }
 
 func TestYAMLParser(t *testing.T) {
+	t.Parallel()
 	parser := i18n.NewYAMLParser()
 
 	t.Run("Parse valid YAML", func(t *testing.T) {
+		t.Parallel()
 		content := `
 en:
   greeting: Hello
@@ -116,6 +122,7 @@ fr:
 	})
 
 	t.Run("Parse invalid YAML", func(t *testing.T) {
+		t.Parallel()
 		content := `
 en:
   - greeting: Hello  # Invalid structure (array instead of map)
@@ -131,6 +138,7 @@ fr:
 	})
 
 	t.Run("Empty YAML", func(t *testing.T) {
+		t.Parallel()
 		content := ``
 
 		result, err := parser.Parse(context.Background(), content)
@@ -140,6 +148,7 @@ fr:
 	})
 
 	t.Run("Context cancellation", func(t *testing.T) {
+		t.Parallel()
 		content := `
 en:
   greeting: Hello
@@ -157,7 +166,9 @@ en:
 }
 
 func TestParserFactory(t *testing.T) {
+	t.Parallel()
 	t.Run("JSON file extension", func(t *testing.T) {
+		t.Parallel()
 		parser := i18n.NewParserForFile("translations.json")
 		require.NotNil(t, parser)
 		_, ok := parser.(*i18n.JSONParser)
@@ -165,6 +176,7 @@ func TestParserFactory(t *testing.T) {
 	})
 
 	t.Run("YAML file extensions", func(t *testing.T) {
+		t.Parallel()
 		// Test .yaml extension
 		parser := i18n.NewParserForFile("translations.yaml")
 		require.NotNil(t, parser)
@@ -179,6 +191,7 @@ func TestParserFactory(t *testing.T) {
 	})
 
 	t.Run("Uppercase extensions", func(t *testing.T) {
+		t.Parallel()
 		// Test uppercase JSON
 		parser := i18n.NewParserForFile("translations.JSON")
 		require.NotNil(t, parser)
@@ -193,11 +206,13 @@ func TestParserFactory(t *testing.T) {
 	})
 
 	t.Run("Unsupported extension", func(t *testing.T) {
+		t.Parallel()
 		parser := i18n.NewParserForFile("translations.txt")
 		assert.Nil(t, parser, "Should return nil for unsupported extensions")
 	})
 
 	t.Run("No extension", func(t *testing.T) {
+		t.Parallel()
 		parser := i18n.NewParserForFile("translations")
 		assert.Nil(t, parser, "Should return nil for files without extensions")
 	})
@@ -205,9 +220,11 @@ func TestParserFactory(t *testing.T) {
 
 // TestJSONParserMalformedData tests parser behavior with various malformed data scenarios
 func TestJSONParserMalformedData(t *testing.T) {
+	t.Parallel()
 	parser := i18n.NewJSONParser()
 
 	t.Run("malformed JSON structures", func(t *testing.T) {
+		t.Parallel()
 		tests := []struct {
 			name    string
 			content string
@@ -252,6 +269,7 @@ func TestJSONParserMalformedData(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 				result, err := parser.Parse(context.Background(), tt.content)
 				if tt.wantErr {
 					assert.Error(t, err)
@@ -266,6 +284,7 @@ func TestJSONParserMalformedData(t *testing.T) {
 	})
 
 	t.Run("data type edge cases", func(t *testing.T) {
+		t.Parallel()
 		tests := []struct {
 			name    string
 			content string
@@ -305,6 +324,7 @@ func TestJSONParserMalformedData(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 				result, err := parser.Parse(context.Background(), tt.content)
 				if tt.wantErr {
 					assert.Error(t, err)
@@ -319,6 +339,7 @@ func TestJSONParserMalformedData(t *testing.T) {
 	})
 
 	t.Run("JSON with special characters", func(t *testing.T) {
+		t.Parallel()
 		content := `{
 			"en": {
 				"unicode": "Héllö Wørld 🌍",
@@ -347,9 +368,11 @@ func TestJSONParserMalformedData(t *testing.T) {
 
 // TestYAMLParserMalformedData tests parser behavior with various malformed YAML data scenarios
 func TestYAMLParserMalformedData(t *testing.T) {
+	t.Parallel()
 	parser := i18n.NewYAMLParser()
 
 	t.Run("malformed YAML structures", func(t *testing.T) {
+		t.Parallel()
 		tests := []struct {
 			name    string
 			content string
@@ -399,6 +422,7 @@ fr:
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 				result, err := parser.Parse(context.Background(), tt.content)
 				if tt.wantErr {
 					assert.Error(t, err)
@@ -412,6 +436,7 @@ fr:
 	})
 
 	t.Run("YAML data type edge cases", func(t *testing.T) {
+		t.Parallel()
 		tests := []struct {
 			name    string
 			content string
@@ -461,6 +486,7 @@ fr:
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 				result, err := parser.Parse(context.Background(), tt.content)
 				if tt.wantErr {
 					assert.Error(t, err)
@@ -474,6 +500,7 @@ fr:
 	})
 
 	t.Run("YAML with special characters and encodings", func(t *testing.T) {
+		t.Parallel()
 		content := `en:
   unicode: "Héllö Wørld 🌍"
   emoji: "Hello 👋 World 🌎"
@@ -507,7 +534,9 @@ fr:
 	})
 
 	t.Run("YAML anchor and reference edge cases", func(t *testing.T) {
+		t.Parallel()
 		t.Run("valid anchors and references", func(t *testing.T) {
+			t.Parallel()
 			content := `en:
   common: &common_greeting "Hello"
   formal: *common_greeting
@@ -524,6 +553,7 @@ fr:
 		})
 
 		t.Run("undefined reference", func(t *testing.T) {
+			t.Parallel()
 			content := `en:
   greeting: *undefined_anchor`
 
@@ -533,6 +563,7 @@ fr:
 		})
 
 		t.Run("circular references", func(t *testing.T) {
+			t.Parallel()
 			content := `en:
   a: &ref_a
     b: *ref_b

@@ -9,6 +9,7 @@ import (
 )
 
 func TestRequiredComparable(t *testing.T) {
+	t.Parallel()
 	t.Run("passes for non-zero int", func(t *testing.T) {
 		rule := validator.RequiredComparable("id", 123)
 		assert.True(t, rule.Check())
@@ -144,6 +145,7 @@ func TestRequiredComparable(t *testing.T) {
 }
 
 func TestComparableRulesIntegration(t *testing.T) {
+	t.Parallel()
 	t.Run("validates multiple comparable types", func(t *testing.T) {
 		userID := 123
 		username := "john_doe"

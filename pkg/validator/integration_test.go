@@ -10,6 +10,7 @@ import (
 )
 
 func TestLoginFormValidation(t *testing.T) {
+	t.Parallel()
 	type LoginForm struct {
 		Email    string
 		Password string
@@ -59,6 +60,7 @@ func TestLoginFormValidation(t *testing.T) {
 }
 
 func TestUserRegistrationValidation(t *testing.T) {
+	t.Parallel()
 	type UserRegistration struct {
 		Email    string
 		Password string
@@ -176,6 +178,7 @@ func TestUserRegistrationValidation(t *testing.T) {
 }
 
 func TestAPIConfigValidation(t *testing.T) {
+	t.Parallel()
 	type APIConfig struct {
 		Endpoints   []string
 		Timeouts    map[string]int
@@ -260,6 +263,7 @@ func TestAPIConfigValidation(t *testing.T) {
 }
 
 func TestComplexNestedValidation(t *testing.T) {
+	t.Parallel()
 	type UserPreferences struct {
 		Theme    string
 		Language string
@@ -371,6 +375,7 @@ func TestComplexNestedValidation(t *testing.T) {
 }
 
 func TestMixedTypeConvenienceAliases(t *testing.T) {
+	t.Parallel()
 	t.Run("convenience aliases work together", func(t *testing.T) {
 		email := "user@example.com"
 		password := "securepassword123"

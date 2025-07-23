@@ -9,6 +9,8 @@ import (
 )
 
 func TestApply(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		input      string
@@ -71,6 +73,8 @@ func TestApply(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.Apply(tt.input, tt.transforms...)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -78,6 +82,8 @@ func TestApply(t *testing.T) {
 }
 
 func TestCompose(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		transforms []func(string) string
@@ -120,6 +126,8 @@ func TestCompose(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			composedRule := sanitizer.Compose(tt.transforms...)
 			result := composedRule(tt.input)
 			assert.Equal(t, tt.expected, result)
@@ -128,7 +136,11 @@ func TestCompose(t *testing.T) {
 }
 
 func TestComposeReusability(t *testing.T) {
+	t.Parallel()
+
 	t.Run("composed rule can be reused multiple times", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a reusable email cleaning rule
 		emailCleanRule := sanitizer.Compose(
 			sanitizer.Trim,
@@ -157,7 +169,11 @@ func TestComposeReusability(t *testing.T) {
 }
 
 func TestApplyWithCompose(t *testing.T) {
+	t.Parallel()
+
 	t.Run("apply can use composed rules", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a composed rule
 		nameCleanRule := sanitizer.Compose(
 			sanitizer.Trim,
@@ -171,6 +187,8 @@ func TestApplyWithCompose(t *testing.T) {
 	})
 
 	t.Run("mix composed rules with direct functions", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a partial composed rule
 		basicCleanRule := sanitizer.Compose(
 			sanitizer.Trim,
@@ -188,7 +206,11 @@ func TestApplyWithCompose(t *testing.T) {
 }
 
 func TestRealWorldUsagePatternsUsage(t *testing.T) {
+	t.Parallel()
+
 	t.Run("user registration data sanitization", func(t *testing.T) {
+		t.Parallel()
+
 		// Create reusable rules for different field types
 		nameCleanRule := sanitizer.Compose(
 			sanitizer.Trim,
@@ -222,6 +244,8 @@ func TestRealWorldUsagePatternsUsage(t *testing.T) {
 	})
 
 	t.Run("content sanitization pipeline", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a complex content cleaning pipeline
 		contentCleanRule := sanitizer.Compose(
 			sanitizer.StripHTML,
@@ -239,13 +263,19 @@ func TestRealWorldUsagePatternsUsage(t *testing.T) {
 }
 
 func TestEdgeCases(t *testing.T) {
+	t.Parallel()
+
 	t.Run("apply with no transforms preserves value", func(t *testing.T) {
+		t.Parallel()
+
 		input := "test value"
 		result := sanitizer.Apply(input)
 		assert.Equal(t, input, result)
 	})
 
 	t.Run("compose with no transforms creates identity function", func(t *testing.T) {
+		t.Parallel()
+
 		identityRule := sanitizer.Compose[string]()
 		input := "test value"
 		result := identityRule(input)
@@ -253,6 +283,8 @@ func TestEdgeCases(t *testing.T) {
 	})
 
 	t.Run("chained compositions work correctly", func(t *testing.T) {
+		t.Parallel()
+
 		rule1 := sanitizer.Compose(sanitizer.Trim)
 		rule2 := sanitizer.Compose(sanitizer.ToLower)
 		combinedRule := sanitizer.Compose(rule1, rule2)

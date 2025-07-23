@@ -15,6 +15,7 @@ import (
 )
 
 func TestWithDevelopment(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	log := logger.New(
 		logger.WithDevelopment("svc"),
@@ -28,6 +29,7 @@ func TestWithDevelopment(t *testing.T) {
 }
 
 func TestWithProduction(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	log := logger.New(
 		logger.WithProduction("svc"),
@@ -42,6 +44,7 @@ func TestWithProduction(t *testing.T) {
 }
 
 func TestEnvironmentOptions(t *testing.T) {
+	t.Parallel()
 	dev := logger.New(logger.WithDevelopment("svc"))
 	prod := logger.New(logger.WithProduction("svc"))
 	require.NotNil(t, dev)
@@ -49,6 +52,7 @@ func TestEnvironmentOptions(t *testing.T) {
 }
 
 func TestWithExtractors(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	type key string
 	k := key("id")

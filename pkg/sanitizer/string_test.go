@@ -9,6 +9,8 @@ import (
 )
 
 func TestTrim(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -43,6 +45,8 @@ func TestTrim(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.Trim(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -50,6 +54,8 @@ func TestTrim(t *testing.T) {
 }
 
 func TestToLower(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -84,6 +90,8 @@ func TestToLower(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ToLower(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -91,6 +99,8 @@ func TestToLower(t *testing.T) {
 }
 
 func TestToUpper(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -125,6 +135,8 @@ func TestToUpper(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ToUpper(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -132,6 +144,8 @@ func TestToUpper(t *testing.T) {
 }
 
 func TestToTitle(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -156,6 +170,8 @@ func TestToTitle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ToTitle(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -163,6 +179,8 @@ func TestToTitle(t *testing.T) {
 }
 
 func TestTrimToLower(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -187,6 +205,8 @@ func TestTrimToLower(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.TrimToLower(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -194,6 +214,8 @@ func TestTrimToLower(t *testing.T) {
 }
 
 func TestTrimToUpper(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -218,6 +240,8 @@ func TestTrimToUpper(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.TrimToUpper(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -225,6 +249,8 @@ func TestTrimToUpper(t *testing.T) {
 }
 
 func TestMaxLength(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -277,6 +303,8 @@ func TestMaxLength(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.MaxLength(tt.input, tt.maxLen)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -284,6 +312,8 @@ func TestMaxLength(t *testing.T) {
 }
 
 func TestRemoveExtraWhitespace(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -323,6 +353,8 @@ func TestRemoveExtraWhitespace(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.RemoveExtraWhitespace(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -330,6 +362,8 @@ func TestRemoveExtraWhitespace(t *testing.T) {
 }
 
 func TestRemoveControlChars(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -359,6 +393,8 @@ func TestRemoveControlChars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.RemoveControlChars(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -366,6 +402,8 @@ func TestRemoveControlChars(t *testing.T) {
 }
 
 func TestStripHTML(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -405,6 +443,8 @@ func TestStripHTML(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.StripHTML(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -412,6 +452,8 @@ func TestStripHTML(t *testing.T) {
 }
 
 func TestRemoveChars(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -446,6 +488,8 @@ func TestRemoveChars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.RemoveChars(tt.input, tt.chars)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -453,6 +497,8 @@ func TestRemoveChars(t *testing.T) {
 }
 
 func TestReplaceChars(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -492,6 +538,8 @@ func TestReplaceChars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ReplaceChars(tt.input, tt.old, tt.new)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -499,6 +547,8 @@ func TestReplaceChars(t *testing.T) {
 }
 
 func TestKeepAlphanumeric(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -528,6 +578,8 @@ func TestKeepAlphanumeric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.KeepAlphanumeric(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -535,6 +587,8 @@ func TestKeepAlphanumeric(t *testing.T) {
 }
 
 func TestKeepAlpha(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -564,6 +618,8 @@ func TestKeepAlpha(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.KeepAlpha(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -571,6 +627,8 @@ func TestKeepAlpha(t *testing.T) {
 }
 
 func TestKeepDigits(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -600,6 +658,8 @@ func TestKeepDigits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.KeepDigits(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -607,6 +667,8 @@ func TestKeepDigits(t *testing.T) {
 }
 
 func TestSingleLine(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -646,6 +708,8 @@ func TestSingleLine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SingleLine(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -653,6 +717,8 @@ func TestSingleLine(t *testing.T) {
 }
 
 func TestToKebabCase(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -682,6 +748,8 @@ func TestToKebabCase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ToKebabCase(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -689,6 +757,8 @@ func TestToKebabCase(t *testing.T) {
 }
 
 func TestToSnakeCase(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -718,6 +788,8 @@ func TestToSnakeCase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ToSnakeCase(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -725,6 +797,8 @@ func TestToSnakeCase(t *testing.T) {
 }
 
 func TestToCamelCase(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -754,6 +828,8 @@ func TestToCamelCase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ToCamelCase(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})

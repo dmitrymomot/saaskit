@@ -14,6 +14,7 @@ type testPayload struct {
 }
 
 func TestGenerateAndParseToken(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		payload testPayload
@@ -42,6 +43,7 @@ func TestGenerateAndParseToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// Generate token
 			tokenStr, err := token.GenerateToken(tt.payload, tt.secret)
 			if (err != nil) != tt.wantErr {
@@ -78,6 +80,7 @@ func TestGenerateAndParseToken(t *testing.T) {
 }
 
 func TestParseToken_InvalidCases(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		token     string
@@ -112,6 +115,7 @@ func TestParseToken_InvalidCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := token.ParseToken[testPayload](tt.token, tt.secret)
 			if err != tt.wantError {
 				t.Errorf("ParseToken() error = %v, wantError %v", err, tt.wantError)
@@ -121,6 +125,7 @@ func TestParseToken_InvalidCases(t *testing.T) {
 }
 
 func TestTokenSignatureVerification(t *testing.T) {
+	t.Parallel()
 	payload := testPayload{ID: 1, Name: "test"}
 	secret := "secret123"
 

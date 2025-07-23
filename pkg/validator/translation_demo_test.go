@@ -95,6 +95,7 @@ func intToString(i int) string {
 }
 
 func TestTranslationWorkflow(t *testing.T) {
+	t.Parallel()
 	t.Run("demonstrates basic translation workflow", func(t *testing.T) {
 		type LoginForm struct {
 			Email    string
@@ -217,6 +218,7 @@ func TestTranslationWorkflow(t *testing.T) {
 }
 
 func TestTranslationKeyStandards(t *testing.T) {
+	t.Parallel()
 	t.Run("validates standard translation keys", func(t *testing.T) {
 		tests := []struct {
 			rule           validator.Rule

@@ -13,7 +13,9 @@ import (
 )
 
 func TestMiddleware(t *testing.T) {
+	t.Parallel()
 	t.Run("generates new request ID when not provided", func(t *testing.T) {
+		t.Parallel()
 		handler := requestid.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id := requestid.FromContext(r.Context())
 			assert.NotEmpty(t, id)
@@ -30,6 +32,7 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("uses existing request ID from header", func(t *testing.T) {
+		t.Parallel()
 		existingID := "test-request-id-123"
 		handler := requestid.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id := requestid.FromContext(r.Context())
@@ -48,6 +51,7 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("generates new ID for invalid request ID", func(t *testing.T) {
+		t.Parallel()
 		invalidIDs := []string{
 			"",                              // empty
 			"test@request#id",               // invalid characters
@@ -60,6 +64,7 @@ func TestMiddleware(t *testing.T) {
 
 		for _, invalidID := range invalidIDs {
 			t.Run(invalidID, func(t *testing.T) {
+				t.Parallel()
 				handler := requestid.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					id := requestid.FromContext(r.Context())
 					assert.NotEmpty(t, id)
@@ -84,6 +89,7 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("accepts valid request IDs", func(t *testing.T) {
+		t.Parallel()
 		validIDs := []string{
 			"abc123",
 			"test-request-id",
@@ -94,6 +100,7 @@ func TestMiddleware(t *testing.T) {
 
 		for _, validID := range validIDs {
 			t.Run(validID, func(t *testing.T) {
+				t.Parallel()
 				handler := requestid.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					id := requestid.FromContext(r.Context())
 					assert.Equal(t, validID, id)
@@ -114,13 +121,16 @@ func TestMiddleware(t *testing.T) {
 }
 
 func TestContext(t *testing.T) {
+	t.Parallel()
 	t.Run("stores and retrieves request ID", func(t *testing.T) {
+		t.Parallel()
 		ctx := requestid.WithContext(context.Background(), "test-id")
 		id := requestid.FromContext(ctx)
 		assert.Equal(t, "test-id", id)
 	})
 
 	t.Run("returns empty string when no request ID in context", func(t *testing.T) {
+		t.Parallel()
 		id := requestid.FromContext(context.Background())
 		assert.Empty(t, id)
 	})

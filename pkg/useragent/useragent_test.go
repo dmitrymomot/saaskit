@@ -11,6 +11,7 @@ import (
 )
 
 func TestParseOS(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		ua       string
@@ -50,6 +51,7 @@ func TestParseOS(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := useragent.ParseOS(strings.ToLower(tc.ua))
 			assert.Equal(t, tc.expected, result)
 		})
@@ -57,6 +59,7 @@ func TestParseOS(t *testing.T) {
 }
 
 func TestParseBrowser(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		ua       string
@@ -106,6 +109,7 @@ func TestParseBrowser(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := useragent.ParseBrowser(strings.ToLower(tc.ua))
 			assert.Equal(t, tc.expected, result)
 		})
@@ -113,6 +117,7 @@ func TestParseBrowser(t *testing.T) {
 }
 
 func TestParseUserAgent(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		ua          string
@@ -175,6 +180,7 @@ func TestParseUserAgent(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result, err := useragent.Parse(tc.ua)
 
 			if tc.expectedErr != nil {
@@ -200,6 +206,7 @@ func TestParseUserAgent(t *testing.T) {
 
 // TestNewUserAgent tests the NewUserAgent constructor
 func TestNewUserAgent(t *testing.T) {
+	t.Parallel()
 	ua := useragent.New(
 		"test-ua",
 		useragent.DeviceTypeMobile,
@@ -226,6 +233,7 @@ func TestNewUserAgent(t *testing.T) {
 
 // TestGetShortIdentifier tests the GetShortIdentifier method
 func TestGetShortIdentifier(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		ua       useragent.UserAgent
@@ -343,6 +351,7 @@ func TestGetShortIdentifier(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := tc.ua.GetShortIdentifier()
 			assert.Equal(t, tc.expected, result)
 		})

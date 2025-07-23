@@ -9,6 +9,7 @@ import (
 )
 
 func TestRequiredString(t *testing.T) {
+	t.Parallel()
 	t.Run("passes for non-empty string", func(t *testing.T) {
 		rule := validator.RequiredString("email", "test@example.com")
 		assert.True(t, rule.Check())
@@ -35,6 +36,7 @@ func TestRequiredString(t *testing.T) {
 }
 
 func TestMinLenString(t *testing.T) {
+	t.Parallel()
 	t.Run("passes when string equals minimum length", func(t *testing.T) {
 		rule := validator.MinLenString("password", "12345", 5)
 		assert.True(t, rule.Check())
@@ -72,6 +74,7 @@ func TestMinLenString(t *testing.T) {
 }
 
 func TestMaxLenString(t *testing.T) {
+	t.Parallel()
 	t.Run("passes when string equals maximum length", func(t *testing.T) {
 		rule := validator.MaxLenString("username", "12345", 5)
 		assert.True(t, rule.Check())
@@ -107,6 +110,7 @@ func TestMaxLenString(t *testing.T) {
 }
 
 func TestLenString(t *testing.T) {
+	t.Parallel()
 	t.Run("passes when string equals exact length", func(t *testing.T) {
 		rule := validator.LenString("code", "12345", 5)
 		assert.True(t, rule.Check())
@@ -142,6 +146,7 @@ func TestLenString(t *testing.T) {
 }
 
 func TestStringConvenienceAliases(t *testing.T) {
+	t.Parallel()
 	t.Run("Required alias works for strings", func(t *testing.T) {
 		rule := validator.Required("email", "test@example.com")
 		assert.True(t, rule.Check())
@@ -181,6 +186,7 @@ func TestStringConvenienceAliases(t *testing.T) {
 }
 
 func TestStringRulesIntegration(t *testing.T) {
+	t.Parallel()
 	t.Run("validates complete string input", func(t *testing.T) {
 		email := "user@example.com"
 		password := "securepassword123"

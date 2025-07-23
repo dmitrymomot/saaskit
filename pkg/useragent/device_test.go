@@ -10,6 +10,7 @@ import (
 
 // TestGetDeviceModel tests the GetDeviceModel function with various devices
 func TestGetDeviceModel(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		ua         string
@@ -116,6 +117,7 @@ func TestGetDeviceModel(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := useragent.GetDeviceModel(tc.ua, tc.deviceType)
 			assert.Equal(t, tc.expected, result)
 		})
@@ -124,6 +126,7 @@ func TestGetDeviceModel(t *testing.T) {
 
 // TestParseDeviceType tests the device type parsing
 func TestParseDeviceType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		ua       string
@@ -183,6 +186,7 @@ func TestParseDeviceType(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := useragent.ParseDeviceType(tc.ua)
 			assert.Equal(t, tc.expected, result)
 		})

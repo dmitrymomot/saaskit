@@ -6,13 +6,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dmitrymomot/saaskit/pkg/fingerprint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dmitrymomot/saaskit/pkg/fingerprint"
 )
 
 func TestGenerate(t *testing.T) {
+	t.Parallel()
 	t.Run("generates consistent fingerprint for same request", func(t *testing.T) {
+		t.Parallel()
 		req := createTestRequest(map[string]string{
 			"User-Agent":      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
 			"Accept":          "text/html,application/xhtml+xml",
@@ -29,6 +32,7 @@ func TestGenerate(t *testing.T) {
 	})
 
 	t.Run("generates different fingerprints for different user agents", func(t *testing.T) {
+		t.Parallel()
 		req1 := createTestRequest(map[string]string{
 			"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
 			"Accept":     "text/html",
@@ -46,6 +50,7 @@ func TestGenerate(t *testing.T) {
 	})
 
 	t.Run("generates different fingerprints for different IPs", func(t *testing.T) {
+		t.Parallel()
 		headers := map[string]string{
 			"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
 			"Accept":     "text/html",
@@ -61,6 +66,7 @@ func TestGenerate(t *testing.T) {
 	})
 
 	t.Run("generates different fingerprints for different accept headers", func(t *testing.T) {
+		t.Parallel()
 		req1 := createTestRequest(map[string]string{
 			"User-Agent":      "Mozilla/5.0",
 			"Accept":          "text/html",
@@ -82,6 +88,7 @@ func TestGenerate(t *testing.T) {
 	})
 
 	t.Run("handles missing headers gracefully", func(t *testing.T) {
+		t.Parallel()
 		req := createTestRequest(map[string]string{
 			"User-Agent": "TestBot/1.0",
 		}, "192.168.1.100:54321")
@@ -92,6 +99,7 @@ func TestGenerate(t *testing.T) {
 	})
 
 	t.Run("handles empty request", func(t *testing.T) {
+		t.Parallel()
 		req := createTestRequest(map[string]string{}, "127.0.0.1:8080")
 
 		fp := fingerprint.Generate(req)
@@ -100,18 +108,19 @@ func TestGenerate(t *testing.T) {
 	})
 
 	t.Run("includes header order in fingerprint", func(t *testing.T) {
+		t.Parallel()
 		// Different header sets should produce different fingerprints
 		req1 := createTestRequest(map[string]string{
-			"User-Agent":               "Mozilla/5.0",
-			"Accept":                   "text/html",
-			"Connection":               "keep-alive",
+			"User-Agent":                "Mozilla/5.0",
+			"Accept":                    "text/html",
+			"Connection":                "keep-alive",
 			"Upgrade-Insecure-Requests": "1",
 		}, "192.168.1.100:54321")
 
 		req2 := createTestRequest(map[string]string{
-			"User-Agent":    "Mozilla/5.0",
-			"Accept":        "text/html",
-			"Cache-Control": "no-cache",
+			"User-Agent":     "Mozilla/5.0",
+			"Accept":         "text/html",
+			"Cache-Control":  "no-cache",
 			"Sec-Fetch-Mode": "navigate",
 		}, "192.168.1.100:54321")
 
@@ -122,6 +131,7 @@ func TestGenerate(t *testing.T) {
 	})
 
 	t.Run("uses client IP from headers when available", func(t *testing.T) {
+		t.Parallel()
 		req := createTestRequest(map[string]string{
 			"User-Agent":       "Mozilla/5.0",
 			"CF-Connecting-IP": "203.0.113.195",
@@ -142,7 +152,9 @@ func TestGenerate(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
+	t.Parallel()
 	t.Run("validates matching fingerprints", func(t *testing.T) {
+		t.Parallel()
 		req := createTestRequest(map[string]string{
 			"User-Agent":      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
 			"Accept":          "text/html",
@@ -156,6 +168,7 @@ func TestValidate(t *testing.T) {
 	})
 
 	t.Run("rejects non-matching fingerprints", func(t *testing.T) {
+		t.Parallel()
 		req1 := createTestRequest(map[string]string{
 			"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
 		}, "192.168.1.100:54321")
@@ -171,6 +184,7 @@ func TestValidate(t *testing.T) {
 	})
 
 	t.Run("rejects invalid stored fingerprint", func(t *testing.T) {
+		t.Parallel()
 		req := createTestRequest(map[string]string{
 			"User-Agent": "Mozilla/5.0",
 		}, "192.168.1.100:54321")
@@ -180,6 +194,7 @@ func TestValidate(t *testing.T) {
 	})
 
 	t.Run("rejects empty stored fingerprint", func(t *testing.T) {
+		t.Parallel()
 		req := createTestRequest(map[string]string{
 			"User-Agent": "Mozilla/5.0",
 		}, "192.168.1.100:54321")
@@ -190,7 +205,9 @@ func TestValidate(t *testing.T) {
 }
 
 func TestFingerprintConsistency(t *testing.T) {
+	t.Parallel()
 	t.Run("produces consistent fingerprints across multiple calls", func(t *testing.T) {
+		t.Parallel()
 		req := createTestRequest(map[string]string{
 			"User-Agent":      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
 			"Accept":          "text/html,application/xhtml+xml",
@@ -210,7 +227,9 @@ func TestFingerprintConsistency(t *testing.T) {
 }
 
 func TestFingerprintUniqueness(t *testing.T) {
+	t.Parallel()
 	t.Run("generates unique fingerprints for different clients", func(t *testing.T) {
+		t.Parallel()
 		testCases := []struct {
 			name    string
 			headers map[string]string
@@ -260,10 +279,10 @@ func TestFingerprintUniqueness(t *testing.T) {
 		for _, tc := range testCases {
 			req := createTestRequest(tc.headers, tc.ip)
 			fp := fingerprint.Generate(req)
-			
+
 			// Check for collisions
 			if existing, exists := fingerprints[fp]; exists {
-				t.Errorf("Fingerprint collision: %s and %s produced same fingerprint %s", 
+				t.Errorf("Fingerprint collision: %s and %s produced same fingerprint %s",
 					existing, tc.name, fp)
 			}
 			fingerprints[fp] = tc.name
@@ -275,16 +294,16 @@ func TestFingerprintUniqueness(t *testing.T) {
 
 func BenchmarkGenerate(b *testing.B) {
 	req := createTestRequest(map[string]string{
-		"User-Agent":               "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-		"Accept":                   "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-		"Accept-Language":          "en-US,en;q=0.9",
-		"Accept-Encoding":          "gzip, deflate, br",
-		"Connection":               "keep-alive",
+		"User-Agent":                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+		"Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+		"Accept-Language":           "en-US,en;q=0.9",
+		"Accept-Encoding":           "gzip, deflate, br",
+		"Connection":                "keep-alive",
 		"Upgrade-Insecure-Requests": "1",
-		"Sec-Fetch-Dest":           "document",
-		"Sec-Fetch-Mode":           "navigate",
-		"Sec-Fetch-Site":           "none",
-		"Cache-Control":            "max-age=0",
+		"Sec-Fetch-Dest":            "document",
+		"Sec-Fetch-Mode":            "navigate",
+		"Sec-Fetch-Site":            "none",
+		"Cache-Control":             "max-age=0",
 	}, "192.168.1.100:54321")
 
 	b.ResetTimer()
@@ -321,43 +340,49 @@ func BenchmarkGenerateMinimalHeaders(b *testing.B) {
 }
 
 func TestContextFunctions(t *testing.T) {
+	t.Parallel()
 	t.Run("set and get fingerprint from context", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		testFingerprint := "a1b2c3d4e5f6789012345678901234567"
 
 		// Set fingerprint
 		ctxWithFP := fingerprint.SetFingerprintToContext(ctx, testFingerprint)
-		
+
 		// Get fingerprint
 		retrieved := fingerprint.GetFingerprintFromContext(ctxWithFP)
 		assert.Equal(t, testFingerprint, retrieved, "should retrieve the same fingerprint")
 	})
 
 	t.Run("get fingerprint from empty context", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
-		
+
 		// Get fingerprint from context without setting it
 		retrieved := fingerprint.GetFingerprintFromContext(ctx)
 		assert.Empty(t, retrieved, "should return empty string when no fingerprint in context")
 	})
 
 	t.Run("context isolation", func(t *testing.T) {
+		t.Parallel()
 		ctx1 := context.Background()
 		ctx2 := context.Background()
-		
+
 		fp1 := "fingerprint1fingerprint1fingerpr"
 		fp2 := "fingerprint2fingerprint2fingerpr"
-		
+
 		ctx1 = fingerprint.SetFingerprintToContext(ctx1, fp1)
 		ctx2 = fingerprint.SetFingerprintToContext(ctx2, fp2)
-		
+
 		assert.Equal(t, fp1, fingerprint.GetFingerprintFromContext(ctx1))
 		assert.Equal(t, fp2, fingerprint.GetFingerprintFromContext(ctx2))
 	})
 }
 
 func TestMiddleware(t *testing.T) {
+	t.Parallel()
 	t.Run("adds fingerprint to request context", func(t *testing.T) {
+		t.Parallel()
 		// Create test handler that checks for fingerprint in context
 		var capturedFingerprint string
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -387,8 +412,9 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("different requests get different fingerprints", func(t *testing.T) {
+		t.Parallel()
 		fingerprints := make([]string, 0, 2)
-		
+
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			fp := fingerprint.GetFingerprintFromContext(r.Context())
 			fingerprints = append(fingerprints, fp)
@@ -416,6 +442,7 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("preserves existing context values", func(t *testing.T) {
+		t.Parallel()
 		type contextKey string
 		const testKey contextKey = "test-key"
 		const testValue = "test-value"
@@ -424,10 +451,10 @@ func TestMiddleware(t *testing.T) {
 			// Check both fingerprint and custom value exist
 			fp := fingerprint.GetFingerprintFromContext(r.Context())
 			val := r.Context().Value(testKey)
-			
+
 			assert.NotEmpty(t, fp, "fingerprint should be in context")
 			assert.Equal(t, testValue, val, "original context value should be preserved")
-			
+
 			w.WriteHeader(http.StatusOK)
 		})
 
@@ -437,7 +464,7 @@ func TestMiddleware(t *testing.T) {
 		req := createTestRequest(map[string]string{
 			"User-Agent": "TestBot/1.0",
 		}, "192.168.1.100:54321")
-		
+
 		// Add custom value to context
 		ctx := context.WithValue(req.Context(), testKey, testValue)
 		req = req.WithContext(ctx)

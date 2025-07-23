@@ -9,6 +9,8 @@ import (
 )
 
 func TestFilterEmpty(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    []string
@@ -38,6 +40,8 @@ func TestFilterEmpty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.FilterEmpty(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -45,6 +49,8 @@ func TestFilterEmpty(t *testing.T) {
 }
 
 func TestDeduplicate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    []string
@@ -79,6 +85,8 @@ func TestDeduplicate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.Deduplicate(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -86,6 +94,8 @@ func TestDeduplicate(t *testing.T) {
 }
 
 func TestDeduplicateStringsIgnoreCase(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    []string
@@ -115,6 +125,8 @@ func TestDeduplicateStringsIgnoreCase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.DeduplicateStringsIgnoreCase(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -122,6 +134,8 @@ func TestDeduplicateStringsIgnoreCase(t *testing.T) {
 }
 
 func TestLimitSliceLength(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     []string
@@ -162,6 +176,8 @@ func TestLimitSliceLength(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.LimitSliceLength(tt.input, tt.maxLength)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -169,6 +185,8 @@ func TestLimitSliceLength(t *testing.T) {
 }
 
 func TestSortStrings(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    []string
@@ -203,6 +221,8 @@ func TestSortStrings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SortStrings(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -210,6 +230,8 @@ func TestSortStrings(t *testing.T) {
 }
 
 func TestSortStringsIgnoreCase(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    []string
@@ -234,6 +256,8 @@ func TestSortStringsIgnoreCase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SortStringsIgnoreCase(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -241,6 +265,8 @@ func TestSortStringsIgnoreCase(t *testing.T) {
 }
 
 func TestFilterSliceByPattern(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    []string
@@ -275,6 +301,8 @@ func TestFilterSliceByPattern(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.FilterSliceByPattern(tt.input, tt.pattern)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -282,6 +310,8 @@ func TestFilterSliceByPattern(t *testing.T) {
 }
 
 func TestTrimStringSlice(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    []string
@@ -311,6 +341,8 @@ func TestTrimStringSlice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.TrimStringSlice(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -318,6 +350,8 @@ func TestTrimStringSlice(t *testing.T) {
 }
 
 func TestToLowerStringSlice(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    []string
@@ -347,6 +381,8 @@ func TestToLowerStringSlice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ToLowerStringSlice(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -354,6 +390,8 @@ func TestToLowerStringSlice(t *testing.T) {
 }
 
 func TestCleanStringSlice(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    []string
@@ -378,6 +416,8 @@ func TestCleanStringSlice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.CleanStringSlice(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -385,6 +425,8 @@ func TestCleanStringSlice(t *testing.T) {
 }
 
 func TestSanitizeMapKeys(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    map[string]string
@@ -422,6 +464,8 @@ func TestSanitizeMapKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SanitizeMapKeys(tt.input, func(s string) string {
 				return sanitizer.Apply(s, sanitizer.Trim, sanitizer.ToLower)
 			})
@@ -431,6 +475,8 @@ func TestSanitizeMapKeys(t *testing.T) {
 }
 
 func TestSanitizeMapValues(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    map[string]string
@@ -456,6 +502,8 @@ func TestSanitizeMapValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SanitizeMapValues(tt.input, func(s string) string {
 				return sanitizer.Apply(s, sanitizer.Trim, sanitizer.ToLower)
 			})
@@ -465,6 +513,8 @@ func TestSanitizeMapValues(t *testing.T) {
 }
 
 func TestFilterMapByKeys(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    map[string]string
@@ -498,6 +548,8 @@ func TestFilterMapByKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.FilterMapByKeys(tt.input, tt.pattern)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -505,6 +557,8 @@ func TestFilterMapByKeys(t *testing.T) {
 }
 
 func TestFilterEmptyMapValues(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    map[string]string
@@ -532,6 +586,8 @@ func TestFilterEmptyMapValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.FilterEmptyMapValues(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -539,6 +595,8 @@ func TestFilterEmptyMapValues(t *testing.T) {
 }
 
 func TestCleanStringMap(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    map[string]string
@@ -561,6 +619,8 @@ func TestCleanStringMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.CleanStringMap(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -568,6 +628,8 @@ func TestCleanStringMap(t *testing.T) {
 }
 
 func TestLimitMapSize(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    map[string]string
@@ -600,6 +662,8 @@ func TestLimitMapSize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.LimitMapSize(tt.input, tt.maxSize)
 			assert.Equal(t, tt.expected, len(result))
 		})
@@ -607,6 +671,8 @@ func TestLimitMapSize(t *testing.T) {
 }
 
 func TestExtractMapKeys(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    map[string]string
@@ -628,6 +694,8 @@ func TestExtractMapKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ExtractMapKeys(tt.input)
 			assert.Equal(t, tt.expected, len(result))
 
@@ -640,6 +708,8 @@ func TestExtractMapKeys(t *testing.T) {
 }
 
 func TestMergeStringMaps(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		maps     []map[string]string
@@ -674,6 +744,8 @@ func TestMergeStringMaps(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.MergeStringMaps(tt.maps...)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -681,6 +753,8 @@ func TestMergeStringMaps(t *testing.T) {
 }
 
 func TestSliceToMap(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    []string
@@ -702,6 +776,8 @@ func TestSliceToMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.SliceToMap(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -709,7 +785,11 @@ func TestSliceToMap(t *testing.T) {
 }
 
 func TestFilterSlice(t *testing.T) {
+	t.Parallel()
+
 	t.Run("filters with predicate", func(t *testing.T) {
+		t.Parallel()
+
 		input := []int{1, 2, 3, 4, 5, 6}
 		result := sanitizer.FilterSlice(input, func(n int) bool {
 			return n%2 == 0 // even numbers only
@@ -719,6 +799,8 @@ func TestFilterSlice(t *testing.T) {
 	})
 
 	t.Run("filters strings by length", func(t *testing.T) {
+		t.Parallel()
+
 		input := []string{"a", "hello", "hi", "world"}
 		result := sanitizer.FilterSlice(input, func(s string) bool {
 			return len(s) > 2
@@ -729,7 +811,11 @@ func TestFilterSlice(t *testing.T) {
 }
 
 func TestTransformSlice(t *testing.T) {
+	t.Parallel()
+
 	t.Run("transforms int to string", func(t *testing.T) {
+		t.Parallel()
+
 		input := []int{1, 2, 3}
 		result := sanitizer.TransformSlice(input, func(n int) string {
 			switch n {
@@ -746,6 +832,8 @@ func TestTransformSlice(t *testing.T) {
 	})
 
 	t.Run("transforms strings to uppercase", func(t *testing.T) {
+		t.Parallel()
+
 		input := []string{"hello", "world"}
 		result := sanitizer.TransformSlice(input, sanitizer.ToUpper)
 		expected := []string{"HELLO", "WORLD"}
@@ -754,6 +842,8 @@ func TestTransformSlice(t *testing.T) {
 }
 
 func TestReverseSlice(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    []string
@@ -778,6 +868,8 @@ func TestReverseSlice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sanitizer.ReverseSlice(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -785,7 +877,11 @@ func TestReverseSlice(t *testing.T) {
 }
 
 func TestCollectionsApplyPattern(t *testing.T) {
+	t.Parallel()
+
 	t.Run("apply pattern with collection functions", func(t *testing.T) {
+		t.Parallel()
+
 		// Test slice processing pipeline
 		messySlice := []string{"  hello  ", "", "WORLD", "hello", "test", "   "}
 		result := sanitizer.Apply(messySlice,
@@ -800,6 +896,8 @@ func TestCollectionsApplyPattern(t *testing.T) {
 	})
 
 	t.Run("compose collection transformations", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a reusable slice cleaner
 		sliceCleaner := sanitizer.Compose(
 			sanitizer.TrimStringSlice,
@@ -818,7 +916,11 @@ func TestCollectionsApplyPattern(t *testing.T) {
 }
 
 func TestRealWorldCollectionUsage(t *testing.T) {
+	t.Parallel()
+
 	t.Run("user tags processing", func(t *testing.T) {
+		t.Parallel()
+
 		// Create tag processor for user-submitted tags
 		tagProcessor := sanitizer.Compose(
 			sanitizer.TrimStringSlice,
@@ -840,6 +942,8 @@ func TestRealWorldCollectionUsage(t *testing.T) {
 	})
 
 	t.Run("form data sanitization", func(t *testing.T) {
+		t.Parallel()
+
 		// Create form data sanitizer
 		formSanitizer := sanitizer.Compose(
 			sanitizer.CleanStringMap,
@@ -866,6 +970,8 @@ func TestRealWorldCollectionUsage(t *testing.T) {
 	})
 
 	t.Run("search results deduplication", func(t *testing.T) {
+		t.Parallel()
+
 		// Create search results processor
 		resultsProcessor := sanitizer.Compose(
 			func(slice []string) []string {
@@ -895,6 +1001,8 @@ func TestRealWorldCollectionUsage(t *testing.T) {
 	})
 
 	t.Run("configuration merging", func(t *testing.T) {
+		t.Parallel()
+
 		// Merge configuration from multiple sources
 		defaultConfig := map[string]string{
 			"timeout": "30s",

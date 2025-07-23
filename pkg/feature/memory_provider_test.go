@@ -12,9 +12,11 @@ import (
 )
 
 func TestMemoryProvider(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("NewMemoryProvider", func(t *testing.T) {
+		t.Parallel()
 		// Test creating an empty provider
 		provider, err := feature.NewMemoryProvider()
 		require.NoError(t, err)
@@ -47,6 +49,7 @@ func TestMemoryProvider(t *testing.T) {
 	})
 
 	t.Run("CreateFlag", func(t *testing.T) {
+		t.Parallel()
 		provider, _ := feature.NewMemoryProvider()
 
 		// Test creating a valid flag
@@ -78,6 +81,7 @@ func TestMemoryProvider(t *testing.T) {
 	})
 
 	t.Run("GetFlag", func(t *testing.T) {
+		t.Parallel()
 		// Create a provider with a test flag
 		testFlag := &feature.Flag{
 			Name:        "test-flag",
@@ -110,6 +114,7 @@ func TestMemoryProvider(t *testing.T) {
 	})
 
 	t.Run("UpdateFlag", func(t *testing.T) {
+		t.Parallel()
 		// Create a provider with a test flag
 		testFlag := &feature.Flag{
 			Name:        "update-flag",
@@ -157,6 +162,7 @@ func TestMemoryProvider(t *testing.T) {
 	})
 
 	t.Run("DeleteFlag", func(t *testing.T) {
+		t.Parallel()
 		// Create a provider with a test flag
 		testFlag := &feature.Flag{
 			Name:    "delete-flag",
@@ -180,6 +186,7 @@ func TestMemoryProvider(t *testing.T) {
 	})
 
 	t.Run("ListFlags", func(t *testing.T) {
+		t.Parallel()
 		// Create a provider with multiple flags
 		flags := []*feature.Flag{
 			{
@@ -237,6 +244,7 @@ func TestMemoryProvider(t *testing.T) {
 	})
 
 	t.Run("IsEnabled", func(t *testing.T) {
+		t.Parallel()
 		// Create flags with different strategies
 		alwaysOnFlag := &feature.Flag{
 			Name:     "always-on",
@@ -302,6 +310,7 @@ func TestMemoryProvider(t *testing.T) {
 	})
 
 	t.Run("Close", func(t *testing.T) {
+		t.Parallel()
 		provider, _ := feature.NewMemoryProvider()
 		err := provider.Close()
 		require.NoError(t, err)

@@ -10,6 +10,7 @@ import (
 )
 
 func TestDefaultPasswordStrength(t *testing.T) {
+	t.Parallel()
 	config := validator.DefaultPasswordStrength()
 
 	assert.Equal(t, 8, config.MinLength)
@@ -22,6 +23,7 @@ func TestDefaultPasswordStrength(t *testing.T) {
 }
 
 func TestStrongPassword(t *testing.T) {
+	t.Parallel()
 	config := validator.DefaultPasswordStrength()
 
 	t.Run("valid strong passwords", func(t *testing.T) {
@@ -135,6 +137,7 @@ func TestStrongPassword(t *testing.T) {
 }
 
 func TestPasswordUppercase(t *testing.T) {
+	t.Parallel()
 	t.Run("passwords with uppercase", func(t *testing.T) {
 		validPasswords := []string{
 			"Password",
@@ -172,6 +175,7 @@ func TestPasswordUppercase(t *testing.T) {
 }
 
 func TestPasswordLowercase(t *testing.T) {
+	t.Parallel()
 	t.Run("passwords with lowercase", func(t *testing.T) {
 		validPasswords := []string{
 			"password",
@@ -209,6 +213,7 @@ func TestPasswordLowercase(t *testing.T) {
 }
 
 func TestPasswordDigit(t *testing.T) {
+	t.Parallel()
 	t.Run("passwords with digits", func(t *testing.T) {
 		validPasswords := []string{
 			"password123",
@@ -246,6 +251,7 @@ func TestPasswordDigit(t *testing.T) {
 }
 
 func TestPasswordSpecialChar(t *testing.T) {
+	t.Parallel()
 	t.Run("passwords with special characters", func(t *testing.T) {
 		validPasswords := []string{
 			"password!",
@@ -284,6 +290,7 @@ func TestPasswordSpecialChar(t *testing.T) {
 }
 
 func TestNotCommonPassword(t *testing.T) {
+	t.Parallel()
 	t.Run("non-common passwords", func(t *testing.T) {
 		validPasswords := []string{
 			"UniquePassword123!",
@@ -323,6 +330,7 @@ func TestNotCommonPassword(t *testing.T) {
 }
 
 func TestPasswordEntropy(t *testing.T) {
+	t.Parallel()
 	t.Run("high entropy passwords", func(t *testing.T) {
 		highEntropyPasswords := []string{
 			"Tr0ub4dor&3",        // Classic example
@@ -358,6 +366,7 @@ func TestPasswordEntropy(t *testing.T) {
 }
 
 func TestNoRepeatingChars(t *testing.T) {
+	t.Parallel()
 	t.Run("passwords without excessive repeating characters", func(t *testing.T) {
 		validPasswords := []string{
 			"password123",
@@ -399,6 +408,7 @@ func TestNoRepeatingChars(t *testing.T) {
 }
 
 func TestNoSequentialChars(t *testing.T) {
+	t.Parallel()
 	t.Run("passwords without excessive sequential characters", func(t *testing.T) {
 		validPasswords := []string{
 			"password123",
@@ -449,6 +459,7 @@ func TestNoSequentialChars(t *testing.T) {
 }
 
 func TestPasswordValidationCombination(t *testing.T) {
+	t.Parallel()
 	t.Run("comprehensive password validation", func(t *testing.T) {
 		password := "MySecur3P@ssw0rd!"
 

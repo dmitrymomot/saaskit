@@ -10,6 +10,7 @@ import (
 )
 
 func TestPositiveAmount(t *testing.T) {
+	t.Parallel()
 	t.Run("valid positive amounts", func(t *testing.T) {
 		validAmounts := []float64{
 			0.01,
@@ -61,6 +62,7 @@ func TestPositiveAmount(t *testing.T) {
 }
 
 func TestNonNegativeAmount(t *testing.T) {
+	t.Parallel()
 	t.Run("valid non-negative amounts", func(t *testing.T) {
 		validAmounts := []float64{
 			0.0,
@@ -97,6 +99,7 @@ func TestNonNegativeAmount(t *testing.T) {
 }
 
 func TestAmountRange(t *testing.T) {
+	t.Parallel()
 	t.Run("valid amount ranges", func(t *testing.T) {
 		testCases := []struct {
 			amount float64
@@ -140,6 +143,7 @@ func TestAmountRange(t *testing.T) {
 }
 
 func TestDecimalPrecision(t *testing.T) {
+	t.Parallel()
 	t.Run("valid decimal precision", func(t *testing.T) {
 		testCases := []struct {
 			value       float64
@@ -182,6 +186,7 @@ func TestDecimalPrecision(t *testing.T) {
 }
 
 func TestValidCurrencyCode(t *testing.T) {
+	t.Parallel()
 	t.Run("valid currency codes", func(t *testing.T) {
 		validCodes := []string{
 			"USD",
@@ -228,6 +233,7 @@ func TestValidCurrencyCode(t *testing.T) {
 }
 
 func TestValidTaxRate(t *testing.T) {
+	t.Parallel()
 	t.Run("valid tax rates", func(t *testing.T) {
 		validRates := []float64{
 			0.0,   // no tax
@@ -264,6 +270,7 @@ func TestValidTaxRate(t *testing.T) {
 }
 
 func TestValidInterestRate(t *testing.T) {
+	t.Parallel()
 	t.Run("valid interest rates", func(t *testing.T) {
 		maxRate := 25.0
 		validRates := []float64{
@@ -301,6 +308,7 @@ func TestValidInterestRate(t *testing.T) {
 }
 
 func TestValidPercentage(t *testing.T) {
+	t.Parallel()
 	t.Run("valid percentages", func(t *testing.T) {
 		validPercentages := []float64{
 			0.0,
@@ -337,6 +345,7 @@ func TestValidPercentage(t *testing.T) {
 }
 
 func TestMinimumPurchase(t *testing.T) {
+	t.Parallel()
 	t.Run("valid minimum purchases", func(t *testing.T) {
 		minimum := 10.0
 		validAmounts := []float64{
@@ -373,6 +382,7 @@ func TestMinimumPurchase(t *testing.T) {
 }
 
 func TestMaximumTransaction(t *testing.T) {
+	t.Parallel()
 	t.Run("valid maximum transactions", func(t *testing.T) {
 		maximum := 1000.0
 		validAmounts := []float64{
@@ -409,6 +419,7 @@ func TestMaximumTransaction(t *testing.T) {
 }
 
 func TestValidCreditCardChecksum(t *testing.T) {
+	t.Parallel()
 	t.Run("valid credit card numbers", func(t *testing.T) {
 		validCards := []string{
 			"4532015112830366",    // Visa
@@ -451,6 +462,7 @@ func TestValidCreditCardChecksum(t *testing.T) {
 }
 
 func TestValidAccountNumber(t *testing.T) {
+	t.Parallel()
 	t.Run("valid account numbers", func(t *testing.T) {
 		validAccounts := []string{
 			"1234567890",
@@ -490,6 +502,7 @@ func TestValidAccountNumber(t *testing.T) {
 }
 
 func TestValidRoutingNumber(t *testing.T) {
+	t.Parallel()
 	t.Run("valid routing numbers", func(t *testing.T) {
 		validRouting := []string{
 			"021000021",   // Valid ABA routing number
@@ -529,6 +542,7 @@ func TestValidRoutingNumber(t *testing.T) {
 }
 
 func TestFinancialValidationCombination(t *testing.T) {
+	t.Parallel()
 	t.Run("comprehensive financial validation", func(t *testing.T) {
 		amount := 99.99
 		currency := "USD"

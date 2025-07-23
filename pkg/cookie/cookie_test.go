@@ -14,6 +14,7 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		secrets []string
@@ -51,6 +52,7 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := cookie.New(tt.secrets)
 			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
@@ -60,6 +62,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestManager_SetGet(t *testing.T) {
+	t.Parallel()
 	m, _ := cookie.New([]string{"this-is-a-very-long-secret-key-32-chars-long"})
 
 	tests := []struct {
@@ -74,6 +77,7 @@ func TestManager_SetGet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			w := httptest.NewRecorder()
 			r := &http.Request{Header: http.Header{}}
 
@@ -97,6 +101,7 @@ func TestManager_SetGet(t *testing.T) {
 }
 
 func TestManager_SetGetSigned(t *testing.T) {
+	t.Parallel()
 	m, _ := cookie.New([]string{"this-is-a-very-long-secret-key-32-chars-long"})
 
 	w := httptest.NewRecorder()
@@ -121,6 +126,7 @@ func TestManager_SetGetSigned(t *testing.T) {
 }
 
 func TestManager_SignedTamperDetection(t *testing.T) {
+	t.Parallel()
 	m, _ := cookie.New([]string{"this-is-a-very-long-secret-key-32-chars-long"})
 
 	w := httptest.NewRecorder()
@@ -152,6 +158,7 @@ func TestManager_SignedTamperDetection(t *testing.T) {
 }
 
 func TestManager_SetGetEncrypted(t *testing.T) {
+	t.Parallel()
 	m, _ := cookie.New([]string{"this-is-a-very-long-secret-key-32-chars-long"})
 
 	w := httptest.NewRecorder()
@@ -176,6 +183,7 @@ func TestManager_SetGetEncrypted(t *testing.T) {
 }
 
 func TestManager_SecretRotation(t *testing.T) {
+	t.Parallel()
 	oldSecret := "old-secret-that-is-32-characters-long-exactly"
 	newSecret := "new-secret-that-is-32-characters-long-exactly"
 
@@ -204,6 +212,7 @@ func TestManager_SecretRotation(t *testing.T) {
 }
 
 func TestManager_Flash(t *testing.T) {
+	t.Parallel()
 	m, _ := cookie.New([]string{"this-is-a-very-long-secret-key-32-chars-long"})
 
 	type testData struct {
@@ -240,6 +249,7 @@ func TestManager_Flash(t *testing.T) {
 }
 
 func TestManager_Delete(t *testing.T) {
+	t.Parallel()
 	m, _ := cookie.New([]string{"this-is-a-very-long-secret-key-32-chars-long"})
 
 	w := httptest.NewRecorder()
@@ -262,6 +272,7 @@ func TestManager_Delete(t *testing.T) {
 }
 
 func TestManager_Options(t *testing.T) {
+	t.Parallel()
 	m, _ := cookie.New(
 		[]string{"this-is-a-very-long-secret-key-32-chars-long"},
 		cookie.WithDomain(".example.com"),
@@ -348,9 +359,11 @@ func BenchmarkManager_GetEncrypted(b *testing.B) {
 }
 
 func TestManager_EdgeCases(t *testing.T) {
+	t.Parallel()
 	m, _ := cookie.New([]string{"this-is-a-very-long-secret-key-32-chars-long"})
 
 	t.Run("get non-existent cookie", func(t *testing.T) {
+		t.Parallel()
 		r := &http.Request{Header: http.Header{}}
 		_, err := m.Get(r, "nonexistent")
 		if !errors.Is(err, cookie.ErrCookieNotFound) {
@@ -359,6 +372,7 @@ func TestManager_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("get signed non-existent cookie", func(t *testing.T) {
+		t.Parallel()
 		r := &http.Request{Header: http.Header{}}
 		_, err := m.GetSigned(r, "nonexistent")
 		if !errors.Is(err, cookie.ErrCookieNotFound) {
@@ -367,6 +381,7 @@ func TestManager_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("get encrypted non-existent cookie", func(t *testing.T) {
+		t.Parallel()
 		r := &http.Request{Header: http.Header{}}
 		_, err := m.GetEncrypted(r, "nonexistent")
 		if !errors.Is(err, cookie.ErrCookieNotFound) {
@@ -375,6 +390,7 @@ func TestManager_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("very long cookie value", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := &http.Request{Header: http.Header{}}
 
@@ -396,6 +412,7 @@ func TestManager_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("empty cookie value", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := &http.Request{Header: http.Header{}}
 
@@ -416,6 +433,7 @@ func TestManager_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("special characters in value", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := &http.Request{Header: http.Header{}}
 
@@ -438,6 +456,7 @@ func TestManager_EdgeCases(t *testing.T) {
 }
 
 func TestManager_EncryptedRotation(t *testing.T) {
+	t.Parallel()
 	oldSecret := "old-secret-that-is-32-characters-long-exactly"
 	newSecret := "new-secret-that-is-32-characters-long-exactly"
 
@@ -475,9 +494,11 @@ func TestManager_EncryptedRotation(t *testing.T) {
 }
 
 func TestManager_InvalidFormats(t *testing.T) {
+	t.Parallel()
 	m, _ := cookie.New([]string{"this-is-a-very-long-secret-key-32-chars-long"})
 
 	t.Run("invalid signed format - no separator", func(t *testing.T) {
+		t.Parallel()
 		r := &http.Request{Header: http.Header{}}
 		r.AddCookie(&http.Cookie{Name: "test", Value: "noseparator"})
 
@@ -488,6 +509,7 @@ func TestManager_InvalidFormats(t *testing.T) {
 	})
 
 	t.Run("invalid signed format - bad base64", func(t *testing.T) {
+		t.Parallel()
 		r := &http.Request{Header: http.Header{}}
 		r.AddCookie(&http.Cookie{Name: "test", Value: "invalid!base64|signature"})
 
@@ -498,6 +520,7 @@ func TestManager_InvalidFormats(t *testing.T) {
 	})
 
 	t.Run("invalid encrypted format - bad base64", func(t *testing.T) {
+		t.Parallel()
 		r := &http.Request{Header: http.Header{}}
 		r.AddCookie(&http.Cookie{Name: "test", Value: "invalid!base64"})
 
@@ -508,6 +531,7 @@ func TestManager_InvalidFormats(t *testing.T) {
 	})
 
 	t.Run("invalid encrypted format - short ciphertext", func(t *testing.T) {
+		t.Parallel()
 		r := &http.Request{Header: http.Header{}}
 		r.AddCookie(&http.Cookie{Name: "test", Value: base64.URLEncoding.EncodeToString([]byte("short"))})
 
@@ -519,9 +543,11 @@ func TestManager_InvalidFormats(t *testing.T) {
 }
 
 func TestManager_FlashEdgeCases(t *testing.T) {
+	t.Parallel()
 	m, _ := cookie.New([]string{"this-is-a-very-long-secret-key-32-chars-long"})
 
 	t.Run("flash non-existent", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := &http.Request{Header: http.Header{}}
 
@@ -533,6 +559,7 @@ func TestManager_FlashEdgeCases(t *testing.T) {
 	})
 
 	t.Run("flash with complex struct", func(t *testing.T) {
+		t.Parallel()
 		type complexData struct {
 			ID        string
 			Timestamp time.Time
@@ -577,6 +604,7 @@ func TestManager_FlashEdgeCases(t *testing.T) {
 	})
 
 	t.Run("flash unmarshalable value", func(t *testing.T) {
+		t.Parallel()
 		w := httptest.NewRecorder()
 		r := &http.Request{Header: http.Header{}}
 
@@ -589,6 +617,7 @@ func TestManager_FlashEdgeCases(t *testing.T) {
 }
 
 func TestManager_ConcurrentAccess(t *testing.T) {
+	t.Parallel()
 	m, _ := cookie.New([]string{"this-is-a-very-long-secret-key-32-chars-long"})
 
 	const numGoroutines = 10
@@ -627,6 +656,7 @@ func TestManager_ConcurrentAccess(t *testing.T) {
 }
 
 func TestManager_MultipleCookies(t *testing.T) {
+	t.Parallel()
 	m, _ := cookie.New([]string{"this-is-a-very-long-secret-key-32-chars-long"})
 
 	w := httptest.NewRecorder()
@@ -674,6 +704,7 @@ func TestManager_MultipleCookies(t *testing.T) {
 }
 
 func TestManager_SecretsWithExactLength(t *testing.T) {
+	t.Parallel()
 	exactLengthSecret := strings.Repeat("a", 32) // minSecretLength = 32
 	m, err := cookie.New([]string{exactLengthSecret})
 	if err != nil {
@@ -700,6 +731,7 @@ func TestManager_SecretsWithExactLength(t *testing.T) {
 }
 
 func TestManager_DeleteWithCustomOptions(t *testing.T) {
+	t.Parallel()
 	m, _ := cookie.New(
 		[]string{"this-is-a-very-long-secret-key-32-chars-long"},
 		cookie.WithDomain("example.com"),

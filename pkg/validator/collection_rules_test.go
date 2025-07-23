@@ -9,6 +9,7 @@ import (
 )
 
 func TestRequiredSlice(t *testing.T) {
+	t.Parallel()
 	t.Run("passes for non-empty string slice", func(t *testing.T) {
 		rule := validator.RequiredSlice("items", []string{"item1"})
 		assert.True(t, rule.Check())
@@ -49,6 +50,7 @@ func TestRequiredSlice(t *testing.T) {
 }
 
 func TestMinLenSlice(t *testing.T) {
+	t.Parallel()
 	t.Run("passes when slice equals minimum length", func(t *testing.T) {
 		rule := validator.MinLenSlice("items", []string{"a", "b", "c"}, 3)
 		assert.True(t, rule.Check())
@@ -85,6 +87,7 @@ func TestMinLenSlice(t *testing.T) {
 }
 
 func TestMaxLenSlice(t *testing.T) {
+	t.Parallel()
 	t.Run("passes when slice equals maximum length", func(t *testing.T) {
 		rule := validator.MaxLenSlice("items", []string{"a", "b", "c"}, 3)
 		assert.True(t, rule.Check())
@@ -120,6 +123,7 @@ func TestMaxLenSlice(t *testing.T) {
 }
 
 func TestLenSlice(t *testing.T) {
+	t.Parallel()
 	t.Run("passes when slice equals exact length", func(t *testing.T) {
 		rule := validator.LenSlice("items", []string{"a", "b", "c"}, 3)
 		assert.True(t, rule.Check())
@@ -155,6 +159,7 @@ func TestLenSlice(t *testing.T) {
 }
 
 func TestRequiredMap(t *testing.T) {
+	t.Parallel()
 	t.Run("passes for non-empty map", func(t *testing.T) {
 		rule := validator.RequiredMap("config", map[string]int{"key": 1})
 		assert.True(t, rule.Check())
@@ -190,6 +195,7 @@ func TestRequiredMap(t *testing.T) {
 }
 
 func TestMinLenMap(t *testing.T) {
+	t.Parallel()
 	t.Run("passes when map equals minimum length", func(t *testing.T) {
 		rule := validator.MinLenMap("config", map[string]int{"a": 1, "b": 2}, 2)
 		assert.True(t, rule.Check())
@@ -226,6 +232,7 @@ func TestMinLenMap(t *testing.T) {
 }
 
 func TestMaxLenMap(t *testing.T) {
+	t.Parallel()
 	t.Run("passes when map equals maximum length", func(t *testing.T) {
 		rule := validator.MaxLenMap("config", map[string]int{"a": 1, "b": 2}, 2)
 		assert.True(t, rule.Check())
@@ -261,6 +268,7 @@ func TestMaxLenMap(t *testing.T) {
 }
 
 func TestLenMap(t *testing.T) {
+	t.Parallel()
 	t.Run("passes when map equals exact length", func(t *testing.T) {
 		rule := validator.LenMap("config", map[string]int{"a": 1, "b": 2}, 2)
 		assert.True(t, rule.Check())
@@ -296,6 +304,7 @@ func TestLenMap(t *testing.T) {
 }
 
 func TestCollectionRulesIntegration(t *testing.T) {
+	t.Parallel()
 	t.Run("validates complete collection input", func(t *testing.T) {
 		tags := []string{"go", "backend", "api"}
 		settings := map[string]string{"theme": "dark", "lang": "en"}

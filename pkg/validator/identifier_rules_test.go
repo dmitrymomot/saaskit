@@ -10,6 +10,7 @@ import (
 )
 
 func TestValidSlug(t *testing.T) {
+	t.Parallel()
 	t.Run("valid slugs", func(t *testing.T) {
 		validSlugs := []string{
 			"hello-world",
@@ -55,6 +56,7 @@ func TestValidSlug(t *testing.T) {
 }
 
 func TestValidUsername(t *testing.T) {
+	t.Parallel()
 	t.Run("valid usernames", func(t *testing.T) {
 		validUsernames := []string{
 			"john_doe",
@@ -102,6 +104,7 @@ func TestValidUsername(t *testing.T) {
 }
 
 func TestValidHandle(t *testing.T) {
+	t.Parallel()
 	t.Run("valid handles", func(t *testing.T) {
 		validHandles := []string{
 			"john_doe",
@@ -150,6 +153,7 @@ func TestValidHandle(t *testing.T) {
 }
 
 func TestValidSKU(t *testing.T) {
+	t.Parallel()
 	t.Run("valid SKUs", func(t *testing.T) {
 		validSKUs := []string{
 			"ABC123",
@@ -192,6 +196,7 @@ func TestValidSKU(t *testing.T) {
 }
 
 func TestValidProductCode(t *testing.T) {
+	t.Parallel()
 	t.Run("valid product codes", func(t *testing.T) {
 		pattern := `^[A-Z]{2}-\d{4}$` // Example: AB-1234
 		validCodes := []string{
@@ -232,6 +237,7 @@ func TestValidProductCode(t *testing.T) {
 }
 
 func TestValidHexString(t *testing.T) {
+	t.Parallel()
 	t.Run("valid hex strings", func(t *testing.T) {
 		testCases := []struct {
 			value  string
@@ -293,6 +299,7 @@ func TestValidHexString(t *testing.T) {
 }
 
 func TestValidBase64(t *testing.T) {
+	t.Parallel()
 	t.Run("valid base64 strings", func(t *testing.T) {
 		validBase64 := []string{
 			"SGVsbG8gV29ybGQ=",             // "Hello World"
@@ -332,6 +339,7 @@ func TestValidBase64(t *testing.T) {
 }
 
 func TestValidCustomID(t *testing.T) {
+	t.Parallel()
 	t.Run("valid custom IDs", func(t *testing.T) {
 		pattern := `^USR-\d{6}$`
 		description := "user ID"
@@ -374,6 +382,7 @@ func TestValidCustomID(t *testing.T) {
 }
 
 func TestValidDomainName(t *testing.T) {
+	t.Parallel()
 	t.Run("valid domain names", func(t *testing.T) {
 		validDomains := []string{
 			"example.com",
@@ -418,6 +427,7 @@ func TestValidDomainName(t *testing.T) {
 }
 
 func TestValidSubdomain(t *testing.T) {
+	t.Parallel()
 	t.Run("valid subdomains", func(t *testing.T) {
 		validSubdomains := []string{
 			"api",
@@ -460,6 +470,7 @@ func TestValidSubdomain(t *testing.T) {
 }
 
 func TestValidAPIKey(t *testing.T) {
+	t.Parallel()
 	t.Run("valid API keys", func(t *testing.T) {
 		validKeys := []string{
 			"abc123def456",
@@ -504,6 +515,7 @@ func TestValidAPIKey(t *testing.T) {
 }
 
 func TestValidTicketNumber(t *testing.T) {
+	t.Parallel()
 	t.Run("valid ticket numbers", func(t *testing.T) {
 		testCases := []struct {
 			ticket string
@@ -551,6 +563,7 @@ func TestValidTicketNumber(t *testing.T) {
 }
 
 func TestValidVersion(t *testing.T) {
+	t.Parallel()
 	t.Run("valid semantic versions", func(t *testing.T) {
 		validVersions := []string{
 			"1.0.0",
@@ -607,6 +620,7 @@ func TestValidVersion(t *testing.T) {
 }
 
 func TestIdentifierValidationCombination(t *testing.T) {
+	t.Parallel()
 	t.Run("comprehensive identifier validation", func(t *testing.T) {
 		slug := "my-awesome-product"
 		username := "john_doe"

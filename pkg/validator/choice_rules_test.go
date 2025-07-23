@@ -10,6 +10,7 @@ import (
 )
 
 func TestInList(t *testing.T) {
+	t.Parallel()
 	t.Run("valid values in list", func(t *testing.T) {
 		allowedInts := []int{1, 2, 3, 4, 5}
 		validInts := []int{1, 3, 5}
@@ -58,6 +59,7 @@ func TestInList(t *testing.T) {
 }
 
 func TestNotInList(t *testing.T) {
+	t.Parallel()
 	t.Run("valid values not in forbidden list", func(t *testing.T) {
 		forbiddenInts := []int{1, 2, 3}
 		validInts := []int{4, 5, 6, 0, -1}
@@ -86,6 +88,7 @@ func TestNotInList(t *testing.T) {
 }
 
 func TestInListString(t *testing.T) {
+	t.Parallel()
 	t.Run("valid strings in list", func(t *testing.T) {
 		allowedValues := []string{"red", "green", "blue"}
 		validValues := []string{"red", "blue"}
@@ -114,6 +117,7 @@ func TestInListString(t *testing.T) {
 }
 
 func TestNotInListString(t *testing.T) {
+	t.Parallel()
 	t.Run("valid strings not in forbidden list", func(t *testing.T) {
 		forbiddenValues := []string{"admin", "root", "system"}
 		validValues := []string{"user", "guest", "member", "moderator"}
@@ -142,6 +146,7 @@ func TestNotInListString(t *testing.T) {
 }
 
 func TestInListCaseInsensitive(t *testing.T) {
+	t.Parallel()
 	t.Run("valid case insensitive matches", func(t *testing.T) {
 		allowedValues := []string{"Red", "Green", "Blue"}
 		validValues := []string{"red", "RED", "Green", "BLUE", "blue"}
@@ -170,6 +175,7 @@ func TestInListCaseInsensitive(t *testing.T) {
 }
 
 func TestNotInListCaseInsensitive(t *testing.T) {
+	t.Parallel()
 	t.Run("valid case insensitive non-matches", func(t *testing.T) {
 		forbiddenValues := []string{"Admin", "Root", "System"}
 		validValues := []string{"user", "GUEST", "Member", "moderator"}
@@ -198,6 +204,7 @@ func TestNotInListCaseInsensitive(t *testing.T) {
 }
 
 func TestOneOf(t *testing.T) {
+	t.Parallel()
 	t.Run("valid one of values", func(t *testing.T) {
 		options := []string{"small", "medium", "large"}
 
@@ -216,6 +223,7 @@ func TestOneOf(t *testing.T) {
 }
 
 func TestOneOfString(t *testing.T) {
+	t.Parallel()
 	t.Run("valid one of string values", func(t *testing.T) {
 		options := []string{"GET", "POST", "PUT", "DELETE"}
 
@@ -234,6 +242,7 @@ func TestOneOfString(t *testing.T) {
 }
 
 func TestNoneOf(t *testing.T) {
+	t.Parallel()
 	t.Run("valid none of values", func(t *testing.T) {
 		forbiddenOptions := []int{1, 2, 3}
 
@@ -252,6 +261,7 @@ func TestNoneOf(t *testing.T) {
 }
 
 func TestNoneOfString(t *testing.T) {
+	t.Parallel()
 	t.Run("valid none of string values", func(t *testing.T) {
 		forbiddenOptions := []string{"spam", "adult", "violence"}
 
@@ -270,6 +280,7 @@ func TestNoneOfString(t *testing.T) {
 }
 
 func TestValidEnum(t *testing.T) {
+	t.Parallel()
 	t.Run("valid enum values", func(t *testing.T) {
 		enumValues := []string{"PENDING", "PROCESSING", "COMPLETED", "FAILED"}
 		validValues := []string{"PENDING", "COMPLETED"}
@@ -294,6 +305,7 @@ func TestValidEnum(t *testing.T) {
 }
 
 func TestValidEnumCaseInsensitive(t *testing.T) {
+	t.Parallel()
 	t.Run("valid case insensitive enum values", func(t *testing.T) {
 		enumValues := []string{"PENDING", "PROCESSING", "COMPLETED", "FAILED"}
 		validValues := []string{"pending", "COMPLETED", "Processing", "failed"}
@@ -318,6 +330,7 @@ func TestValidEnumCaseInsensitive(t *testing.T) {
 }
 
 func TestValidStatus(t *testing.T) {
+	t.Parallel()
 	t.Run("valid status values", func(t *testing.T) {
 		allowedStatuses := []string{"active", "inactive", "pending", "suspended"}
 		validStatuses := []string{"active", "pending"}
@@ -346,6 +359,7 @@ func TestValidStatus(t *testing.T) {
 }
 
 func TestValidRole(t *testing.T) {
+	t.Parallel()
 	t.Run("valid role values", func(t *testing.T) {
 		allowedRoles := []string{"admin", "user", "moderator", "guest"}
 		validRoles := []string{"admin", "user"}
@@ -374,6 +388,7 @@ func TestValidRole(t *testing.T) {
 }
 
 func TestValidPermission(t *testing.T) {
+	t.Parallel()
 	t.Run("valid permission values", func(t *testing.T) {
 		allowedPermissions := []string{"read", "write", "delete", "admin"}
 		validPermissions := []string{"read", "write"}
@@ -402,6 +417,7 @@ func TestValidPermission(t *testing.T) {
 }
 
 func TestValidCategory(t *testing.T) {
+	t.Parallel()
 	t.Run("valid category values", func(t *testing.T) {
 		allowedCategories := []string{"technology", "sports", "entertainment", "news"}
 		validCategories := []string{"technology", "sports"}
@@ -430,6 +446,7 @@ func TestValidCategory(t *testing.T) {
 }
 
 func TestChoiceValidationCombination(t *testing.T) {
+	t.Parallel()
 	t.Run("comprehensive choice validation", func(t *testing.T) {
 		status := "active"
 		role := "user"

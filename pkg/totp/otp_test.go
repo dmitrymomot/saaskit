@@ -11,6 +11,7 @@ import (
 )
 
 func TestGenerateSecretKey(t *testing.T) {
+	t.Parallel()
 	secret, err := totp.GenerateSecretKey()
 	require.NoError(t, err)
 	assert.NotEmpty(t, secret)
@@ -18,6 +19,7 @@ func TestGenerateSecretKey(t *testing.T) {
 }
 
 func TestGetTOTPURI(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		params  totp.TOTPParams
@@ -52,6 +54,7 @@ func TestGetTOTPURI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := totp.GetTOTPURI(tt.params)
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -64,6 +67,7 @@ func TestGetTOTPURI(t *testing.T) {
 }
 
 func TestValidateTOTP(t *testing.T) {
+	t.Parallel()
 	validSecret, err := totp.GenerateSecretKey()
 	require.NoError(t, err)
 	require.NotEmpty(t, validSecret)
@@ -126,6 +130,7 @@ func TestValidateTOTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result, err := totp.ValidateTOTP(tt.secret, tt.otp)
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -138,6 +143,7 @@ func TestValidateTOTP(t *testing.T) {
 }
 
 func TestGenerateHOTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		key     []byte
@@ -163,6 +169,7 @@ func TestGenerateHOTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			code := totp.GenerateHOTP(tt.key, tt.counter, tt.digits)
 			assert.True(t, code >= 0)
 			assert.True(t, code < int(pow10(tt.digits)))
@@ -179,6 +186,7 @@ func pow10(n int) int64 {
 }
 
 func TestValidateTOTPWithTimeWindow(t *testing.T) {
+	t.Parallel()
 	validSecret, err := totp.GenerateSecretKey()
 	require.NoError(t, err)
 	require.NotEmpty(t, validSecret)
@@ -227,6 +235,7 @@ func TestValidateTOTPWithTimeWindow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result, err := totp.ValidateTOTP(validSecret, tt.otp)
 			if tt.wantErr {
 				assert.Error(t, err)

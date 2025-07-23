@@ -10,6 +10,7 @@ import (
 
 // TestParseOSDetection tests the OS detection with various edge cases
 func TestParseOSDetection(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		ua       string
@@ -59,6 +60,7 @@ func TestParseOSDetection(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := useragent.ParseOS(tc.ua)
 			assert.Equal(t, tc.expected, result)
 		})
@@ -67,6 +69,7 @@ func TestParseOSDetection(t *testing.T) {
 
 // TestOSAccessors tests the OS accessor methods on UserAgent
 func TestOSAccessors(t *testing.T) {
+	t.Parallel()
 	ua := useragent.New(
 		"test-user-agent-string",
 		useragent.DeviceTypeDesktop,

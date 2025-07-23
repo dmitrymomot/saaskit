@@ -16,11 +16,13 @@ import (
 )
 
 func TestLocalStorage_Save(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	storage, err := file.NewLocalStorage(tempDir, "/files/")
 	require.NoError(t, err)
 
 	t.Run("save simple file", func(t *testing.T) {
+		t.Parallel()
 		content := []byte("hello world")
 		fh := createFileHeader("test-file.txt", content)
 		path := "test.txt"
@@ -46,6 +48,7 @@ func TestLocalStorage_Save(t *testing.T) {
 	})
 
 	t.Run("save in nested directory", func(t *testing.T) {
+		t.Parallel()
 		content := []byte("%PDF-1.4")
 		fh := createFileHeader("test-file.txt", content)
 		path := "uploads/docs/report.pdf"
@@ -71,6 +74,7 @@ func TestLocalStorage_Save(t *testing.T) {
 	})
 
 	t.Run("invalid path traversal", func(t *testing.T) {
+		t.Parallel()
 		content := []byte("malicious")
 		fh := createFileHeader("test-file.txt", content)
 		path := "../../../etc/passwd"
@@ -81,6 +85,7 @@ func TestLocalStorage_Save(t *testing.T) {
 	})
 
 	t.Run("nil file header", func(t *testing.T) {
+		t.Parallel()
 		var fh *multipart.FileHeader
 		path := "nil.txt"
 
@@ -91,11 +96,13 @@ func TestLocalStorage_Save(t *testing.T) {
 }
 
 func TestLocalStorage_Delete(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	storage, err := file.NewLocalStorage(tempDir, "/files/")
 	require.NoError(t, err)
 
 	t.Run("delete existing file", func(t *testing.T) {
+		t.Parallel()
 		testFile := "delete-me.txt"
 		filePath := filepath.Join(tempDir, testFile)
 		err := os.WriteFile(filePath, []byte("delete me"), 0644)
@@ -114,6 +121,7 @@ func TestLocalStorage_Delete(t *testing.T) {
 	})
 
 	t.Run("delete non-existent file", func(t *testing.T) {
+		t.Parallel()
 		path := "not-exists.txt"
 
 		err := storage.Delete(context.Background(), path)
@@ -122,6 +130,7 @@ func TestLocalStorage_Delete(t *testing.T) {
 	})
 
 	t.Run("try to delete directory", func(t *testing.T) {
+		t.Parallel()
 		testDir := "test-dir"
 		dirPath := filepath.Join(tempDir, testDir)
 		err := os.Mkdir(dirPath, 0755)
@@ -138,6 +147,7 @@ func TestLocalStorage_Delete(t *testing.T) {
 	})
 
 	t.Run("invalid path traversal", func(t *testing.T) {
+		t.Parallel()
 		err := storage.Delete(context.Background(), "../../../etc/passwd")
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, file.ErrInvalidPath))
@@ -145,11 +155,13 @@ func TestLocalStorage_Delete(t *testing.T) {
 }
 
 func TestLocalStorage_DeleteDir(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	storage, err := file.NewLocalStorage(tempDir, "/files/")
 	require.NoError(t, err)
 
 	t.Run("delete directory with contents", func(t *testing.T) {
+		t.Parallel()
 		testDir := "test-dir"
 		testDirAbs := filepath.Join(tempDir, testDir)
 		nestedDir := filepath.Join(testDirAbs, "nested")
@@ -174,6 +186,7 @@ func TestLocalStorage_DeleteDir(t *testing.T) {
 	})
 
 	t.Run("delete non-existent directory", func(t *testing.T) {
+		t.Parallel()
 		path := "not-exists"
 
 		err := storage.DeleteDir(context.Background(), path)
@@ -182,6 +195,7 @@ func TestLocalStorage_DeleteDir(t *testing.T) {
 	})
 
 	t.Run("try to delete file", func(t *testing.T) {
+		t.Parallel()
 		singleFile := "single.txt"
 		filePath := filepath.Join(tempDir, singleFile)
 		err := os.WriteFile(filePath, []byte("single"), 0644)
@@ -198,6 +212,7 @@ func TestLocalStorage_DeleteDir(t *testing.T) {
 	})
 
 	t.Run("invalid path traversal", func(t *testing.T) {
+		t.Parallel()
 		err := storage.DeleteDir(context.Background(), "../../../etc")
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, file.ErrInvalidPath))
@@ -205,11 +220,13 @@ func TestLocalStorage_DeleteDir(t *testing.T) {
 }
 
 func TestLocalStorage_Exists(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	storage, err := file.NewLocalStorage(tempDir, "/files/")
 	require.NoError(t, err)
 
 	t.Run("existing file", func(t *testing.T) {
+		t.Parallel()
 		testFile := "exists.txt"
 		filePath := filepath.Join(tempDir, testFile)
 		err := os.WriteFile(filePath, []byte("I exist"), 0644)
@@ -225,6 +242,7 @@ func TestLocalStorage_Exists(t *testing.T) {
 	})
 
 	t.Run("existing directory", func(t *testing.T) {
+		t.Parallel()
 		testDir := "existing-dir"
 		dirPath := filepath.Join(tempDir, testDir)
 		err := os.Mkdir(dirPath, 0755)
@@ -240,6 +258,7 @@ func TestLocalStorage_Exists(t *testing.T) {
 	})
 
 	t.Run("non-existent file", func(t *testing.T) {
+		t.Parallel()
 		path := "not-exists.txt"
 
 		exists := storage.Exists(context.Background(), path)
@@ -247,17 +266,20 @@ func TestLocalStorage_Exists(t *testing.T) {
 	})
 
 	t.Run("invalid path traversal", func(t *testing.T) {
+		t.Parallel()
 		exists := storage.Exists(context.Background(), "../../../etc/passwd")
 		assert.False(t, exists)
 	})
 }
 
 func TestLocalStorage_List(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	storage, err := file.NewLocalStorage(tempDir, "/files/")
 	require.NoError(t, err)
 
 	t.Run("list directory contents", func(t *testing.T) {
+		t.Parallel()
 		testDir := "list-test"
 		testDirAbs := filepath.Join(tempDir, testDir)
 		err := os.MkdirAll(testDirAbs, 0755)
@@ -305,6 +327,7 @@ func TestLocalStorage_List(t *testing.T) {
 	})
 
 	t.Run("list empty directory", func(t *testing.T) {
+		t.Parallel()
 		dir := "empty"
 
 		entries, err := storage.List(context.Background(), dir)
@@ -314,6 +337,7 @@ func TestLocalStorage_List(t *testing.T) {
 	})
 
 	t.Run("list file as directory", func(t *testing.T) {
+		t.Parallel()
 		testFile := "test-file.txt"
 		filePath := filepath.Join(tempDir, testFile)
 		err := os.WriteFile(filePath, []byte("content"), 0644)
@@ -331,6 +355,7 @@ func TestLocalStorage_List(t *testing.T) {
 	})
 
 	t.Run("invalid path traversal", func(t *testing.T) {
+		t.Parallel()
 		entries, err := storage.List(context.Background(), "../../../etc")
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, file.ErrInvalidPath))
@@ -339,6 +364,7 @@ func TestLocalStorage_List(t *testing.T) {
 }
 
 func TestLocalStorage_URL(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		baseURL string
@@ -385,6 +411,7 @@ func TestLocalStorage_URL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			storage, err := file.NewLocalStorage(t.TempDir(), tt.baseURL)
 			require.NoError(t, err)
 			got := storage.URL(tt.path)
@@ -394,9 +421,11 @@ func TestLocalStorage_URL(t *testing.T) {
 }
 
 func TestLocalStorage_WithTimeout(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	t.Run("upload times out", func(t *testing.T) {
+		t.Parallel()
 		// Create storage with very short timeout
 		storage, err := file.NewLocalStorage(tempDir, "/files/", file.WithLocalUploadTimeout(1*time.Nanosecond))
 		require.NoError(t, err)
@@ -414,6 +443,7 @@ func TestLocalStorage_WithTimeout(t *testing.T) {
 	})
 
 	t.Run("upload completes within timeout", func(t *testing.T) {
+		t.Parallel()
 		// Create storage with reasonable timeout
 		storage, err := file.NewLocalStorage(tempDir, "/files/", file.WithLocalUploadTimeout(5*time.Second))
 		require.NoError(t, err)
@@ -432,6 +462,7 @@ func TestLocalStorage_WithTimeout(t *testing.T) {
 }
 
 func TestLocalStorage_Integration(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	storage, err := file.NewLocalStorage(tempDir, "/files/")
 	require.NoError(t, err)

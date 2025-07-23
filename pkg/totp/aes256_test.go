@@ -12,6 +12,7 @@ import (
 )
 
 func TestEncryptDecryptSecret(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		plainText string
@@ -40,6 +41,7 @@ func TestEncryptDecryptSecret(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// Encrypt
 			encrypted, err := totp.EncryptSecret(tt.plainText, tt.key)
 			if tt.wantErr != nil {
@@ -62,6 +64,7 @@ func TestEncryptDecryptSecret(t *testing.T) {
 }
 
 func TestDecryptSecret_Invalid(t *testing.T) {
+	t.Parallel()
 	key := make([]byte, 32)
 	tests := []struct {
 		name             string
@@ -79,6 +82,7 @@ func TestDecryptSecret_Invalid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := totp.DecryptSecret(tt.cipherTextBase64, key)
 			assert.Error(t, err)
 		})
@@ -86,12 +90,14 @@ func TestDecryptSecret_Invalid(t *testing.T) {
 }
 
 func TestGenerateEncryptionKey(t *testing.T) {
+	t.Parallel()
 	key, err := totp.GenerateEncryptionKey()
 	require.NoError(t, err)
 	assert.Len(t, key, 32)
 }
 
 func TestGenerateEncodedEncryptionKey(t *testing.T) {
+	t.Parallel()
 	key, err := totp.GenerateEncodedEncryptionKey()
 	fmt.Println(key) // Print the key to stdout
 	require.NoError(t, err)

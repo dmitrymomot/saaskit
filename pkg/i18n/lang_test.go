@@ -11,6 +11,7 @@ import (
 )
 
 func TestParseAcceptLanguage(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		header         string
@@ -71,6 +72,7 @@ func TestParseAcceptLanguage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := i18n.ParseAcceptLanguage(tt.header, tt.supportedLangs, tt.defaultLang)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -78,6 +80,7 @@ func TestParseAcceptLanguage(t *testing.T) {
 }
 
 func TestDefaultLangExtractor(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		setupRequest func(*http.Request)
@@ -175,6 +178,7 @@ func TestDefaultLangExtractor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest("GET", "/", nil)
 			tt.setupRequest(req)
 

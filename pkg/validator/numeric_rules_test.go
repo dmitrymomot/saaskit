@@ -9,6 +9,7 @@ import (
 )
 
 func TestRequiredNum(t *testing.T) {
+	t.Parallel()
 	t.Run("passes for non-zero int", func(t *testing.T) {
 		rule := validator.RequiredNum("age", 25)
 		assert.True(t, rule.Check())
@@ -75,6 +76,7 @@ func TestRequiredNum(t *testing.T) {
 }
 
 func TestMinNum(t *testing.T) {
+	t.Parallel()
 	t.Run("passes when int value equals minimum", func(t *testing.T) {
 		rule := validator.MinNum("age", 18, 18)
 		assert.True(t, rule.Check())
@@ -142,6 +144,7 @@ func TestMinNum(t *testing.T) {
 }
 
 func TestMaxNum(t *testing.T) {
+	t.Parallel()
 	t.Run("passes when int value equals maximum", func(t *testing.T) {
 		rule := validator.MaxNum("age", 65, 65)
 		assert.True(t, rule.Check())
@@ -209,6 +212,7 @@ func TestMaxNum(t *testing.T) {
 }
 
 func TestNumericConvenienceAliases(t *testing.T) {
+	t.Parallel()
 	t.Run("Min alias works for int", func(t *testing.T) {
 		rule := validator.Min("age", 25, 18)
 		assert.True(t, rule.Check())
@@ -237,6 +241,7 @@ func TestNumericConvenienceAliases(t *testing.T) {
 }
 
 func TestNumericRulesIntegration(t *testing.T) {
+	t.Parallel()
 	t.Run("validates complete numeric input", func(t *testing.T) {
 		age := 25
 		score := 85.5

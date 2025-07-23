@@ -19,9 +19,12 @@ func getTestParsers() (yamlParser, jsonParser i18n.Parser) {
 }
 
 func TestFileAdapter(t *testing.T) {
+	t.Parallel()
 	// Test both happy path and error scenarios
 	t.Run("successful file loading", func(t *testing.T) {
+		t.Parallel()
 		t.Run("loads translations from valid YAML file", func(t *testing.T) {
+			t.Parallel()
 			// Arrange
 			testdataDir := filepath.Join("testdata")
 			filePath := filepath.Join(testdataDir, "en.yaml")
@@ -42,6 +45,7 @@ func TestFileAdapter(t *testing.T) {
 
 	t.Run("error handling", func(t *testing.T) {
 		t.Run("returns error for non-existent file", func(t *testing.T) {
+			t.Parallel()
 			// Arrange
 			nonExistentFile := filepath.Join("testdata", "non_existent.yaml")
 			yamlParser, _ := getTestParsers()
@@ -57,6 +61,7 @@ func TestFileAdapter(t *testing.T) {
 		})
 
 		t.Run("returns error for empty file", func(t *testing.T) {
+			t.Parallel()
 			// Create a temporary empty file
 			tempFile, err := os.CreateTemp("", "empty-*.yaml")
 			require.NoError(t, err, "Failed to create temp file")
@@ -77,6 +82,7 @@ func TestFileAdapter(t *testing.T) {
 		})
 
 		t.Run("returns error when parser fails", func(t *testing.T) {
+			t.Parallel()
 			// Arrange
 			filePath := filepath.Join("testdata", "invalid_syntax.yaml")
 			yamlParser, _ := getTestParsers()
@@ -92,6 +98,7 @@ func TestFileAdapter(t *testing.T) {
 		})
 
 		t.Run("respects context cancellation", func(t *testing.T) {
+			t.Parallel()
 			// Arrange
 			filePath := filepath.Join("testdata", "en.yaml")
 			yamlParser, _ := getTestParsers()
@@ -113,9 +120,12 @@ func TestFileAdapter(t *testing.T) {
 }
 
 func TestDirectoryAdapter(t *testing.T) {
+	t.Parallel()
 	// Test both happy path and error scenarios
 	t.Run("successful directory loading", func(t *testing.T) {
+		t.Parallel()
 		t.Run("loads translations from multiple files", func(t *testing.T) {
+			t.Parallel()
 			// Arrange
 			testdataDir := filepath.Join("testdata")
 			yamlParser, _ := getTestParsers()
@@ -137,6 +147,7 @@ func TestDirectoryAdapter(t *testing.T) {
 		})
 
 		t.Run("filters files by parser-supported extensions", func(t *testing.T) {
+			t.Parallel()
 			// Arrange - use the real JSON parser which only supports JSON files
 			_, jsonParser := getTestParsers()
 
@@ -174,7 +185,9 @@ func TestDirectoryAdapter(t *testing.T) {
 	})
 
 	t.Run("error handling", func(t *testing.T) {
+		t.Parallel()
 		t.Run("returns error for non-existent directory", func(t *testing.T) {
+			t.Parallel()
 			// Arrange
 			nonExistentDir := filepath.Join("testdata", "non_existent_dir")
 			yamlParser, _ := getTestParsers()
@@ -190,6 +203,7 @@ func TestDirectoryAdapter(t *testing.T) {
 		})
 
 		t.Run("returns error when path is not a directory", func(t *testing.T) {
+			t.Parallel()
 			// Arrange - use a file path instead of directory
 			filePath := filepath.Join("testdata", "en.yaml")
 			yamlParser, _ := getTestParsers()
@@ -205,6 +219,7 @@ func TestDirectoryAdapter(t *testing.T) {
 		})
 
 		t.Run("returns error when no valid translation files found", func(t *testing.T) {
+			t.Parallel()
 			// Create a temporary empty directory
 			tempDir, err := os.MkdirTemp("", "empty_translations")
 			require.NoError(t, err, "Failed to create temp directory")
@@ -224,6 +239,7 @@ func TestDirectoryAdapter(t *testing.T) {
 		})
 
 		t.Run("continues processing after individual file failures", func(t *testing.T) {
+			t.Parallel()
 			// Create a temporary directory with one good and one bad file
 			tempDir, err := os.MkdirTemp("", "mixed_translations")
 			require.NoError(t, err, "Failed to create temp directory")
@@ -257,6 +273,7 @@ func TestDirectoryAdapter(t *testing.T) {
 		})
 
 		t.Run("respects context cancellation", func(t *testing.T) {
+			t.Parallel()
 			// Arrange
 			testdataDir := filepath.Join("testdata")
 			yamlParser, _ := getTestParsers()
@@ -284,7 +301,9 @@ var testEmbeddedFS embed.FS
 
 // TestEmbeddedFsAdapter tests the behavior of the EmbeddedFsAdapter
 func TestEmbeddedFsAdapter(t *testing.T) {
+	t.Parallel()
 	t.Run("returns error for non-existent directory", func(t *testing.T) {
+		t.Parallel()
 		// Arrange
 		var emptyFS embed.FS
 		yamlParser, _ := getTestParsers()
@@ -301,6 +320,7 @@ func TestEmbeddedFsAdapter(t *testing.T) {
 	})
 
 	t.Run("respects context cancellation", func(t *testing.T) {
+		t.Parallel()
 		// Arrange
 		var emptyFS embed.FS
 		yamlParser, _ := getTestParsers()
@@ -323,11 +343,13 @@ func TestEmbeddedFsAdapter(t *testing.T) {
 
 // TestEmbeddedFsAdapterIntegration provides more realistic tests using a real embed.FS
 func TestEmbeddedFsAdapterIntegration(t *testing.T) {
+	t.Parallel()
 	// Instead of skipping, make sure the directory exists
 	_, err := testEmbeddedFS.ReadDir("testdata")
 	require.NoError(t, err, "testdata directory must exist for embedded FS tests")
 
 	t.Run("loads and merges translations from multiple embedded files", func(t *testing.T) {
+		t.Parallel()
 		// Arrange - use real parsers for translations
 		yamlParser, _ := getTestParsers()
 
@@ -361,6 +383,7 @@ func TestEmbeddedFsAdapterIntegration(t *testing.T) {
 	})
 
 	t.Run("respects file extension filtering", func(t *testing.T) {
+		t.Parallel()
 		// Arrange - use the real JSON parser
 		_, jsonParser := getTestParsers()
 
@@ -386,6 +409,7 @@ func TestEmbeddedFsAdapterIntegration(t *testing.T) {
 	})
 
 	t.Run("handles subdirectories properly", func(t *testing.T) {
+		t.Parallel()
 		// Arrange - use real parsers instead of mocks
 		yamlParser, _ := getTestParsers()
 
@@ -418,23 +442,27 @@ func TestEmbeddedFsAdapterIntegration(t *testing.T) {
 
 // TestAdaptersIntegration provides comprehensive integration tests for all adapters
 func TestAdaptersIntegration(t *testing.T) {
+	t.Parallel()
 	t.Run("real file system operations", func(t *testing.T) {
-		// Create a temporary directory structure
-		tempDir, err := os.MkdirTemp("", "i18n_integration")
-		require.NoError(t, err)
-		defer os.RemoveAll(tempDir)
+		t.Parallel()
 
-		// Create subdirectory structure
-		localesDir := filepath.Join(tempDir, "locales")
-		err = os.MkdirAll(localesDir, 0755)
-		require.NoError(t, err)
+		// Helper function to create test files for each test
+		createTestFiles := func(t *testing.T) (tempDir, localesDir string) {
+			// Create a temporary directory structure
+			tempDir, err := os.MkdirTemp("", "i18n_integration")
+			require.NoError(t, err)
 
-		nestedDir := filepath.Join(localesDir, "nested")
-		err = os.MkdirAll(nestedDir, 0755)
-		require.NoError(t, err)
+			// Create subdirectory structure
+			localesDir = filepath.Join(tempDir, "locales")
+			err = os.MkdirAll(localesDir, 0755)
+			require.NoError(t, err)
 
-		// Create multiple translation files with different formats
-		yamlContent := `en:
+			nestedDir := filepath.Join(localesDir, "nested")
+			err = os.MkdirAll(nestedDir, 0755)
+			require.NoError(t, err)
+
+			// Create multiple translation files with different formats
+			yamlContent := `en:
   app:
     name: "My App"
     version: "1.0.0"
@@ -459,7 +487,7 @@ fr:
       one: "%{count} élément"
       other: "%{count} éléments"`
 
-		jsonContent := `{
+			jsonContent := `{
   "es": {
     "app": {
       "name": "Mi App",
@@ -479,7 +507,7 @@ fr:
   }
 }`
 
-		nestedYamlContent := `de:
+			nestedYamlContent := `de:
   app:
     name: "Meine App"
     version: "1.0.0"
@@ -492,18 +520,25 @@ fr:
       one: "%{count} Element"
       other: "%{count} Elemente"`
 
-		// Write files
-		err = os.WriteFile(filepath.Join(localesDir, "main.yaml"), []byte(yamlContent), 0644)
-		require.NoError(t, err)
+			// Write files
+			err = os.WriteFile(filepath.Join(localesDir, "main.yaml"), []byte(yamlContent), 0644)
+			require.NoError(t, err)
 
-		err = os.WriteFile(filepath.Join(localesDir, "spanish.json"), []byte(jsonContent), 0644)
-		require.NoError(t, err)
+			err = os.WriteFile(filepath.Join(localesDir, "spanish.json"), []byte(jsonContent), 0644)
+			require.NoError(t, err)
 
-		err = os.WriteFile(filepath.Join(nestedDir, "german.yaml"), []byte(nestedYamlContent), 0644)
-		require.NoError(t, err)
+			err = os.WriteFile(filepath.Join(nestedDir, "german.yaml"), []byte(nestedYamlContent), 0644)
+			require.NoError(t, err)
+
+			return tempDir, localesDir
+		}
 
 		// Test FileAdapter with complex YAML
 		t.Run("FileAdapter with complex nested YAML", func(t *testing.T) {
+			t.Parallel()
+			tempDir, localesDir := createTestFiles(t)
+			defer os.RemoveAll(tempDir)
+
 			yamlParser := i18n.NewYAMLParser()
 			adapter := i18n.NewFileAdapter(yamlParser, filepath.Join(localesDir, "main.yaml"))
 
@@ -539,6 +574,10 @@ fr:
 
 		// Test DirectoryAdapter with mixed file types
 		t.Run("DirectoryAdapter with mixed file types and nested structure", func(t *testing.T) {
+			t.Parallel()
+			tempDir, localesDir := createTestFiles(t)
+			defer os.RemoveAll(tempDir)
+
 			yamlParser := i18n.NewYAMLParser()
 			adapter := i18n.NewDirectoryAdapter(yamlParser, localesDir)
 
@@ -569,6 +608,10 @@ fr:
 
 		// Test DirectoryAdapter with JSON parser
 		t.Run("DirectoryAdapter filters by parser type", func(t *testing.T) {
+			t.Parallel()
+			tempDir, localesDir := createTestFiles(t)
+			defer os.RemoveAll(tempDir)
+
 			jsonParser := i18n.NewJSONParser()
 			adapter := i18n.NewDirectoryAdapter(jsonParser, localesDir)
 

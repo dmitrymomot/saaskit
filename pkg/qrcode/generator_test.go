@@ -15,7 +15,9 @@ import (
 )
 
 func TestGenerate(t *testing.T) {
+	t.Parallel()
 	t.Run("returns error when content is empty", func(t *testing.T) {
+		t.Parallel()
 		content := ""
 		size := 256
 
@@ -28,6 +30,7 @@ func TestGenerate(t *testing.T) {
 	})
 
 	t.Run("returns error when content is whitespace only", func(t *testing.T) {
+		t.Parallel()
 		content := "   \t\n"
 		size := 256
 
@@ -40,6 +43,7 @@ func TestGenerate(t *testing.T) {
 	})
 
 	t.Run("generates QR code with valid content and size", func(t *testing.T) {
+		t.Parallel()
 		content := "https://example.com"
 		size := 256
 
@@ -59,6 +63,7 @@ func TestGenerate(t *testing.T) {
 	})
 
 	t.Run("uses default size when size is zero", func(t *testing.T) {
+		t.Parallel()
 		content := "https://example.com"
 		size := 0 // Should default to 256
 
@@ -77,6 +82,7 @@ func TestGenerate(t *testing.T) {
 	})
 
 	t.Run("uses default size when size is negative", func(t *testing.T) {
+		t.Parallel()
 		content := "https://example.com"
 		size := -10 // Should default to 256
 
@@ -95,6 +101,7 @@ func TestGenerate(t *testing.T) {
 	})
 
 	t.Run("generates QR code with custom size", func(t *testing.T) {
+		t.Parallel()
 		content := "https://example.com"
 		size := 400
 
@@ -113,7 +120,9 @@ func TestGenerate(t *testing.T) {
 }
 
 func TestGenerateBase64Image(t *testing.T) {
+	t.Parallel()
 	t.Run("returns error when content is empty", func(t *testing.T) {
+		t.Parallel()
 		content := ""
 		size := 256
 
@@ -126,6 +135,7 @@ func TestGenerateBase64Image(t *testing.T) {
 	})
 
 	t.Run("returns error when content is whitespace only", func(t *testing.T) {
+		t.Parallel()
 		content := "   \t\n"
 		size := 256
 
@@ -138,6 +148,7 @@ func TestGenerateBase64Image(t *testing.T) {
 	})
 
 	t.Run("generates base64 data URI with valid content and size", func(t *testing.T) {
+		t.Parallel()
 		content := "https://example.com"
 		size := 256
 
@@ -157,6 +168,7 @@ func TestGenerateBase64Image(t *testing.T) {
 	})
 
 	t.Run("uses default size when size is zero", func(t *testing.T) {
+		t.Parallel()
 		content := "https://example.com"
 		size := 0 // Should default to 256
 
@@ -171,6 +183,7 @@ func TestGenerateBase64Image(t *testing.T) {
 	})
 
 	t.Run("uses default size when size is negative", func(t *testing.T) {
+		t.Parallel()
 		content := "https://example.com"
 		size := -10 // Should default to 256
 
@@ -185,6 +198,7 @@ func TestGenerateBase64Image(t *testing.T) {
 	})
 
 	t.Run("can decode base64 content to valid PNG", func(t *testing.T) {
+		t.Parallel()
 		content := "https://example.com"
 		size := 256
 

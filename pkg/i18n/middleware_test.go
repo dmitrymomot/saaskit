@@ -32,7 +32,9 @@ func (m *mockTranslator) Lang(header string, defaultLocale ...string) string {
 }
 
 func TestSetLocale(t *testing.T) {
+	t.Parallel()
 	t.Run("sets locale in context", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		locale := "fr"
 
@@ -44,6 +46,7 @@ func TestSetLocale(t *testing.T) {
 	})
 
 	t.Run("overwrites existing locale", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		ctx = i18n.SetLocale(ctx, "en")
 		ctx = i18n.SetLocale(ctx, "fr")
@@ -55,7 +58,9 @@ func TestSetLocale(t *testing.T) {
 }
 
 func TestGetLocale(t *testing.T) {
+	t.Parallel()
 	t.Run("returns default when no locale set", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 
 		locale := i18n.GetLocale(ctx)
@@ -63,6 +68,7 @@ func TestGetLocale(t *testing.T) {
 	})
 
 	t.Run("returns set locale", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		ctx = i18n.SetLocale(ctx, "es")
 
@@ -71,6 +77,7 @@ func TestGetLocale(t *testing.T) {
 	})
 
 	t.Run("handles empty string locale", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		ctx = i18n.SetLocale(ctx, "") // Empty string
 
@@ -79,6 +86,7 @@ func TestGetLocale(t *testing.T) {
 	})
 
 	t.Run("handles context without locale", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		// Don't set any locale in context
 
@@ -88,7 +96,9 @@ func TestGetLocale(t *testing.T) {
 }
 
 func TestMiddleware(t *testing.T) {
+	t.Parallel()
 	t.Run("uses default extractor when none provided", func(t *testing.T) {
+		t.Parallel()
 		// Arrange
 		middleware := i18n.Middleware(nil)
 
@@ -112,6 +122,7 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("uses extractor when provided", func(t *testing.T) {
+		t.Parallel()
 		// Arrange
 		// Custom extractor that returns German
 		extractor := func(r *http.Request) string {
@@ -140,6 +151,7 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("falls back to 'en' when extractor returns empty", func(t *testing.T) {
+		t.Parallel()
 		// Arrange
 		// Extractor that returns empty string
 		extractor := func(r *http.Request) string {
@@ -168,6 +180,7 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("handles missing Accept-Language header", func(t *testing.T) {
+		t.Parallel()
 		// Arrange
 		middleware := i18n.Middleware(nil)
 
@@ -190,6 +203,7 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("preserves original request context", func(t *testing.T) {
+		t.Parallel()
 		// Arrange
 		extractor := func(r *http.Request) string {
 			return "ja"
@@ -227,6 +241,7 @@ func TestMiddleware(t *testing.T) {
 }
 
 func TestMiddlewareWithRealTranslator(t *testing.T) {
+	t.Parallel()
 	// Create a real translator for integration testing
 	translations := map[string]map[string]any{
 		"en": {"hello": "Hello"},
@@ -240,6 +255,7 @@ func TestMiddlewareWithRealTranslator(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("integration test with real translator", func(t *testing.T) {
+		t.Parallel()
 		// Use DefaultLangExtractor with supported languages for proper validation
 		middleware := i18n.Middleware(i18n.DefaultLangExtractor(
 			i18n.WithSupportedLanguages(translator.SupportedLanguages()...),
@@ -286,6 +302,7 @@ func TestMiddlewareWithRealTranslator(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 				req := httptest.NewRequest("GET", "/test", nil)
 				if tt.acceptLanguage != "" {
 					req.Header.Set("Accept-Language", tt.acceptLanguage)
@@ -301,6 +318,7 @@ func TestMiddlewareWithRealTranslator(t *testing.T) {
 	})
 
 	t.Run("custom extractor integration test", func(t *testing.T) {
+		t.Parallel()
 		// Custom extractor that uses query parameter
 		extractor := func(r *http.Request) string {
 			return r.URL.Query().Get("lang")
@@ -339,6 +357,7 @@ func TestMiddlewareWithRealTranslator(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 				req := httptest.NewRequest("GET", tt.url, nil)
 				req.Header.Set("Accept-Language", "es-ES,es;q=0.9,en;q=0.8")
 				rec := httptest.NewRecorder()
@@ -353,7 +372,9 @@ func TestMiddlewareWithRealTranslator(t *testing.T) {
 }
 
 func TestMiddlewareChaining(t *testing.T) {
+	t.Parallel()
 	t.Run("chains with other middleware", func(t *testing.T) {
+		t.Parallel()
 		// Create an extractor that returns French
 		extractor := func(r *http.Request) string {
 			return "fr"

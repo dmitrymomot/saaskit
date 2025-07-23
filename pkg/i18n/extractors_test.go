@@ -11,7 +11,9 @@ import (
 )
 
 func TestExtractorOptions(t *testing.T) {
+	t.Parallel()
 	t.Run("WithCookieName", func(t *testing.T) {
+		t.Parallel()
 		extractor := i18n.DefaultLangExtractor(i18n.WithCookieName("custom_lang"))
 
 		req := httptest.NewRequest("GET", "/", nil)
@@ -23,6 +25,7 @@ func TestExtractorOptions(t *testing.T) {
 	})
 
 	t.Run("WithQueryParamName", func(t *testing.T) {
+		t.Parallel()
 		extractor := i18n.DefaultLangExtractor(i18n.WithQueryParamName("locale"))
 
 		req := httptest.NewRequest("GET", "/?locale=es&lang=fr", nil)
@@ -32,6 +35,7 @@ func TestExtractorOptions(t *testing.T) {
 	})
 
 	t.Run("WithSupportedLanguages", func(t *testing.T) {
+		t.Parallel()
 		extractor := i18n.DefaultLangExtractor(i18n.WithSupportedLanguages("en", "fr", "de"))
 
 		tests := []struct {
@@ -64,6 +68,7 @@ func TestExtractorOptions(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 				req := httptest.NewRequest("GET", "/", nil)
 				tt.setup(req)
 				result := extractor(req)
@@ -73,6 +78,7 @@ func TestExtractorOptions(t *testing.T) {
 	})
 
 	t.Run("multiple options combined", func(t *testing.T) {
+		t.Parallel()
 		extractor := i18n.DefaultLangExtractor(
 			i18n.WithCookieName("locale"),
 			i18n.WithQueryParamName("l"),
@@ -88,6 +94,7 @@ func TestExtractorOptions(t *testing.T) {
 }
 
 func TestDefaultLangExtractorPriority(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		setup    func(*http.Request)
@@ -139,6 +146,7 @@ func TestDefaultLangExtractorPriority(t *testing.T) {
 	extractor := i18n.DefaultLangExtractor()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest("GET", "/", nil)
 			tt.setup(req)
 			result := extractor(req)
@@ -187,6 +195,7 @@ func TestDefaultLangExtractorWhitespaceHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest("GET", "/", nil)
 			tt.setup(req)
 			result := extractor(req)
@@ -196,6 +205,7 @@ func TestDefaultLangExtractorWhitespaceHandling(t *testing.T) {
 }
 
 func TestDefaultLangExtractorValidation(t *testing.T) {
+	t.Parallel()
 	supported := []string{"en", "fr", "de", "es"}
 	extractor := i18n.DefaultLangExtractor(i18n.WithSupportedLanguages(supported...))
 
@@ -247,6 +257,7 @@ func TestDefaultLangExtractorValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest("GET", "/", nil)
 			tt.setup(req)
 			result := extractor(req)
@@ -256,7 +267,9 @@ func TestDefaultLangExtractorValidation(t *testing.T) {
 }
 
 func TestDefaultLangExtractorEdgeCases(t *testing.T) {
+	t.Parallel()
 	t.Run("empty cookie value", func(t *testing.T) {
+		t.Parallel()
 		extractor := i18n.DefaultLangExtractor()
 		req := httptest.NewRequest("GET", "/", nil)
 		req.AddCookie(&http.Cookie{Name: "lang", Value: ""})
@@ -267,6 +280,7 @@ func TestDefaultLangExtractorEdgeCases(t *testing.T) {
 	})
 
 	t.Run("cookie error handling", func(t *testing.T) {
+		t.Parallel()
 		extractor := i18n.DefaultLangExtractor()
 		req := httptest.NewRequest("GET", "/", nil)
 		// No cookie set, should not panic
@@ -275,6 +289,7 @@ func TestDefaultLangExtractorEdgeCases(t *testing.T) {
 	})
 
 	t.Run("complex Accept-Language without validation", func(t *testing.T) {
+		t.Parallel()
 		extractor := i18n.DefaultLangExtractor()
 		req := httptest.NewRequest("GET", "/", nil)
 		req.Header.Set("Accept-Language", "en-US;q=0.8,en;q=0.7,fr-FR;q=0.9")
@@ -284,6 +299,7 @@ func TestDefaultLangExtractorEdgeCases(t *testing.T) {
 	})
 
 	t.Run("malformed Accept-Language header", func(t *testing.T) {
+		t.Parallel()
 		extractor := i18n.DefaultLangExtractor()
 		req := httptest.NewRequest("GET", "/", nil)
 		req.Header.Set("Accept-Language", "invalid;;q=abc,en")
@@ -293,6 +309,7 @@ func TestDefaultLangExtractorEdgeCases(t *testing.T) {
 	})
 
 	t.Run("case sensitivity", func(t *testing.T) {
+		t.Parallel()
 		// Test without validation - case is preserved
 		extractor1 := i18n.DefaultLangExtractor()
 		req1 := httptest.NewRequest("GET", "/", nil)
@@ -312,6 +329,7 @@ func TestDefaultLangExtractorEdgeCases(t *testing.T) {
 }
 
 func TestDefaultLangExtractorConcurrency(t *testing.T) {
+	t.Parallel()
 	extractor := i18n.DefaultLangExtractor(
 		i18n.WithSupportedLanguages("en", "fr", "de"),
 	)
@@ -341,6 +359,7 @@ func TestDefaultLangExtractorConcurrency(t *testing.T) {
 }
 
 func TestExtractorIntegrationWithMiddleware(t *testing.T) {
+	t.Parallel()
 	// Create a custom extractor that only checks query params
 	extractor := i18n.DefaultLangExtractor(
 		i18n.WithCookieName(""), // Disable cookie checking

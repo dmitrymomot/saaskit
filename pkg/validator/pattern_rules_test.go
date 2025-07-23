@@ -10,6 +10,7 @@ import (
 )
 
 func TestMatchesRegex(t *testing.T) {
+	t.Parallel()
 	t.Run("valid regex matches", func(t *testing.T) {
 		testCases := []struct {
 			value       string
@@ -56,6 +57,7 @@ func TestMatchesRegex(t *testing.T) {
 }
 
 func TestDoesNotMatchRegex(t *testing.T) {
+	t.Parallel()
 	t.Run("valid non-matches", func(t *testing.T) {
 		testCases := []struct {
 			value       string
@@ -98,6 +100,7 @@ func TestDoesNotMatchRegex(t *testing.T) {
 }
 
 func TestContainsPattern(t *testing.T) {
+	t.Parallel()
 	t.Run("valid pattern contains", func(t *testing.T) {
 		testCases := []struct {
 			value       string
@@ -142,6 +145,7 @@ func TestContainsPattern(t *testing.T) {
 }
 
 func TestStartsWithPattern(t *testing.T) {
+	t.Parallel()
 	t.Run("valid starts with pattern", func(t *testing.T) {
 		testCases := []struct {
 			value   string
@@ -184,6 +188,7 @@ func TestStartsWithPattern(t *testing.T) {
 }
 
 func TestEndsWithPattern(t *testing.T) {
+	t.Parallel()
 	t.Run("valid ends with pattern", func(t *testing.T) {
 		testCases := []struct {
 			value   string
@@ -226,6 +231,7 @@ func TestEndsWithPattern(t *testing.T) {
 }
 
 func TestNoWhitespace(t *testing.T) {
+	t.Parallel()
 	t.Run("valid no whitespace", func(t *testing.T) {
 		validValues := []string{
 			"helloworld",
@@ -265,6 +271,7 @@ func TestNoWhitespace(t *testing.T) {
 }
 
 func TestOnlyWhitespace(t *testing.T) {
+	t.Parallel()
 	t.Run("valid only whitespace", func(t *testing.T) {
 		validValues := []string{
 			"   ",
@@ -305,6 +312,7 @@ func TestOnlyWhitespace(t *testing.T) {
 }
 
 func TestNoControlChars(t *testing.T) {
+	t.Parallel()
 	t.Run("valid no control chars", func(t *testing.T) {
 		validValues := []string{
 			"hello world",
@@ -344,6 +352,7 @@ func TestNoControlChars(t *testing.T) {
 }
 
 func TestPrintableChars(t *testing.T) {
+	t.Parallel()
 	t.Run("valid printable chars", func(t *testing.T) {
 		validValues := []string{
 			"hello world",
@@ -380,6 +389,7 @@ func TestPrintableChars(t *testing.T) {
 }
 
 func TestASCIIOnly(t *testing.T) {
+	t.Parallel()
 	t.Run("valid ASCII only", func(t *testing.T) {
 		validValues := []string{
 			"hello world",
@@ -418,6 +428,7 @@ func TestASCIIOnly(t *testing.T) {
 }
 
 func TestNoSpecialChars(t *testing.T) {
+	t.Parallel()
 	t.Run("valid no special chars", func(t *testing.T) {
 		validValues := []string{
 			"hello world",
@@ -458,6 +469,7 @@ func TestNoSpecialChars(t *testing.T) {
 }
 
 func TestContainsUppercase(t *testing.T) {
+	t.Parallel()
 	t.Run("valid contains uppercase", func(t *testing.T) {
 		validValues := []string{
 			"Hello world",
@@ -496,6 +508,7 @@ func TestContainsUppercase(t *testing.T) {
 }
 
 func TestContainsLowercase(t *testing.T) {
+	t.Parallel()
 	t.Run("valid contains lowercase", func(t *testing.T) {
 		validValues := []string{
 			"Hello world",
@@ -534,6 +547,7 @@ func TestContainsLowercase(t *testing.T) {
 }
 
 func TestContainsDigit(t *testing.T) {
+	t.Parallel()
 	t.Run("valid contains digit", func(t *testing.T) {
 		validValues := []string{
 			"hello1world",
@@ -572,6 +586,7 @@ func TestContainsDigit(t *testing.T) {
 }
 
 func TestBalancedParentheses(t *testing.T) {
+	t.Parallel()
 	t.Run("valid balanced parentheses", func(t *testing.T) {
 		validValues := []string{
 			"",
@@ -617,6 +632,7 @@ func TestBalancedParentheses(t *testing.T) {
 }
 
 func TestWordCount(t *testing.T) {
+	t.Parallel()
 	t.Run("valid word count", func(t *testing.T) {
 		testCases := []struct {
 			value string
@@ -662,6 +678,7 @@ func TestWordCount(t *testing.T) {
 }
 
 func TestLineCount(t *testing.T) {
+	t.Parallel()
 	t.Run("valid line count", func(t *testing.T) {
 		testCases := []struct {
 			value string
@@ -707,6 +724,7 @@ func TestLineCount(t *testing.T) {
 }
 
 func TestPatternValidationCombination(t *testing.T) {
+	t.Parallel()
 	t.Run("comprehensive pattern validation", func(t *testing.T) {
 		value := "Hello123World"
 
@@ -740,6 +758,7 @@ func TestPatternValidationCombination(t *testing.T) {
 }
 
 func TestValidOTP(t *testing.T) {
+	t.Parallel()
 	t.Run("valid OTP codes", func(t *testing.T) {
 		testCases := []struct {
 			name   string
