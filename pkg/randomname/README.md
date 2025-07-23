@@ -1,112 +1,161 @@
-# Randomname
+# randomname
 
-Thread-safe random name generator for workspace, project, and resource naming.
+Cryptographically secure random name generator with configurable patterns and word types.
 
 ## Overview
 
-The `randomname` package generates human-readable, memorable names in either "adjective-noun" or "adjective-noun-suffix" format. It's designed for creating workspace, project, or resource identifiers with built-in collision prevention. This package is thread-safe and suitable for concurrent use in applications where unique identifiers are needed.
+The `randomname` package generates human-readable, memorable names using various word combinations. It supports multiple patterns, custom word lists, and validation callbacks, making it suitable for generating unique identifiers for workspaces, projects, or resources.
+
+## Internal Usage
+
+This package is internal to the project and provides name generation capabilities for creating user-friendly identifiers across different SaaS components.
 
 ## Features
 
-- Thread-safe implementation with mutex protection
-- Session-based uniqueness tracking to prevent duplicates
-- Support for custom validation callbacks (e.g., database checks)
-- Two name formats with varied collision probability:
-    - "adjective-noun" (brave-tiger)
-    - "adjective-noun-xxxxxx" (brave-tiger-1a2b3c)
-- Rich word variety with 42 adjectives × 44 nouns (1,848 base combinations)
-- With 24-bit suffix: ~16.7 million unique combinations per base name
+- Cryptographically secure randomness using `crypto/rand`
+- Configurable patterns with multiple word types (adjectives, nouns, colors, sizes, etc.)
+- Multiple suffix options for collision avoidance (hex, numeric)
+- Custom word list support for any word type
+- Validation callback support for external uniqueness checks
+- Zero-allocation string building with `sync.Pool`
+- Thread-safe implementation
 
 ## Usage
 
-### Basic Generation
+### Basic Example
 
 ```go
 import "github.com/dmitrymomot/saaskit/pkg/randomname"
 
-// Generate name with suffix (e.g., "brave-tiger-1a2b3c")
-name := randomname.Generate(nil)
-// Returns: "brave-tiger-1a2b3c" (unique across session)
+// Generate simple adjective-noun name
+name := randomname.Simple()
+// Returns: "brave-tiger"
 
-// Generate a simple name without suffix (e.g., "brave-tiger")
-simpleName := randomname.GenerateSimple(nil)
-// Returns: "brave-tiger" (only unique if it hasn't been used before)
+// Generate name with hex suffix
+nameWithSuffix := randomname.WithSuffix()
+// Returns: "happy-dolphin-a3f21b"
+
+// Generate colorful name (color-noun)
+colorful := randomname.Colorful()
+// Returns: "blue-lion"
 ```
 
-### With Custom Validation
+### Additional Usage Scenarios
 
 ```go
-// Generate a name that doesn't exist in the database
-name := randomname.Generate(func(name string) bool {
-    exists, err := db.WorkspaceExists(name)
-    if err != nil {
-        log.Printf("Error checking workspace name: %v", err)
-        return false // Reject this candidate on error
-    }
-    return !exists // Accept only if name doesn't exist
+// Generate with custom options
+name := randomname.Generate(&randomname.Options{
+    Pattern:   []randomname.WordType{randomname.Size, randomname.Color, randomname.Noun},
+    Separator: "_",
+    Suffix:    randomname.Numeric4,
 })
-// Returns: A name that's both session-unique and database-unique
+// Returns: "tiny_purple_eagle_4829"
+
+// Generate with validation callback
+name := randomname.Generate(&randomname.Options{
+    Suffix: randomname.Hex6,
+    Validator: func(name string) bool {
+        // Check if name already exists in database
+        exists, _ := db.NameExists(name)
+        return !exists // Accept only if name doesn't exist
+    },
+})
+// Returns: A unique name that passes validation
+
+// Use convenience functions for common patterns
+descriptive := randomname.Descriptive() // adjective-color-noun
+sized := randomname.Sized()             // size-noun
+complex := randomname.Complex()         // size-adjective-noun
+full := randomname.Full()               // size-adjective-color-noun
 ```
 
-### Managing Used Names
+### Error Handling
 
 ```go
-// Clear the internal cache of used names when no longer needed
-// Useful when starting a new naming session
-randomname.Reset()
+// The Generate function always returns a valid name and never returns an error
+// If validation fails after 100 retries, it returns the last generated name
+name := randomname.Generate(&randomname.Options{
+    Validator: func(name string) bool {
+        // This validator always rejects
+        return false
+    },
+})
+// Still returns a valid name after 100 attempts
 ```
 
 ## Best Practices
 
-1. **Session Management**:
-    - Call `Reset()` when starting a new naming session
-    - Consider session boundaries (e.g., application restart, user session)
+### Integration Guidelines
 
-2. **Validation Handling**:
-    - Implement proper error handling in validation callbacks
-    - Return `false` from callbacks on validation error to reject the name
-    - Keep validation functions lightweight and non-blocking
+- Use convenience functions for common patterns to keep code concise
+- Implement validation callbacks when uniqueness across external systems is required
+- Keep validation functions lightweight and non-blocking
 
-3. **Format Selection**:
-    - Use `Generate()` (with suffix) when uniqueness is critical
-    - Use `GenerateSimple()` for better readability when namespace is large enough
-    - Consider the potential for collisions with `GenerateSimple()` (limited to 1,848 combinations)
+### Project-Specific Considerations
 
-4. **Concurrency**:
-    - The package is thread-safe, but external validation must also be thread-safe
-    - Avoid long-running operations in validation callbacks while holding name reservations
+- For user-facing resources, prefer patterns with better readability (Simple, Colorful)
+- For internal resources where uniqueness is critical, use suffix options
+- Consider using custom word lists for domain-specific naming
 
 ## API Reference
+
+### Configuration Variables
+
+```go
+// Word types available for name generation
+const (
+    Adjective WordType = iota
+    Noun
+    Color
+    Size
+    Origin
+    Action
+)
+
+// Suffix types for collision avoidance
+const (
+    NoSuffix SuffixType = iota
+    Hex6     // 6-character hexadecimal (e.g., a3f21b)
+    Hex8     // 8-character hexadecimal (e.g., a3f21b9c)
+    Numeric4 // 4-digit number (e.g., 4829)
+)
+```
+
+### Types
+
+```go
+type WordType int
+
+type SuffixType int
+
+type Options struct {
+    Pattern   []WordType              // Word types to use in order (default: [Adjective, Noun])
+    Separator string                  // Separator between words (default: "-")
+    Suffix    SuffixType              // Suffix type for collision avoidance (default: NoSuffix)
+    Words     map[WordType][]string   // Custom word lists merged with defaults
+    Validator func(string) bool       // Validation callback (return true to accept)
+}
+```
 
 ### Functions
 
 ```go
-func Generate(check func(name string) bool) string
+func Generate(opts *Options) string
+func Simple() string      // adjective-noun
+func Colorful() string    // color-noun
+func Descriptive() string // adjective-color-noun
+func WithSuffix() string  // adjective-noun-hex6
+func Sized() string       // size-noun
+func Complex() string     // size-adjective-noun
+func Full() string        // size-adjective-color-noun
 ```
 
-Generates a random name in the format "adjective-noun-xxxxxx" with a 6-character hexadecimal suffix. Ensures uniqueness within the current session and accepts an optional validation callback.
+### Methods
 
 ```go
-func GenerateSimple(check func(name string) bool) string
+func (o *Options) merge(defaults *Options) *Options
 ```
 
-Generates a random name in the format "adjective-noun" without the hexadecimal suffix. Has a higher chance of collisions due to the smaller namespace.
+### Error Types
 
-```go
-func Reset()
-```
-
-Clears the internal cache of used names, allowing previously generated names to be used again.
-
-### Validation Callback
-
-```go
-type ValidateFunc func(name string) bool
-```
-
-Function signature for the validation callback:
-
-- Return `true` to accept the name
-- Return `false` to reject the name and generate a new one
-
-The callback is executed after a name is reserved but before it's returned to the caller. If the callback rejects the name, the reservation is released and a new name is generated.
+The package does not define any error types. The `Generate` function always returns a valid name.
