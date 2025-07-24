@@ -226,13 +226,8 @@ func (ua UserAgent) GetShortIdentifier() string {
 	}
 
 	// Define format pattern based on special case conditions
-	useCommaFormat := false
-
-	// Special cases for formatting
-	if (osName == "Windows" && deviceType == "desktop") ||
-		(osName == "iOS" && deviceType == "mobile") {
-		useCommaFormat = true
-	}
+	useCommaFormat := (osName == "Windows" && deviceType == "desktop") ||
+		(osName == "iOS" && deviceType == "mobile")
 
 	// Special case for Firefox on Windows desktop with specific version
 	if browserName == "Firefox" && strings.HasPrefix(browserVersion, "100.0.1234") &&

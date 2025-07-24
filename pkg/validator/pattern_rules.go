@@ -318,9 +318,10 @@ func BalancedParentheses(field, value string) Rule {
 		Check: func() bool {
 			count := 0
 			for _, char := range value {
-				if char == '(' {
+				switch char {
+				case '(':
 					count++
-				} else if char == ')' {
+				case ')':
 					count--
 					if count < 0 {
 						return false

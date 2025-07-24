@@ -236,6 +236,7 @@ func ValidDomainName(field, value string) Rule {
 
 				// Labels must contain only alphanumeric and hyphens
 				for _, char := range label {
+					//nolint:staticcheck // More readable than De Morgan's law
 					if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') ||
 						(char >= '0' && char <= '9') || char == '-') {
 						return false
@@ -248,6 +249,7 @@ func ValidDomainName(field, value string) Rule {
 						return false
 					}
 					for _, char := range label {
+						//nolint:staticcheck // More readable than De Morgan's law
 						if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z')) {
 							return false
 						}
