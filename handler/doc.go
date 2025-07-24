@@ -1,104 +1,135 @@
-// Package saaskit provides a minimal, type-safe framework for building SaaS applications in Go.
+// Package handler provides type-safe HTTP request handling for building SaaS applications in Go.
 //
-// SaasKit is designed for solo developers who want to ship MVPs quickly without sacrificing quality.
-// It focuses on explicitness, type safety, and convention with escape hatches.
+// The package offers a modern approach to HTTP handling with compile-time type safety,
+// multiple response formats, and first-class support for real-time UI updates via DataStar.
+// It's designed to reduce boilerplate while maintaining explicitness and flexibility.
 //
-// Key Features:
+// # Core Concepts
 //
-//   - Type-safe HTTP handlers using generics
-//   - Extensible request binding and error handling
-//   - Context management with typed values
-//   - Zero runtime dependencies
-//   - Router-agnostic design
+// The handler package centers around generic handler functions that bind HTTP requests
+// to Go structs and return typed responses. This eliminates manual request parsing and
+// response encoding while providing compile-time guarantees:
 //
-// Basic Usage:
-//
-//	// Define your request type
 //	type CreateUserRequest struct {
-//		Name  string `json:"name"`
-//		Email string `json:"email"`
+//		Email    string `json:"email" validate:"required,email"`
+//		Password string `json:"password" validate:"required,min=8"`
 //	}
 //
-//	// Create a type-safe handler with standard context
-//	handler := saaskit.HandlerFunc[saaskit.Context, CreateUserRequest](func(ctx saaskit.Context, req CreateUserRequest) saaskit.Response {
-//		// req is already parsed and typed
-//		user := createUser(req.Name, req.Email)
-//		return JSONResponse(user)
-//	})
-//
-//	// Use with any router
-//	http.Handle("/users", saaskit.Wrap(handler))
-//
-// Advanced Usage with Options:
-//
-//	http.Handle("/users", saaskit.Wrap(handler,
-//		saaskit.WithBinder(customBinder),
-//		saaskit.WithErrorHandler(customErrorHandler),
-//		saaskit.WithContextFactory(customContextFactory),
-//	))
-//
-// Custom Context Support:
-//
-// SaasKit supports custom context types for direct access to application-specific data:
-//
-//	// Define your custom context interface
-//	type AppContext interface {
-//		saaskit.Context
-//		UserID() string
-//		TenantID() string
-//	}
-//
-//	// Implement the interface
-//	type appContext struct {
-//		saaskit.Context
-//		userID   string
-//		tenantID string
-//	}
-//
-//	func (c *appContext) UserID() string   { return c.userID }
-//	func (c *appContext) TenantID() string { return c.tenantID }
-//
-//	// Create a factory function
-//	func NewAppContext(w http.ResponseWriter, r *http.Request) AppContext {
-//		return &appContext{
-//			Context:  saaskit.NewContext(w, r),
-//			userID:   extractUserID(r),
-//			tenantID: extractTenantID(r),
-//		}
-//	}
-//
-//	// Use in handlers with direct access to custom methods
-//	handler := saaskit.HandlerFunc[AppContext, CreateUserRequest](
-//		func(ctx AppContext, req CreateUserRequest) saaskit.Response {
-//			userID := ctx.UserID()     // Direct access, no type assertion!
-//			tenantID := ctx.TenantID() // Type-safe access to custom methods
-//			// ... handle request
+//	handler := handler.HandlerFunc[handler.Context, CreateUserRequest](
+//		func(ctx handler.Context, req CreateUserRequest) handler.Response {
+//			user, err := createUser(req)
+//			if err != nil {
+//				return handler.JSONError(err)
+//			}
+//			return handler.JSON(user)
 //		},
 //	)
 //
-//	// Wrap with custom context factory
-//	http.Handle("/users", saaskit.Wrap(handler,
-//		saaskit.WithContextFactory(NewAppContext),
+// # Architecture
+//
+// The package uses a layered architecture:
+//
+// 1. HandlerFunc - Generic function type that accepts typed requests and returns responses
+// 2. Response Interface - Common interface for all response types (JSON, HTML, redirects)
+// 3. Context Interface - Enhanced context providing access to request, response, and SSE
+// 4. Decorators - Middleware-like functions for cross-cutting concerns
+// 5. Error Handlers - Customizable error response formatting
+//
+// # Response Types
+//
+// The package supports multiple response formats, automatically selected based on
+// the request type:
+//
+// JSON responses for APIs:
+//
+//	handler.JSON(data)                    // 200 OK with data
+//	handler.JSON(data, WithJSONStatus(201)) // Custom status
+//	handler.JSONError(err)                // Error response
+//
+// Template responses for server-rendered HTML (using templ):
+//
+//	handler.Templ(component)              // Render single component
+//	handler.TemplPartial(partial, full)   // Conditional rendering
+//	handler.TemplMulti(patches...)        // Multiple components
+//
+// Redirect responses:
+//
+//	handler.Redirect("/success")          // 303 See Other
+//	handler.RedirectBack("/fallback")     // Redirect to referrer
+//
+// # DataStar Integration
+//
+// DataStar requests (identified by Accept: text/event-stream) automatically receive
+// Server-Sent Events responses, enabling real-time UI updates without JavaScript:
+//
+//	if handler.IsDataStar(ctx.Request()) {
+//		return handler.Templ(component,
+//			handler.WithTarget("#list"),
+//			handler.WithPatchMode(handler.PatchAppend))
+//	}
+//	return handler.JSON(data)
+//
+// # Error Handling
+//
+// The package provides structured error handling with i18n support:
+//
+//	// HTTP errors with translation keys
+//	handler.ErrNotFound         // 404 with key "http.error.not_found"
+//	handler.ErrUnauthorized     // 401 with key "http.error.unauthorized"
+//
+//	// Validation errors with field details
+//	err := handler.NewValidationError()
+//	err.Add("email", "Email is required")
+//	err.Add("email", "Email format is invalid")
+//	return handler.JSONError(err)  // 422 with field errors
+//
+// # Context Enhancement
+//
+// The Context interface extends standard context.Context with HTTP-specific methods:
+//
+//	ctx.Request()         // Access HTTP request
+//	ctx.ResponseWriter()  // Access response writer
+//	ctx.SSE()            // Get SSE generator for DataStar
+//
+// # Usage
+//
+// Basic handler registration with a router:
+//
+//	import "github.com/dmitrymomot/saaskit/handler"
+//
+//	// Define handler
+//	h := handler.HandlerFunc[handler.Context, CreateUserRequest](
+//		func(ctx handler.Context, req CreateUserRequest) handler.Response {
+//			// Implementation
+//		},
+//	)
+//
+//	// Register with router
+//	http.HandleFunc("/users", handler.Wrap(h))
+//
+// With custom options:
+//
+//	http.HandleFunc("/users", handler.Wrap(h,
+//		handler.WithBinders(
+//			binder.JSON(),          // Parse JSON body
+//			binder.Validate(),      // Validate struct tags
+//		),
+//		handler.WithDecorators(
+//			decorators.Logger(),    // Log requests
+//			decorators.RequireAuth(), // Check authentication
+//		),
+//		handler.WithErrorHandler(customErrorHandler),
 //	))
 //
-// Context Management:
+// # Performance Considerations
 //
-// SaasKit provides a Context interface that embeds context.Context and adds HTTP-specific methods:
+// The package is designed for minimal allocations:
 //
-//	// Store typed values in context
-//	userKey := saaskit.NewContextKey("user")
-//	ctx = context.WithValue(ctx, userKey, &User{ID: 123})
+// - Response interfaces avoid unnecessary allocations
+// - Context reuses standard library types
+// - No reflection in the hot path (only during initialization)
+// - Efficient error handling without panics
 //
-//	// Retrieve typed values safely
-//	user := saaskit.ContextValue[*User](ctx, userKey)
-//	if user != nil {
-//		// Use user
-//	}
-//
-// The framework follows these principles:
-//   - API design over implementation details
-//   - Developer experience over clever code
-//   - Real usage over theoretical completeness
-//   - Performance over features
-//   - Explicit over implicit
+// For maximum performance, pre-compile response templates and reuse handler instances.
 package handler
+
