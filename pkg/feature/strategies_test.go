@@ -10,6 +10,29 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/feature"
 )
 
+// Test helper context keys
+type (
+	testUserIDKey      struct{}
+	testUserGroupsKey  struct{}
+	testEnvironmentKey struct{}
+)
+
+// Test helper extractors
+func testUserIDExtractor(ctx context.Context) string {
+	userID, _ := ctx.Value(testUserIDKey{}).(string)
+	return userID
+}
+
+func testUserGroupsExtractor(ctx context.Context) []string {
+	groups, _ := ctx.Value(testUserGroupsKey{}).([]string)
+	return groups
+}
+
+func testEnvironmentExtractor(ctx context.Context) string {
+	env, _ := ctx.Value(testEnvironmentKey{}).(string)
+	return env
+}
+
 func TestAlwaysStrategy(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -47,16 +70,18 @@ func TestTargetedStrategy(t *testing.T) {
 		criteria := feature.TargetCriteria{
 			UserIDs: []string{"user1", "user2", "user3"},
 		}
-		strategy := feature.NewTargetedStrategy(criteria)
+		strategy := feature.NewTargetedStrategy(criteria,
+			feature.WithUserIDExtractor(testUserIDExtractor),
+		)
 
 		// Test with matching user ID
-		ctx := context.WithValue(context.Background(), feature.UserIDKey, "user2")
+		ctx := context.WithValue(context.Background(), testUserIDKey{}, "user2")
 		enabled, err := strategy.Evaluate(ctx)
 		require.NoError(t, err)
 		assert.True(t, enabled)
 
 		// Test with non-matching user ID
-		ctx = context.WithValue(context.Background(), feature.UserIDKey, "user4")
+		ctx = context.WithValue(context.Background(), testUserIDKey{}, "user4")
 		enabled, err = strategy.Evaluate(ctx)
 		require.NoError(t, err)
 		assert.False(t, enabled)
@@ -65,6 +90,13 @@ func TestTargetedStrategy(t *testing.T) {
 		enabled, err = strategy.Evaluate(context.Background())
 		require.NoError(t, err)
 		assert.False(t, enabled)
+
+		// Test without extractor configured
+		strategyNoExtractor := feature.NewTargetedStrategy(criteria)
+		ctx = context.WithValue(context.Background(), testUserIDKey{}, "user2")
+		enabled, err = strategyNoExtractor.Evaluate(ctx)
+		require.NoError(t, err)
+		assert.False(t, enabled) // Should be false without extractor
 	})
 
 	t.Run("UserGroups", func(t *testing.T) {
@@ -72,16 +104,18 @@ func TestTargetedStrategy(t *testing.T) {
 		criteria := feature.TargetCriteria{
 			Groups: []string{"admin", "beta-testers"},
 		}
-		strategy := feature.NewTargetedStrategy(criteria)
+		strategy := feature.NewTargetedStrategy(criteria,
+			feature.WithUserGroupsExtractor(testUserGroupsExtractor),
+		)
 
 		// Test with matching group
-		ctx := context.WithValue(context.Background(), feature.UserGroupsKey, []string{"user", "beta-testers"})
+		ctx := context.WithValue(context.Background(), testUserGroupsKey{}, []string{"user", "beta-testers"})
 		enabled, err := strategy.Evaluate(ctx)
 		require.NoError(t, err)
 		assert.True(t, enabled)
 
 		// Test with non-matching group
-		ctx = context.WithValue(context.Background(), feature.UserGroupsKey, []string{"user", "guest"})
+		ctx = context.WithValue(context.Background(), testUserGroupsKey{}, []string{"user", "guest"})
 		enabled, err = strategy.Evaluate(ctx)
 		require.NoError(t, err)
 		assert.False(t, enabled)
@@ -90,6 +124,13 @@ func TestTargetedStrategy(t *testing.T) {
 		enabled, err = strategy.Evaluate(context.Background())
 		require.NoError(t, err)
 		assert.False(t, enabled)
+
+		// Test without extractor configured
+		strategyNoExtractor := feature.NewTargetedStrategy(criteria)
+		ctx = context.WithValue(context.Background(), testUserGroupsKey{}, []string{"beta-testers"})
+		enabled, err = strategyNoExtractor.Evaluate(ctx)
+		require.NoError(t, err)
+		assert.False(t, enabled) // Should be false without extractor
 	})
 
 	t.Run("PercentageRollout", func(t *testing.T) {
@@ -99,12 +140,14 @@ func TestTargetedStrategy(t *testing.T) {
 		criteria := feature.TargetCriteria{
 			Percentage: &percentage,
 		}
-		strategy := feature.NewTargetedStrategy(criteria)
+		strategy := feature.NewTargetedStrategy(criteria,
+			feature.WithUserIDExtractor(testUserIDExtractor),
+		)
 
 		// We can't test specific outcomes since it's based on hash values,
 		// but we can test that it works without error for different user IDs
 		for _, userID := range []string{"user1", "user2", "user3", "user4"} {
-			ctx := context.WithValue(context.Background(), feature.UserIDKey, userID)
+			ctx := context.WithValue(context.Background(), testUserIDKey{}, userID)
 			_, err := strategy.Evaluate(ctx)
 			require.NoError(t, err)
 		}
@@ -114,8 +157,11 @@ func TestTargetedStrategy(t *testing.T) {
 		invalidCriteria := feature.TargetCriteria{
 			Percentage: &invalidPercentage,
 		}
-		strategy = feature.NewTargetedStrategy(invalidCriteria)
-		_, err := strategy.Evaluate(context.WithValue(context.Background(), feature.UserIDKey, "user1"))
+		strategy = feature.NewTargetedStrategy(invalidCriteria,
+			feature.WithUserIDExtractor(testUserIDExtractor),
+		)
+		ctx := context.WithValue(context.Background(), testUserIDKey{}, "user1")
+		_, err := strategy.Evaluate(ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "percentage must be between 0 and 100")
 
@@ -124,7 +170,9 @@ func TestTargetedStrategy(t *testing.T) {
 		criteria = feature.TargetCriteria{
 			Percentage: &percentage,
 		}
-		strategy = feature.NewTargetedStrategy(criteria)
+		strategy = feature.NewTargetedStrategy(criteria,
+			feature.WithUserIDExtractor(testUserIDExtractor),
+		)
 		enabled, err := strategy.Evaluate(context.Background())
 		require.NoError(t, err)
 		assert.False(t, enabled)
@@ -138,24 +186,27 @@ func TestTargetedStrategy(t *testing.T) {
 			// Additional criteria that would normally enable a user
 			Groups: []string{"beta-testers"},
 		}
-		strategy := feature.NewTargetedStrategy(criteria)
+		strategy := feature.NewTargetedStrategy(criteria,
+			feature.WithUserIDExtractor(testUserIDExtractor),
+			feature.WithUserGroupsExtractor(testUserGroupsExtractor),
+		)
 
 		// Test with user on allow list
-		ctx := context.WithValue(context.Background(), feature.UserIDKey, "special-user")
+		ctx := context.WithValue(context.Background(), testUserIDKey{}, "special-user")
 		enabled, err := strategy.Evaluate(ctx)
 		require.NoError(t, err)
 		assert.True(t, enabled)
 
 		// Test with user on deny list (even if they'd be eligible by other criteria)
-		ctx = context.WithValue(context.Background(), feature.UserIDKey, "banned-user")
-		ctx = context.WithValue(ctx, feature.UserGroupsKey, []string{"beta-testers"})
+		ctx = context.WithValue(context.Background(), testUserIDKey{}, "banned-user")
+		ctx = context.WithValue(ctx, testUserGroupsKey{}, []string{"beta-testers"})
 		enabled, err = strategy.Evaluate(ctx)
 		require.NoError(t, err)
 		assert.False(t, enabled)
 
 		// Test with user eligible by criteria but not on allow or deny list
-		ctx = context.WithValue(context.Background(), feature.UserIDKey, "regular-user")
-		ctx = context.WithValue(ctx, feature.UserGroupsKey, []string{"beta-testers"})
+		ctx = context.WithValue(context.Background(), testUserIDKey{}, "regular-user")
+		ctx = context.WithValue(ctx, testUserGroupsKey{}, []string{"beta-testers"})
 		enabled, err = strategy.Evaluate(ctx)
 		require.NoError(t, err)
 		assert.True(t, enabled)
@@ -166,7 +217,7 @@ func TestEnvironmentStrategy(t *testing.T) {
 	t.Parallel()
 	t.Run("EmptyEnvironments", func(t *testing.T) {
 		t.Parallel()
-		strategy := feature.NewEnvironmentStrategy()
+		strategy := feature.NewEnvironmentStrategy([]string{})
 		enabled, err := strategy.Evaluate(context.Background())
 		require.Error(t, err)
 		assert.Equal(t, feature.ErrInvalidStrategy, err)
@@ -175,16 +226,18 @@ func TestEnvironmentStrategy(t *testing.T) {
 
 	t.Run("MatchingEnvironment", func(t *testing.T) {
 		t.Parallel()
-		strategy := feature.NewEnvironmentStrategy("dev", "staging")
+		strategy := feature.NewEnvironmentStrategy([]string{"dev", "staging"},
+			feature.WithEnvironmentExtractor(testEnvironmentExtractor),
+		)
 
 		// Test with matching environment
-		ctx := context.WithValue(context.Background(), feature.EnvironmentKey, "dev")
+		ctx := context.WithValue(context.Background(), testEnvironmentKey{}, "dev")
 		enabled, err := strategy.Evaluate(ctx)
 		require.NoError(t, err)
 		assert.True(t, enabled)
 
 		// Test with non-matching environment
-		ctx = context.WithValue(context.Background(), feature.EnvironmentKey, "production")
+		ctx = context.WithValue(context.Background(), testEnvironmentKey{}, "production")
 		enabled, err = strategy.Evaluate(ctx)
 		require.NoError(t, err)
 		assert.False(t, enabled)
@@ -193,6 +246,13 @@ func TestEnvironmentStrategy(t *testing.T) {
 		enabled, err = strategy.Evaluate(context.Background())
 		require.NoError(t, err)
 		assert.False(t, enabled)
+
+		// Test without extractor configured
+		strategyNoExtractor := feature.NewEnvironmentStrategy([]string{"dev", "staging"})
+		ctx = context.WithValue(context.Background(), testEnvironmentKey{}, "dev")
+		enabled, err = strategyNoExtractor.Evaluate(ctx)
+		require.NoError(t, err)
+		assert.False(t, enabled) // Should be false without extractor
 	})
 }
 

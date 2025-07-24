@@ -11,6 +11,15 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/feature"
 )
 
+// Test helper context key for memory provider tests
+type testMemoryUserIDKey struct{}
+
+// Test helper extractor for memory provider tests
+func testMemoryUserIDExtractor(ctx context.Context) string {
+	userID, _ := ctx.Value(testMemoryUserIDKey{}).(string)
+	return userID
+}
+
 func TestMemoryProvider(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -269,7 +278,7 @@ func TestMemoryProvider(t *testing.T) {
 			Enabled: true,
 			Strategy: feature.NewTargetedStrategy(feature.TargetCriteria{
 				UserIDs: []string{"test-user"},
-			}),
+			}, feature.WithUserIDExtractor(testMemoryUserIDExtractor)),
 		}
 
 		provider, _ := feature.NewMemoryProvider(
@@ -292,13 +301,13 @@ func TestMemoryProvider(t *testing.T) {
 		assert.False(t, enabled)
 
 		// Test targeted flag with matching user
-		userCtx := context.WithValue(ctx, feature.UserIDKey, "test-user")
+		userCtx := context.WithValue(ctx, testMemoryUserIDKey{}, "test-user")
 		enabled, err = provider.IsEnabled(userCtx, "targeted-flag")
 		require.NoError(t, err)
 		assert.True(t, enabled)
 
 		// Test targeted flag with non-matching user
-		userCtx = context.WithValue(ctx, feature.UserIDKey, "other-user")
+		userCtx = context.WithValue(ctx, testMemoryUserIDKey{}, "other-user")
 		enabled, err = provider.IsEnabled(userCtx, "targeted-flag")
 		require.NoError(t, err)
 		assert.False(t, enabled)
