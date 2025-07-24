@@ -132,4 +132,3 @@
 //
 // For maximum performance, pre-compile response templates and reuse handler instances.
 package handler
-
