@@ -8,11 +8,9 @@ import (
 
 // JSONResponse is the standard JSON response structure
 type JSONResponse struct {
-	Code    string         `json:"code,omitempty"`
-	Message string         `json:"message,omitempty"`
-	Data    any            `json:"data,omitempty"`
-	Meta    map[string]any `json:"meta,omitempty"`
-	Error   *ErrorDetail   `json:"error,omitempty"`
+	Data  any            `json:"data,omitempty"`
+	Meta  map[string]any `json:"meta,omitempty"`
+	Error *ErrorDetail   `json:"error,omitempty"`
 }
 
 // ErrorDetail contains error information
@@ -34,52 +32,115 @@ func (j jsonResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	return json.NewEncoder(w).Encode(j.body)
 }
 
-// JSON creates a JSON response
-func JSON(code string, data any, meta map[string]any) Response {
-	return jsonResponse{
-		status: http.StatusOK,
-		body: JSONResponse{
-			Code: code,
-			Data: data,
-			Meta: meta,
-		},
+// JSONOption configures JSON response
+type JSONOption func(*jsonResponse)
+
+// WithJSONStatus sets custom HTTP status code
+func WithJSONStatus(status int) JSONOption {
+	return func(r *jsonResponse) {
+		r.status = status
 	}
 }
 
-// JSONError creates a JSON error response from an error
-func JSONError(err error) Response {
-	// Default to internal server error
-	status := http.StatusInternalServerError
+// WithJSONMeta adds metadata to response
+func WithJSONMeta(meta map[string]any) JSONOption {
+	return func(r *jsonResponse) {
+		r.body.Meta = meta
+	}
+}
+
+// JSON creates a JSON response with options
+func JSON(v any, opts ...JSONOption) Response {
+	r := &jsonResponse{
+		status: http.StatusOK,
+		body:   JSONResponse{},
+	}
+
+	// Handle different input types
+	switch val := v.(type) {
+	case JSONResponse:
+		r.body = val
+	case *ErrorDetail:
+		// If ErrorDetail passed directly, treat as error
+		r.body.Error = val
+		r.status = http.StatusInternalServerError
+	case error:
+		// If error passed directly, convert it
+		r.body.Error = errorToDetail(val, &r.status)
+	default:
+		r.body.Data = v
+	}
+
+	// Apply options (can override defaults)
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	return r
+}
+
+// JSONError creates a JSON error response from an error with options
+func JSONError(err any, opts ...JSONOption) Response {
+	r := &jsonResponse{
+		status: http.StatusInternalServerError,
+		body:   JSONResponse{},
+	}
+
+	// Handle different error types
+	switch e := err.(type) {
+	case *ErrorDetail:
+		// Direct ErrorDetail
+		r.body.Error = e
+	case error:
+		// Convert error to ErrorDetail
+		r.body.Error = errorToDetail(e, &r.status)
+	}
+
+	// Apply options (can override status or add meta)
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	return r
+}
+
+// errorToDetail converts error to ErrorDetail and sets appropriate status
+func errorToDetail(err error, status *int) *ErrorDetail {
 	code := "internal_error"
-	errorDetail := &ErrorDetail{
-		Code:    code,
-		Message: err.Error(),
+	message := err.Error()
+
+	// Default status if not already set
+	if *status == http.StatusOK {
+		*status = http.StatusInternalServerError
 	}
 
-	// Check if error is ValidationError
+	// Check for ValidationError
 	if valErr, ok := err.(ValidationError); ok {
-		status = http.StatusUnprocessableEntity
+		*status = http.StatusUnprocessableEntity
 		code = "validation_error"
-		errorDetail.Code = code
 
-		// Convert ValidationError to map[string][]string
-		if len(valErr) > 0 {
-			errorDetail.Details = make(map[string][]string)
-			maps.Copy(errorDetail.Details, valErr)
+		detail := &ErrorDetail{
+			Code:    code,
+			Message: message,
 		}
-	} else if httpErr, ok := err.(HTTPError); ok {
-		// Check if error is HTTPError
-		status = httpErr.Code
-		code = httpErr.Key
-		errorDetail.Code = code
-		errorDetail.Message = http.StatusText(httpErr.Code)
+
+		if len(valErr) > 0 {
+			detail.Details = make(map[string][]string)
+			maps.Copy(detail.Details, valErr)
+		}
+
+		return detail
 	}
 
-	return jsonResponse{
-		status: status,
-		body: JSONResponse{
-			Code:  code,
-			Error: errorDetail,
-		},
+	// Check for HTTPError
+	if httpErr, ok := err.(HTTPError); ok {
+		*status = httpErr.Code
+		code = httpErr.Key
+		message = http.StatusText(httpErr.Code)
+	}
+
+	return &ErrorDetail{
+		Code:    code,
+		Message: message,
 	}
 }
