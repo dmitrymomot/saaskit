@@ -13,7 +13,7 @@ A flexible session management package for Go web applications with pluggable sto
 - **Type Safe**: No reflection, compile-time safety
 - **High Performance**: Zero allocations in hot paths
 
-## Installation
+## Installation 
 
 ```bash
 go get github.com/dmitrymomot/saaskit/pkg/session

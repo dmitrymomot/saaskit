@@ -8,7 +8,7 @@ A flexible, type-safe state machine implementation for Go applications.
 go get github.com/dmitrymomot/saaskit/pkg/statemachine
 ```
 
-## Overview
+## Overview 
 
 The `statemachine` package provides a clean, flexible implementation of the state machine pattern for Go applications. It offers a fluent builder API and type-safety through interfaces, making it ideal for modeling complex workflows, business processes, and application states. This package is thread-safe and suitable for concurrent use in production environments.
 
