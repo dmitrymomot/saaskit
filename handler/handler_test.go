@@ -1,4 +1,4 @@
-package core_test
+package handler_test
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	saaskit "github.com/dmitrymomot/saaskit/core"
+	saaskit "github.com/dmitrymomot/saaskit/handler"
 )
 
 // Mock response for testing

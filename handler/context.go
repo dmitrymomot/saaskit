@@ -1,4 +1,4 @@
-package core
+package handler
 
 import (
 	"context"
@@ -26,7 +26,7 @@ func NewContext(w http.ResponseWriter, r *http.Request) Context {
 
 	// Initialize SSE if this is a DataStar request
 	if IsDataStar(r) {
-		ctx.sse = NewDataStarSSE(w, r)
+		ctx.sse = NewSSE(w, r)
 	}
 
 	return ctx

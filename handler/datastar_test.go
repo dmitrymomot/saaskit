@@ -1,4 +1,4 @@
-package core_test
+package handler_test
 
 import (
 	"net/http"
@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dmitrymomot/saaskit/core"
+	"github.com/dmitrymomot/saaskit/handler"
 )
 
 func TestIsDataStar(t *testing.T) {
@@ -61,49 +61,10 @@ func TestIsDataStar(t *testing.T) {
 				req.Header.Set(k, v)
 			}
 
-			result := core.IsDataStar(req)
+			result := handler.IsDataStar(req)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-func TestDataStarRedirect(t *testing.T) {
-	t.Parallel()
-
-	t.Run("DataStar request", func(t *testing.T) {
-		t.Parallel()
-
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		req.Header.Set("Accept", "text/event-stream")
-
-		w := httptest.NewRecorder()
-		err := core.DataStarRedirect(w, req, "/new-location", http.StatusSeeOther)
-		require.NoError(t, err)
-
-		// DataStar redirects use SSE, so check for event stream content type
-		assert.Equal(t, "text/event-stream", w.Header().Get("Content-Type"))
-
-		// The response should contain SSE data
-		body := w.Body.String()
-		assert.Contains(t, body, "datastar-patch-elements")
-		assert.Contains(t, body, "window.location.href")
-		assert.Contains(t, body, "/new-location")
-	})
-
-	t.Run("Regular request", func(t *testing.T) {
-		t.Parallel()
-
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		req.Header.Set("Accept", "text/html")
-
-		w := httptest.NewRecorder()
-		err := core.DataStarRedirect(w, req, "/new-location", http.StatusSeeOther)
-		require.NoError(t, err)
-
-		// Regular redirects use standard HTTP redirect
-		assert.Equal(t, http.StatusSeeOther, w.Code)
-		assert.Equal(t, "/new-location", w.Header().Get("Location"))
-	})
 }
 
 func TestRedirectResponseWithDataStar(t *testing.T) {
@@ -116,7 +77,7 @@ func TestRedirectResponseWithDataStar(t *testing.T) {
 		req.Header.Set("Accept", "text/event-stream")
 
 		w := httptest.NewRecorder()
-		resp := core.Redirect("/success")
+		resp := handler.Redirect("/success")
 		err := resp.Render(w, req)
 		require.NoError(t, err)
 
@@ -133,7 +94,7 @@ func TestRedirectResponseWithDataStar(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/submit", nil)
 
 		w := httptest.NewRecorder()
-		resp := core.Redirect("/success")
+		resp := handler.Redirect("/success")
 		err := resp.Render(w, req)
 		require.NoError(t, err)
 
@@ -155,7 +116,7 @@ func TestRedirectBackWithDataStar(t *testing.T) {
 		req.Host = "example.com"
 
 		w := httptest.NewRecorder()
-		resp := core.RedirectBack("/")
+		resp := handler.RedirectBack("/")
 		err := resp.Render(w, req)
 		require.NoError(t, err)
 
@@ -174,7 +135,7 @@ func TestRedirectBackWithDataStar(t *testing.T) {
 		// No referer header
 
 		w := httptest.NewRecorder()
-		resp := core.RedirectBack("/home")
+		resp := handler.RedirectBack("/home")
 		err := resp.Render(w, req)
 		require.NoError(t, err)
 
@@ -193,7 +154,7 @@ func TestRedirectBackWithDataStar(t *testing.T) {
 		req.Host = "example.com"
 
 		w := httptest.NewRecorder()
-		resp := core.RedirectBack("/")
+		resp := handler.RedirectBack("/")
 		err := resp.Render(w, req)
 		require.NoError(t, err)
 

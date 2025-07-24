@@ -1,4 +1,4 @@
-package core_test
+package handler_test
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dmitrymomot/saaskit/core"
+	"github.com/dmitrymomot/saaskit/handler"
 )
 
 func TestJSON(t *testing.T) {
@@ -21,14 +21,14 @@ func TestJSON(t *testing.T) {
 		code     string
 		data     any
 		meta     map[string]any
-		expected core.JSONResponse
+		expected handler.JSONResponse
 	}{
 		{
 			name: "success with data",
 			code: "OK",
 			data: map[string]string{"id": "123", "name": "test"},
 			meta: map[string]any{"version": "1.0"},
-			expected: core.JSONResponse{
+			expected: handler.JSONResponse{
 				Code: "OK",
 				Data: map[string]any{"id": "123", "name": "test"},
 				Meta: map[string]any{"version": "1.0"},
@@ -39,7 +39,7 @@ func TestJSON(t *testing.T) {
 			code: "CREATED",
 			data: nil,
 			meta: nil,
-			expected: core.JSONResponse{
+			expected: handler.JSONResponse{
 				Code: "CREATED",
 			},
 		},
@@ -48,7 +48,7 @@ func TestJSON(t *testing.T) {
 			code: "OK",
 			data: nil,
 			meta: map[string]any{"request_id": "abc123"},
-			expected: core.JSONResponse{
+			expected: handler.JSONResponse{
 				Code: "OK",
 				Meta: map[string]any{"request_id": "abc123"},
 			},
@@ -61,14 +61,14 @@ func TestJSON(t *testing.T) {
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodGet, "/", nil)
 
-			resp := core.JSON(tt.code, tt.data, tt.meta)
+			resp := handler.JSON(tt.code, tt.data, tt.meta)
 			err := resp.Render(w, r)
 			require.NoError(t, err)
 
 			assert.Equal(t, http.StatusOK, w.Code)
 			assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
 
-			var got core.JSONResponse
+			var got handler.JSONResponse
 			err = json.Unmarshal(w.Body.Bytes(), &got)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, got)
@@ -83,15 +83,15 @@ func TestJSONError(t *testing.T) {
 		name         string
 		err          error
 		expectedCode int
-		expectedBody core.JSONResponse
+		expectedBody handler.JSONResponse
 	}{
 		{
 			name:         "standard error",
 			err:          errors.New("something went wrong"),
 			expectedCode: http.StatusInternalServerError,
-			expectedBody: core.JSONResponse{
+			expectedBody: handler.JSONResponse{
 				Code: "internal_error",
-				Error: &core.ErrorDetail{
+				Error: &handler.ErrorDetail{
 					Code:    "internal_error",
 					Message: "something went wrong",
 				},
@@ -99,11 +99,11 @@ func TestJSONError(t *testing.T) {
 		},
 		{
 			name:         "http error",
-			err:          core.NewHTTPError(http.StatusBadRequest, "invalid request"),
+			err:          handler.NewHTTPError(http.StatusBadRequest, "invalid request"),
 			expectedCode: http.StatusBadRequest,
-			expectedBody: core.JSONResponse{
+			expectedBody: handler.JSONResponse{
 				Code: "invalid request",
-				Error: &core.ErrorDetail{
+				Error: &handler.ErrorDetail{
 					Code:    "invalid request",
 					Message: "Bad Request",
 				},
@@ -111,11 +111,11 @@ func TestJSONError(t *testing.T) {
 		},
 		{
 			name:         "not found error",
-			err:          core.NewHTTPError(http.StatusNotFound, "resource not found"),
+			err:          handler.NewHTTPError(http.StatusNotFound, "resource not found"),
 			expectedCode: http.StatusNotFound,
-			expectedBody: core.JSONResponse{
+			expectedBody: handler.JSONResponse{
 				Code: "resource not found",
-				Error: &core.ErrorDetail{
+				Error: &handler.ErrorDetail{
 					Code:    "resource not found",
 					Message: "Not Found",
 				},
@@ -124,16 +124,16 @@ func TestJSONError(t *testing.T) {
 		{
 			name: "validation error",
 			err: func() error {
-				err := core.NewValidationError()
+				err := handler.NewValidationError()
 				err.Add("email", "invalid format")
 				err.Add("email", "already exists")
 				err.Add("age", "must be positive")
 				return err
 			}(),
 			expectedCode: http.StatusUnprocessableEntity,
-			expectedBody: core.JSONResponse{
+			expectedBody: handler.JSONResponse{
 				Code: "validation_error",
-				Error: &core.ErrorDetail{
+				Error: &handler.ErrorDetail{
 					Code:    "validation_error",
 					Message: "validation error: email: invalid format, age: must be positive",
 					Details: map[string][]string{
@@ -145,11 +145,11 @@ func TestJSONError(t *testing.T) {
 		},
 		{
 			name:         "empty validation error",
-			err:          core.NewValidationError(),
+			err:          handler.NewValidationError(),
 			expectedCode: http.StatusUnprocessableEntity,
-			expectedBody: core.JSONResponse{
+			expectedBody: handler.JSONResponse{
 				Code: "validation_error",
-				Error: &core.ErrorDetail{
+				Error: &handler.ErrorDetail{
 					Code:    "validation_error",
 					Message: "Validation failed",
 				},
@@ -157,11 +157,11 @@ func TestJSONError(t *testing.T) {
 		},
 		{
 			name:         "predefined not found error",
-			err:          core.ErrNotFound,
+			err:          handler.ErrNotFound,
 			expectedCode: http.StatusNotFound,
-			expectedBody: core.JSONResponse{
+			expectedBody: handler.JSONResponse{
 				Code: "not_found",
-				Error: &core.ErrorDetail{
+				Error: &handler.ErrorDetail{
 					Code:    "not_found",
 					Message: "Not Found",
 				},
@@ -169,11 +169,11 @@ func TestJSONError(t *testing.T) {
 		},
 		{
 			name:         "predefined unauthorized error",
-			err:          core.ErrUnauthorized,
+			err:          handler.ErrUnauthorized,
 			expectedCode: http.StatusUnauthorized,
-			expectedBody: core.JSONResponse{
+			expectedBody: handler.JSONResponse{
 				Code: "unauthorized",
-				Error: &core.ErrorDetail{
+				Error: &handler.ErrorDetail{
 					Code:    "unauthorized",
 					Message: "Unauthorized",
 				},
@@ -187,14 +187,14 @@ func TestJSONError(t *testing.T) {
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodGet, "/", nil)
 
-			resp := core.JSONError(tt.err)
+			resp := handler.JSONError(tt.err)
 			err := resp.Render(w, r)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expectedCode, w.Code)
 			assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
 
-			var got core.JSONResponse
+			var got handler.JSONResponse
 			err = json.Unmarshal(w.Body.Bytes(), &got)
 			require.NoError(t, err)
 			// For validation errors, check message separately due to map iteration order
@@ -219,7 +219,7 @@ func TestJSONResponse_OmitEmpty(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	// Create response with only code
-	resp := core.JSON("OK", nil, nil)
+	resp := handler.JSON("OK", nil, nil)
 	err := resp.Render(w, r)
 	require.NoError(t, err)
 

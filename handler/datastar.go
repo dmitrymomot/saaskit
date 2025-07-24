@@ -1,4 +1,4 @@
-package core
+package handler
 
 import (
 	"net/http"
@@ -48,22 +48,8 @@ func IsDataStar(r *http.Request) bool {
 	return strings.Contains(contentType, "application/x-datastar")
 }
 
-// NewDataStarSSE creates a new Server-Sent Event generator for DataStar responses.
+// NewSSE creates a new Server-Sent Event generator for DataStar responses.
 // This is a wrapper around the DataStar SDK's NewSSE function.
-func NewDataStarSSE(w http.ResponseWriter, r *http.Request) *datastar.ServerSentEventGenerator {
+func NewSSE(w http.ResponseWriter, r *http.Request) *datastar.ServerSentEventGenerator {
 	return datastar.NewSSE(w, r)
-}
-
-// DataStarRedirect performs a redirect for DataStar requests using SSE.
-// For non-DataStar requests, it falls back to standard HTTP redirect.
-func DataStarRedirect(w http.ResponseWriter, r *http.Request, url string, code int) error {
-	if IsDataStar(r) {
-		// Use SSE for DataStar requests
-		sse := datastar.NewSSE(w, r)
-		return sse.Redirect(url)
-	}
-
-	// Standard HTTP redirect for non-DataStar requests
-	http.Redirect(w, r, url, code)
-	return nil
 }
