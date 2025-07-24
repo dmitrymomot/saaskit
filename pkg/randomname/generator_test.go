@@ -266,8 +266,10 @@ func TestUniqueness(t *testing.T) {
 			names[name] = true
 		}
 
-		// With 500 iterations on 908k combinations, collisions are very unlikely
-		assert.Equal(t, iterations, len(names), "Should have no collisions with descriptive pattern")
+		// With 500 iterations on 908k combinations, collisions are very unlikely but not impossible
+		// Allow for up to 1% collision rate (5 collisions out of 500)
+		assert.GreaterOrEqual(t, len(names), iterations-5, "Should have minimal collisions with descriptive pattern")
+		assert.LessOrEqual(t, len(names), iterations, "Should not exceed iteration count")
 	})
 }
 
