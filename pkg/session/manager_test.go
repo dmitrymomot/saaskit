@@ -382,3 +382,67 @@ func TestManager_PanicOnNoCookieManager(t *testing.T) {
 		session.New() // No cookie manager provided
 	})
 }
+
+func TestManager_ActivityUpdate(t *testing.T) {
+	cookieMgr, err := cookie.New([]string{"test-secret-key-that-is-long-enough"})
+	require.NoError(t, err)
+
+	manager := session.New(
+		session.WithCookieManager(cookieMgr),
+		session.WithConfig(session.Config{
+			CookieName:              "test-sid",
+			AnonIdleTimeout:         30 * time.Minute,
+			AnonMaxLifetime:         24 * time.Hour,
+			AuthIdleTimeout:         2 * time.Hour,
+			AuthMaxLifetime:         30 * 24 * time.Hour,
+			ActivityUpdateThreshold: 0, // Always update for testing
+			CleanupInterval:         0,
+		}),
+	)
+	defer manager.Close()
+
+	ctx := context.Background()
+
+	t.Run("queues activity updates", func(t *testing.T) {
+		// Create session
+		w1 := httptest.NewRecorder()
+		r1 := httptest.NewRequest("GET", "/", nil)
+		sess1, err := manager.Ensure(ctx, w1, r1)
+		require.NoError(t, err)
+
+		// Make another request to trigger activity update
+		r2 := httptest.NewRequest("GET", "/", nil)
+		for _, c := range w1.Result().Cookies() {
+			r2.AddCookie(c)
+		}
+		w2 := httptest.NewRecorder()
+
+		_, err = manager.Ensure(ctx, w2, r2)
+		assert.NoError(t, err)
+
+		// Give worker time to process
+		time.Sleep(50 * time.Millisecond)
+
+		// Verify activity was updated (indirectly through Get)
+		r3 := httptest.NewRequest("GET", "/", nil)
+		for _, c := range w1.Result().Cookies() {
+			r3.AddCookie(c)
+		}
+
+		sess3, err := manager.Get(ctx, r3)
+		assert.NoError(t, err)
+		assert.True(t, sess3.LastActivityAt.After(sess1.LastActivityAt))
+	})
+}
+
+func TestManager_Close(t *testing.T) {
+	manager := setupManager(t)
+
+	// Close should not error
+	err := manager.Close()
+	assert.NoError(t, err)
+
+	// Should be safe to call multiple times
+	err = manager.Close()
+	assert.NoError(t, err)
+}
