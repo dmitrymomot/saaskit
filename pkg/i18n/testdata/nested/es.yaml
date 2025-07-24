@@ -1,0 +1,8 @@
+es:
+  module:
+    dashboard:
+      title: "Panel de Control"
+      summary: "Vea todas sus métricas importantes de un vistazo"
+    settings:
+      title: "Configuración de la Aplicación"
+      language: "Preferencia de Idioma"
