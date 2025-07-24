@@ -3,6 +3,7 @@ package feature
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"time"
 )
@@ -41,8 +42,7 @@ func NewMemoryProvider(initialFlags ...*Flag) (*MemoryProvider, error) {
 
 		// Make a deep copy of the Tags slice
 		if flag.Tags != nil {
-			flagCopy.Tags = make([]string, len(flag.Tags))
-			copy(flagCopy.Tags, flag.Tags)
+			flagCopy.Tags = slices.Clone(flag.Tags)
 		}
 
 		// Store the copy
@@ -90,8 +90,7 @@ func (m *MemoryProvider) GetFlag(ctx context.Context, flagName string) (*Flag, e
 	flagCopy := *flag
 	// Create a copy of the Tags slice to prevent modification of the original
 	if flag.Tags != nil {
-		flagCopy.Tags = make([]string, len(flag.Tags))
-		copy(flagCopy.Tags, flag.Tags)
+		flagCopy.Tags = slices.Clone(flag.Tags)
 	}
 	return &flagCopy, nil
 }
@@ -124,18 +123,15 @@ func (m *MemoryProvider) ListFlags(ctx context.Context, tags ...string) ([]*Flag
 	for _, flag := range m.flags {
 		// Check if flag has any of the specified tags
 		for _, tagToMatch := range tags {
-			for _, flagTag := range flag.Tags {
-				if tagToMatch == flagTag {
-					// Flag matches at least one tag, add it and move to next flag
-					flagCopy := *flag
-					// Create a copy of the Tags slice to prevent modification of the original
-					if flag.Tags != nil {
-						flagCopy.Tags = make([]string, len(flag.Tags))
-						copy(flagCopy.Tags, flag.Tags)
-					}
-					result = append(result, &flagCopy)
-					goto nextFlag
+			if slices.Contains(flag.Tags, tagToMatch) {
+				// Flag matches at least one tag, add it and move to next flag
+				flagCopy := *flag
+				// Create a copy of the Tags slice to prevent modification of the original
+				if flag.Tags != nil {
+					flagCopy.Tags = slices.Clone(flag.Tags)
 				}
+				result = append(result, &flagCopy)
+				goto nextFlag
 			}
 		}
 	nextFlag:

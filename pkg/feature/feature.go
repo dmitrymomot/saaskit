@@ -54,19 +54,18 @@ type TargetCriteria struct {
 	DenyList []string `json:"deny_list,omitempty"`
 }
 
-// ContextKey is the type used for context keys.
-type ContextKey string
+// Extractor function types for retrieving data from context.
+// These allow users to define how to extract feature flag evaluation data
+// from their application's context, maintaining decoupling from the feature package.
+type (
+	// UserIDExtractor extracts a user ID from the context.
+	UserIDExtractor func(ctx context.Context) string
 
-// Context keys for accessing flag evaluation data.
-const (
-	// UserIDKey is the context key for user ID.
-	UserIDKey ContextKey = "user_id"
+	// UserGroupsExtractor extracts user groups from the context.
+	UserGroupsExtractor func(ctx context.Context) []string
 
-	// UserGroupsKey is the context key for user groups.
-	UserGroupsKey ContextKey = "user_groups"
-
-	// EnvironmentKey is the context key for the environment.
-	EnvironmentKey ContextKey = "environment"
+	// EnvironmentExtractor extracts the environment from the context.
+	EnvironmentExtractor func(ctx context.Context) string
 )
 
 // Provider is the interface that all feature flag providers must implement.
