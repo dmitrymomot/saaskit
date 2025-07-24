@@ -16,7 +16,7 @@ func (m *Manager) Middleware(next http.Handler) http.Handler {
 		ctx := WithSession(r.Context(), session)
 
 		if m.shouldUpdateActivity(session) {
-			go m.updateActivity(r.Context(), session)
+			m.queueActivityUpdate(session.Token)
 		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))

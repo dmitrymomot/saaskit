@@ -24,12 +24,22 @@ type Manager struct {
 	fingerprintFunc FingerprintFunc
 	cookieManager   *cookie.Manager
 	cookieOptions   []cookie.Option
+	activityChan    chan activityUpdate
+	done            chan struct{}
+}
+
+// activityUpdate represents a session activity update
+type activityUpdate struct {
+	token string
+	time  time.Time
 }
 
 // New creates a new session manager with the given options
 func New(opts ...Option) *Manager {
 	m := &Manager{
-		config: DefaultConfig(),
+		config:       DefaultConfig(),
+		activityChan: make(chan activityUpdate, 1000), // buffered channel
+		done:         make(chan struct{}),
 	}
 
 	for _, opt := range opts {
@@ -48,6 +58,9 @@ func New(opts ...Option) *Manager {
 		m.transport = NewCookieTransport(m.cookieManager, m.config.CookieName, m.cookieOptions...)
 	}
 
+	// Start the activity update worker
+	go m.activityWorker()
+
 	return m
 }
 
@@ -57,7 +70,7 @@ func (m *Manager) Ensure(ctx context.Context, w http.ResponseWriter, r *http.Req
 	if err == nil {
 		if err := m.validate(session, r); err == nil {
 			if m.shouldUpdateActivity(session) {
-				go m.updateActivity(ctx, session)
+				m.queueActivityUpdate(session.Token)
 			}
 			return session, nil
 		}
@@ -224,16 +237,47 @@ func (m *Manager) shouldUpdateActivity(session *Session) bool {
 	return time.Since(session.LastActivityAt) >= m.config.ActivityUpdateThreshold
 }
 
-// updateActivity updates the session's last activity time
-func (m *Manager) updateActivity(ctx context.Context, session *Session) {
-	now := time.Now()
-	idle, max := m.config.GetTimeouts(session.IsAuthenticated())
-	newExpiry := m.calculateExpiry(session.CreatedAt, now, idle, max)
+// queueActivityUpdate queues a session activity update
+func (m *Manager) queueActivityUpdate(token string) {
+	select {
+	case m.activityChan <- activityUpdate{token: token, time: time.Now()}:
+		// Update queued successfully
+	default:
+		// Channel full, drop the update (acceptable loss)
+	}
+}
 
-	session.ExpiresAt = newExpiry
-	session.LastActivityAt = now
+// activityWorker processes activity updates
+func (m *Manager) activityWorker() {
+	for {
+		select {
+		case update := <-m.activityChan:
+			// Update activity in store, ignore errors
+			_ = m.store.UpdateActivity(context.Background(), update.token, update.time)
+		case <-m.done:
+			// Drain remaining updates before exiting
+			for {
+				select {
+				case update := <-m.activityChan:
+					_ = m.store.UpdateActivity(context.Background(), update.token, update.time)
+				default:
+					return
+				}
+			}
+		}
+	}
+}
 
-	_ = m.store.UpdateActivity(ctx, session.Token, now)
+// Close gracefully shuts down the session manager
+func (m *Manager) Close() error {
+	select {
+	case <-m.done:
+		// Already closed
+		return nil
+	default:
+		close(m.done)
+		return nil
+	}
 }
 
 // calculateExpiry returns the next expiry time (min of idle and max lifetime)
