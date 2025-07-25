@@ -1,0 +1,22 @@
+all: false
+dir: "{{.InterfaceDir}}/mocks"
+filename: "{{lower .InterfaceName}}.go"
+force-file-write: true
+formatter: goimports
+log-level: info
+structname: "{{.InterfaceName}}"
+pkgname: "{{.SrcPackageName}}_mocks"
+recursive: false
+require-template-schema-exists: true
+template: testify
+template-schema: "{{.Template}}.schema.json"
+packages:
+  github.com/dmitrymomot/saaskit/pkg/email:
+    config:
+      dir: "testing/mocks"
+      pkgname: "mocks"
+    interfaces:
+      EmailSender:
+        config:
+          filename: "email_sender.go"
+          structname: "EmailSender"
