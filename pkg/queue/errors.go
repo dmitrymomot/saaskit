@@ -48,4 +48,7 @@ var (
 
 	// ErrFailedToMoveToDLQ is returned when moving task to DLQ fails
 	ErrFailedToMoveToDLQ = errors.New("failed to move task to dead letter queue")
+
+	// ErrNoTaskToClaim is returned when no task is available to claim
+	ErrNoTaskToClaim = errors.New("no task available to claim")
 )

@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -211,7 +212,15 @@ func (w *Worker) pullAndProcess() error {
 	// Claim next available task
 	task, err := w.repo.ClaimTask(w.ctx, w.workerID, w.queues, w.lockTimeout)
 	if err != nil {
-		// No task available is expected
+		// Check if it's ErrNoTaskToClaim - this is normal, not an error
+		if errors.Is(err, ErrNoTaskToClaim) {
+			return nil
+		}
+		return fmt.Errorf("failed to claim task: %w", err)
+	}
+
+	// No task available is normal
+	if task == nil {
 		return nil
 	}
 
@@ -226,7 +235,24 @@ func (w *Worker) pullAndProcess() error {
 }
 
 // processTask executes a task with its handler
-func (w *Worker) processTask(task *Task) error {
+func (w *Worker) processTask(task *Task) (retErr error) {
+	start := time.Now()
+
+	// Add panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			retErr = fmt.Errorf("panic in handler: %v", r)
+			w.logger.Error("handler panicked",
+				slog.String("worker_id", w.workerID.String()),
+				slog.String("task_id", task.ID.String()),
+				slog.String("task_name", task.TaskName),
+				slog.Any("panic", r))
+			// Treat panic as task failure
+			duration := time.Since(start)
+			_ = w.handleTaskFailure(task, retErr, duration)
+		}
+	}()
+
 	// Find handler
 	w.mu.RLock()
 	handler, ok := w.handlers[task.TaskName]
@@ -236,12 +262,12 @@ func (w *Worker) processTask(task *Task) error {
 		return w.handleMissingHandler(task)
 	}
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(w.ctx, w.lockTimeout)
+	// Create context with timeout that's not tied to worker lifecycle
+	// This allows graceful shutdown to let tasks complete
+	ctx, cancel := context.WithTimeout(context.Background(), w.lockTimeout)
 	defer cancel()
 
 	// Execute handler
-	start := time.Now()
 	err := handler.Handle(ctx, task.Payload)
 	duration := time.Since(start)
 
@@ -259,7 +285,13 @@ func (w *Worker) handleMissingHandler(task *Task) error {
 		slog.String("task_id", task.ID.String()),
 		slog.String("task_name", task.TaskName))
 
-	// Move to DLQ since no handler means no retry will help
+	// First mark as failed with specific error
+	errorMsg := "no handler registered for task type: " + task.TaskName
+	if err := w.repo.FailTask(w.ctx, task.ID, errorMsg); err != nil {
+		return fmt.Errorf("failed to mark task %s as failed: %w", task.ID, err)
+	}
+
+	// Then move to DLQ since no handler means no retry will help
 	if err := w.repo.MoveToDLQ(w.ctx, task.ID); err != nil {
 		return fmt.Errorf("failed to move task %s to DLQ: %w", task.ID, err)
 	}
@@ -278,7 +310,12 @@ func (w *Worker) handleTaskFailure(task *Task, execErr error, duration time.Dura
 		slog.Duration("duration", duration),
 		slog.String("error", execErr.Error()))
 
-	// Check if this was the last retry
+	// Always mark as failed first to record the error
+	if err := w.repo.FailTask(w.ctx, task.ID, execErr.Error()); err != nil {
+		return fmt.Errorf("failed to update task %s status to failed: %w", task.ID, err)
+	}
+
+	// Check if this was the last retry (FailTask may have updated retry count)
 	if task.RetryCount >= task.MaxRetries {
 		// Move to DLQ
 		if err := w.repo.MoveToDLQ(w.ctx, task.ID); err != nil {
@@ -291,11 +328,6 @@ func (w *Worker) handleTaskFailure(task *Task, execErr error, duration time.Dura
 			slog.String("task_name", task.TaskName))
 
 		return nil
-	}
-
-	// Mark as failed (will be retried)
-	if err := w.repo.FailTask(w.ctx, task.ID, execErr.Error()); err != nil {
-		return fmt.Errorf("failed to update task %s status to failed: %w", task.ID, err)
 	}
 
 	return nil
