@@ -3,6 +3,7 @@ module github.com/dmitrymomot/saaskit
 go 1.24.5
 
 require (
+	github.com/a-h/templ v0.3.920
 	github.com/aws/aws-sdk-go-v2 v1.36.6
 	github.com/aws/aws-sdk-go-v2/config v1.29.18
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.71
@@ -12,6 +13,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/joho/godotenv v1.5.1
+	github.com/mrz1836/postmark v1.7.3
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
 	github.com/pressly/goose/v3 v3.24.3
 	github.com/redis/go-redis/v9 v9.11.0
