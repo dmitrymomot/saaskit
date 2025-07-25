@@ -1,10 +1,5 @@
-.PHONY: mocks
-mocks:
-	@echo "Generating mocks..."
-	@mockery --config=.mockery.yaml
-
 .PHONY: test
-test: mocks
+test:
 	@echo "Running tests..."
 	@go test -race -cover ./...
 
