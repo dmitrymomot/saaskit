@@ -1,0 +1,13 @@
+package components
+
+templ Header(title, subtitle string) {
+	<!-- Title and Subtitle -->
+	<tr>
+		<td style="padding: 10px 0" align="left">
+			<h1 style="font-size: 24px; margin: 0; font-family: Arial, sans-serif">{ title }</h1>
+			if subtitle != "" {
+				<h2 style="font-size: 18px; color: #555555; margin: 5px 0 0 0; font-family: Arial, sans-serif">{ subtitle }</h2>
+			}
+		</td>
+	</tr>
+}

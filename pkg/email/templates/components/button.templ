@@ -1,0 +1,31 @@
+package components
+
+templ ButtonGroup() {
+	<!-- Buttons -->
+	<tr>
+		<td align="left" style="padding: 15px 0">
+			{ children... }
+		</td>
+	</tr>
+}
+
+templ PrimaryButton(text, url string) {
+	<!-- Primary Button -->
+	<a href={ templ.URL(url) } class="button" style="background-color: #007bff; color: #ffffff !important; padding: 10px 20px; text-decoration: none; display: inline-block; border-radius: 5px; font-family: Arial, sans-serif; margin: 5px 5px 5px 0; font-size: 16px; line-height: 24px">
+		<span style="color: #ffffff !important; text-decoration: none">{ text }</span>
+	</a>
+}
+
+templ SuccessButton(text, url string) {
+	<!-- Success Button -->
+	<a href={ templ.URL(url) } class="button" style="background-color: #28a745; color: #ffffff !important; padding: 10px 20px; text-decoration: none; display: inline-block; border-radius: 5px; font-family: Arial, sans-serif; margin: 5px 5px 5px 0; font-size: 16px; line-height: 24px">
+		<span style="color: #ffffff !important; text-decoration: none">{ text }</span>
+	</a>
+}
+
+templ DangerButton(text, url string) {
+	<!-- Danger Button -->
+	<a href={ templ.URL(url) } class="button" style="background-color: #dc3545; color: #ffffff !important; padding: 10px 20px; text-decoration: none; display: inline-block; border-radius: 5px; font-family: Arial, sans-serif; margin: 5px 0 5px 0; font-size: 16px; line-height: 24px">
+		<span style="color: #ffffff !important; text-decoration: none">{ text }</span>
+	</a>
+}

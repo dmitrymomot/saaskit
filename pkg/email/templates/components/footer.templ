@@ -1,0 +1,16 @@
+package components
+
+templ Footer() {
+	<!-- Footer -->
+	<tr>
+		<td style="padding: 15px 0; border-top: 1px solid #dddddd" align="left">
+			<p style="font-size: 12px; line-height: 18px; color: #999999; font-family: Arial, sans-serif; margin: 0">
+				{ children... }
+			</p>
+		</td>
+	</tr>
+}
+
+templ FooterLink(text, url string) {
+	<a href={ templ.URL(url) } style="color: #999999; text-decoration: underline">{ text }</a> |
+}
