@@ -6,10 +6,10 @@
 // exposing a single factory – New – that creates a *slog.Logger configured by
 // a set of Option functions. These options allow you to:
 //
-//   • Select an output format (text or json)
-//   • Set the minimum log level
-//   • Supply default slog.Attr values applied to every record
-//   • Register ContextExtractor callbacks that inject attributes pulled from a
+//   - Select an output format (text or json)
+//   - Set the minimum log level
+//   - Supply default slog.Attr values applied to every record
+//   - Register ContextExtractor callbacks that inject attributes pulled from a
 //     context value (for example a request id) every time Handle is invoked.
 //
 // # Architecture
@@ -46,11 +46,11 @@
 //
 // The behaviour of New can be tuned with a variety of Option helpers:
 //
-//   • WithDevelopment / WithStaging / WithProduction – sensible defaults per environment.
-//   • WithFormat / WithTextFormatter / WithJSONFormatter – override output format.
-//   • WithLevel – set a custom slog.Level.
-//   • WithAttr – attach static attributes.
-//   • WithContextExtractors / WithContextValue – inject attributes from context.
+//   - WithDevelopment / WithStaging / WithProduction – sensible defaults per environment.
+//   - WithFormat / WithTextFormatter / WithJSONFormatter – override output format.
+//   - WithLevel – set a custom slog.Level.
+//   - WithAttr – attach static attributes.
+//   - WithContextExtractors / WithContextValue – inject attributes from context.
 //
 // # Error Handling
 //

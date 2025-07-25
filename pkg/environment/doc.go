@@ -20,26 +20,26 @@
 //
 // Import the package:
 //
-//     import "github.com/dmitrymomot/saaskit/pkg/environment"
+//	import "github.com/dmitrymomot/saaskit/pkg/environment"
 //
 // Set the environment on an HTTP server:
 //
-//     mux := http.NewServeMux()
-//     mux.Handle("/", handler)
-//     envAwareMux := environment.Middleware(environment.Production)(mux)
-//     http.ListenAndServe(":8080", envAwareMux)
+//	mux := http.NewServeMux()
+//	mux.Handle("/", handler)
+//	envAwareMux := environment.Middleware(environment.Production)(mux)
+//	http.ListenAndServe(":8080", envAwareMux)
 //
 // Retrieve the environment from a context:
 //
-//     env := environment.FromContext(ctx)
-//     if environment.IsProduction(ctx) {
-//         // production-specific behaviour
-//     }
+//	env := environment.FromContext(ctx)
+//	if environment.IsProduction(ctx) {
+//	    // production-specific behaviour
+//	}
 //
 // Add the environment to a slog logger:
 //
-//     logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-//     logger = logger.With(environment.LoggerExtractor())
+//	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+//	logger = logger.With(environment.LoggerExtractor())
 //
 // # Error Handling
 //

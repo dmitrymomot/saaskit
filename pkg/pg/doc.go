@@ -12,14 +12,14 @@
 //
 // At its core the package exposes three cooperating building blocks:
 //
-//   • Config – a declarative struct whose fields are populated from
+//   - Config – a declarative struct whose fields are populated from
 //     environment variables via github.com/caarlos0/env. It controls
 //     connection pool limits, health-check cadence and migration paths.
 //
-//   • Connect – opens a *pgxpool.Pool based on Config, retrying with
+//   - Connect – opens a *pgxpool.Pool based on Config, retrying with
 //     exponential back-off until the database becomes available.
 //
-//   • Migrate – runs goose database migrations against the same connection
+//   - Migrate – runs goose database migrations against the same connection
 //     pool, guaranteeing the schema is up-to-date before the service starts
 //     serving traffic.
 //
@@ -34,34 +34,34 @@
 //	package main
 //
 //	import (
-// 	    "context"
-// 	    "log/slog"
+//	    "context"
+//	    "log/slog"
 //	    "github.com/dmitrymomot/saaskit/pkg/pg"
-// 	)
+//	)
 //
-// 	func main() {
-// 	    var cfg pg.Config
-// 	    if err := env.Parse(&cfg); err != nil {
-// 	        panic(err)
-// 	    }
+//	func main() {
+//	    var cfg pg.Config
+//	    if err := env.Parse(&cfg); err != nil {
+//	        panic(err)
+//	    }
 //
-// 	    ctx := context.Background()
-// 	    pool, err := pg.Connect(ctx, cfg)
-// 	    if err != nil {
-// 	        panic(err)
-// 	    }
-// 	    defer pool.Close()
+//	    ctx := context.Background()
+//	    pool, err := pg.Connect(ctx, cfg)
+//	    if err != nil {
+//	        panic(err)
+//	    }
+//	    defer pool.Close()
 //
-// 	    if err := pg.Migrate(ctx, pool, cfg, slog.Default()); err != nil {
-// 	        panic(err)
-// 	    }
+//	    if err := pg.Migrate(ctx, pool, cfg, slog.Default()); err != nil {
+//	        panic(err)
+//	    }
 //
-// 	    // expose health endpoint
-// 	    health := pg.Healthcheck(pool)
-// 	    if err := health(ctx); err != nil {
-// 	        panic(err)
-// 	    }
-// 	}
+//	    // expose health endpoint
+//	    health := pg.Healthcheck(pool)
+//	    if err := health(ctx); err != nil {
+//	        panic(err)
+//	    }
+//	}
 //
 // # Configuration
 //

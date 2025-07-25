@@ -15,13 +15,13 @@
 //
 // The package is intentionally lightweight and framework-agnostic:
 //
-//   • Generate – pure function that produces the fingerprint string.
-//   • Validate – convenience wrapper that compares a stored fingerprint
+//   - Generate – pure function that produces the fingerprint string.
+//   - Validate – convenience wrapper that compares a stored fingerprint
 //     with the newly generated one.
-//   • Middleware – standard `net/http` middleware that injects the
+//   - Middleware – standard `net/http` middleware that injects the
 //     fingerprint into the request context so that downstream handlers
 //     can retrieve it via `GetFingerprintFromContext`.
-//   • Context helpers – `SetFingerprintToContext` /
+//   - Context helpers – `SetFingerprintToContext` /
 //     `GetFingerprintFromContext` allow manual manipulation when the
 //     middleware is not used.
 //
@@ -68,5 +68,4 @@
 // or memoise that if you call `Generate` multiple times per request.
 //
 // See the unit tests in `fingerprint_test.go` for additional examples.
-//
 package fingerprint

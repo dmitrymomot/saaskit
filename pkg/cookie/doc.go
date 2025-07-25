@@ -12,10 +12,10 @@
 //
 // Once created you can:
 //
-//   • Set(), Get(), Delete() – plain cookies
-//   • SetSigned(), GetSigned() – signed cookies (integrity only)
-//   • SetEncrypted(), GetEncrypted() – encrypted cookies (integrity + privacy)
-//   • SetFlash(), GetFlash() – single-use JSON-encoded flash messages
+//   - Set(), Get(), Delete() – plain cookies
+//   - SetSigned(), GetSigned() – signed cookies (integrity only)
+//   - SetEncrypted(), GetEncrypted() – encrypted cookies (integrity + privacy)
+//   - SetFlash(), GetFlash() – single-use JSON-encoded flash messages
 //
 // # Architecture
 //
@@ -65,5 +65,5 @@
 //
 // # See Also
 //
-//   • net/http – underlying cookie implementation.
+//   - net/http – underlying cookie implementation.
 package cookie

@@ -12,8 +12,8 @@
 // functions. Both functions delegate QR-code generation to the upstream
 // library and then post-process the result:
 //
-//   • Generate validates the input and returns a PNG image in a byte slice.
-//   • GenerateBase64Image builds upon Generate and returns a data-URI
+//   - Generate validates the input and returns a PNG image in a byte slice.
+//   - GenerateBase64Image builds upon Generate and returns a data-URI
 //     (base64-encoded PNG) which can be used inside an <img> tag.
 //
 // Errors that can be returned are declared as package-level variables so they
@@ -39,8 +39,8 @@
 //
 // The functions return well-defined sentinel errors:
 //
-//   • ErrEmptyContent             – the content argument was empty.
-//   • ErrorFailedToGenerateQRCode – the underlying library could not
+//   - ErrEmptyContent             – the content argument was empty.
+//   - ErrorFailedToGenerateQRCode – the underlying library could not
 //     generate the QR code.
 //
 // Wrap your error handling with errors.Is for robust comparisons.
