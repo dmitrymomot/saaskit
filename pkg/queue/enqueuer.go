@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -65,10 +66,26 @@ func (e *Enqueuer) Enqueue(ctx context.Context, payload any, opts ...EnqueueOpti
 		return ErrInvalidPriority
 	}
 
+	// Build and store task
+	task, err := e.buildTask(payload, options)
+	if err != nil {
+		return err
+	}
+
+	// Store task
+	if err := e.repo.CreateTask(ctx, task); err != nil {
+		return fmt.Errorf("failed to create task %q in queue %q: %w", task.TaskName, task.Queue, err)
+	}
+
+	return nil
+}
+
+// buildTask constructs a Task from payload and options
+func (e *Enqueuer) buildTask(payload any, options *enqueueOptions) (*Task, error) {
 	// Marshal payload
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return ErrPayloadMarshal
+		return nil, fmt.Errorf("failed to marshal payload of type %T: %w", payload, err)
 	}
 
 	// Determine task name
@@ -85,8 +102,7 @@ func (e *Enqueuer) Enqueue(ctx context.Context, payload any, opts ...EnqueueOpti
 		scheduledAt = scheduledAt.Add(options.delay)
 	}
 
-	// Create task
-	task := &Task{
+	return &Task{
 		ID:          uuid.New(),
 		Queue:       options.queue,
 		TaskType:    TaskTypeOneTime,
@@ -98,12 +114,5 @@ func (e *Enqueuer) Enqueue(ctx context.Context, payload any, opts ...EnqueueOpti
 		MaxRetries:  options.maxRetries,
 		ScheduledAt: scheduledAt,
 		CreatedAt:   time.Now(),
-	}
-
-	// Store task
-	if err := e.repo.CreateTask(ctx, task); err != nil {
-		return ErrTaskCreate
-	}
-
-	return nil
+	}, nil
 }

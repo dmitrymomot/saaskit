@@ -233,20 +233,7 @@ func (w *Worker) processTask(task *Task) error {
 	w.mu.RUnlock()
 
 	if !ok {
-		// No handler for this task type
-		errMsg := fmt.Sprintf("no handler registered for task type: %s", task.TaskName)
-
-		w.logger.Error(errMsg,
-			slog.String("worker_id", w.workerID.String()),
-			slog.String("task_id", task.ID.String()),
-			slog.String("task_name", task.TaskName))
-
-		// Mark as failed (will go to DLQ since no handler means no retry will help)
-		if err := w.repo.MoveToDLQ(w.ctx, task.ID); err != nil {
-			return fmt.Errorf("%w: %s", ErrFailedToMoveToDLQ, err.Error())
-		}
-
-		return ErrHandlerNotFound
+		return w.handleMissingHandler(task)
 	}
 
 	// Create context with timeout
@@ -259,42 +246,65 @@ func (w *Worker) processTask(task *Task) error {
 	duration := time.Since(start)
 
 	if err != nil {
-		// Task failed
-		w.logger.Error("task failed",
+		return w.handleTaskFailure(task, err, duration)
+	}
+
+	return w.handleTaskSuccess(task, duration)
+}
+
+// handleMissingHandler processes tasks that have no registered handler
+func (w *Worker) handleMissingHandler(task *Task) error {
+	w.logger.Error("no handler registered for task type",
+		slog.String("worker_id", w.workerID.String()),
+		slog.String("task_id", task.ID.String()),
+		slog.String("task_name", task.TaskName))
+
+	// Move to DLQ since no handler means no retry will help
+	if err := w.repo.MoveToDLQ(w.ctx, task.ID); err != nil {
+		return fmt.Errorf("failed to move task %s to DLQ: %w", task.ID, err)
+	}
+
+	return ErrHandlerNotFound
+}
+
+// handleTaskFailure processes failed task execution
+func (w *Worker) handleTaskFailure(task *Task, execErr error, duration time.Duration) error {
+	w.logger.Error("task failed",
+		slog.String("worker_id", w.workerID.String()),
+		slog.String("task_id", task.ID.String()),
+		slog.String("task_name", task.TaskName),
+		slog.Int("retry_count", int(task.RetryCount)),
+		slog.Int("max_retries", int(task.MaxRetries)),
+		slog.Duration("duration", duration),
+		slog.String("error", execErr.Error()))
+
+	// Check if this was the last retry
+	if task.RetryCount >= task.MaxRetries {
+		// Move to DLQ
+		if err := w.repo.MoveToDLQ(w.ctx, task.ID); err != nil {
+			return fmt.Errorf("failed to move task %s to DLQ after max retries: %w", task.ID, err)
+		}
+
+		w.logger.Warn("task moved to dead letter queue",
 			slog.String("worker_id", w.workerID.String()),
 			slog.String("task_id", task.ID.String()),
-			slog.String("task_name", task.TaskName),
-			slog.Int("retry_count", int(task.RetryCount)),
-			slog.Int("max_retries", int(task.MaxRetries)),
-			slog.Duration("duration", duration),
-			slog.String("error", err.Error()))
-
-		// Check if this was the last retry
-		if task.RetryCount >= task.MaxRetries {
-			// Move to DLQ
-			if err := w.repo.MoveToDLQ(w.ctx, task.ID); err != nil {
-				return fmt.Errorf("%w: %s", ErrFailedToMoveToDLQ, err.Error())
-			}
-
-			w.logger.Warn("task moved to dead letter queue",
-				slog.String("worker_id", w.workerID.String()),
-				slog.String("task_id", task.ID.String()),
-				slog.String("task_name", task.TaskName))
-
-			return nil
-		}
-
-		// Mark as failed (will be retried)
-		if err := w.repo.FailTask(w.ctx, task.ID, err.Error()); err != nil {
-			return fmt.Errorf("%w: %s", ErrFailedToUpdateTaskStatus, err.Error())
-		}
+			slog.String("task_name", task.TaskName))
 
 		return nil
 	}
 
-	// Task succeeded
+	// Mark as failed (will be retried)
+	if err := w.repo.FailTask(w.ctx, task.ID, execErr.Error()); err != nil {
+		return fmt.Errorf("failed to update task %s status to failed: %w", task.ID, err)
+	}
+
+	return nil
+}
+
+// handleTaskSuccess processes successful task completion
+func (w *Worker) handleTaskSuccess(task *Task, duration time.Duration) error {
 	if err := w.repo.CompleteTask(w.ctx, task.ID); err != nil {
-		return fmt.Errorf("%w: %s", ErrFailedToUpdateTaskStatus, err.Error())
+		return fmt.Errorf("failed to mark task %s as completed: %w", task.ID, err)
 	}
 
 	w.logger.Info("task completed successfully",

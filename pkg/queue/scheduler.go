@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -147,65 +148,91 @@ func (s *Scheduler) checkTasks(ctx context.Context) {
 
 	// Check each task
 	for _, task := range tasks {
-		// 1. Always calculate next run time first
-		var nextRun time.Time
-		if task.lastScheduledAt == nil {
-			// First run: next run from now
-			nextRun = task.schedule.Next(now)
-		} else {
-			// Subsequent runs: next run from last scheduled
-			nextRun = task.schedule.Next(*task.lastScheduledAt)
-		}
-
-		// 2. Skip if not due (only for subsequent runs)
-		if task.lastScheduledAt != nil && nextRun.After(now) {
-			s.logger.Debug("periodic task not due yet",
-				slog.String("task_name", task.name),
-				slog.Time("next_run", nextRun))
-			continue
-		}
-
-		// 3. Always check DB when we reach here
-		existing, err := s.repo.GetPendingTaskByName(ctx, task.name)
-		if err == nil && existing != nil {
-			// Task exists - just update our state
-			s.mu.Lock()
-			if t, ok := s.tasks[task.name]; ok {
-				t.lastScheduledAt = &existing.ScheduledAt
-			}
-			s.mu.Unlock()
-
-			s.logger.Debug("periodic task already pending",
-				slog.String("task_name", task.name),
-				slog.Time("scheduled_for", existing.ScheduledAt))
-			continue
-		}
-
-		// 4. Create task (we only reach here if no existing task)
-		if err := s.createTask(ctx, task, nextRun); err != nil {
-			s.logger.Error("failed to create periodic task",
+		if err := s.scheduleTaskIfNeeded(ctx, task, now); err != nil {
+			s.logger.Error("failed to schedule task",
 				slog.String("task_name", task.name),
 				slog.String("error", err.Error()))
-			continue
 		}
+	}
+}
 
-		// 5. Update state
-		s.mu.Lock()
-		if t, ok := s.tasks[task.name]; ok {
-			t.lastScheduledAt = &nextRun
-		}
-		s.mu.Unlock()
+// scheduleTaskIfNeeded checks if a task should be scheduled and creates it if needed
+func (s *Scheduler) scheduleTaskIfNeeded(ctx context.Context, task *scheduledTask, now time.Time) error {
+	nextRun := s.calculateNextRun(task, now)
 
-		// Log with appropriate message
-		if task.lastScheduledAt == nil {
-			s.logger.Info("created periodic task (first run)",
-				slog.String("task_name", task.name),
-				slog.Time("scheduled_for", nextRun))
-		} else {
-			s.logger.Info("created periodic task",
-				slog.String("task_name", task.name),
-				slog.Time("scheduled_for", nextRun))
-		}
+	// Check if task should be scheduled
+	if !s.shouldScheduleTask(task, nextRun, now) {
+		return nil
+	}
+
+	// Check if task already exists in DB
+	existing, err := s.repo.GetPendingTaskByName(ctx, task.name)
+	if err == nil && existing != nil {
+		// Task exists - just update our state
+		s.updateTaskState(task.name, &existing.ScheduledAt)
+		s.logger.Debug("periodic task already pending",
+			slog.String("task_name", task.name),
+			slog.Time("scheduled_for", existing.ScheduledAt))
+		return nil
+	}
+
+	// Create the task
+	if err := s.createTask(ctx, task, nextRun); err != nil {
+		return fmt.Errorf("failed to create periodic task: %w", err)
+	}
+
+	// Update state
+	s.updateTaskState(task.name, &nextRun)
+
+	// Log success
+	if task.lastScheduledAt == nil {
+		s.logger.Info("created periodic task (first run)",
+			slog.String("task_name", task.name),
+			slog.Time("scheduled_for", nextRun))
+	} else {
+		s.logger.Info("created periodic task",
+			slog.String("task_name", task.name),
+			slog.Time("scheduled_for", nextRun))
+	}
+
+	return nil
+}
+
+// calculateNextRun determines when the task should run next
+func (s *Scheduler) calculateNextRun(task *scheduledTask, now time.Time) time.Time {
+	if task.lastScheduledAt == nil {
+		// First run: next run from now
+		return task.schedule.Next(now)
+	}
+	// Subsequent runs: next run from last scheduled
+	return task.schedule.Next(*task.lastScheduledAt)
+}
+
+// shouldScheduleTask determines if a task is due to be scheduled
+func (s *Scheduler) shouldScheduleTask(task *scheduledTask, nextRun, now time.Time) bool {
+	// First run is always scheduled
+	if task.lastScheduledAt == nil {
+		return true
+	}
+
+	// Skip if not due yet
+	if nextRun.After(now) {
+		s.logger.Debug("periodic task not due yet",
+			slog.String("task_name", task.name),
+			slog.Time("next_run", nextRun))
+		return false
+	}
+
+	return true
+}
+
+// updateTaskState updates the lastScheduledAt time for a task
+func (s *Scheduler) updateTaskState(taskName string, scheduledAt *time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if t, ok := s.tasks[taskName]; ok {
+		t.lastScheduledAt = scheduledAt
 	}
 }
 
