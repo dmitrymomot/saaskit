@@ -10,16 +10,16 @@
 //
 // The package offers:
 //
-//   • HTTP Middleware (see Middleware) that attaches a request ID to every
+//   - HTTP Middleware (see Middleware) that attaches a request ID to every
 //     request. If the client supplies an "X-Request-ID" header its value is
 //     validated and reused; otherwise a new UUIDv4 string is generated. The
 //     chosen ID is stored in the request context and echoed back to the client
 //     in the response header.
 //
-//   • Context helpers WithContext and FromContext for storing and extracting
+//   - Context helpers WithContext and FromContext for storing and extracting
 //     request IDs from a context.Context.
 //
-//   • LoggerExtractor that integrates with the slog structured-logging package
+//   - LoggerExtractor that integrates with the slog structured-logging package
 //     so the request ID can be injected into log attributes effortlessly.
 //
 // # Usage

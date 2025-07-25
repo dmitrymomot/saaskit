@@ -3,11 +3,11 @@
 //
 // The package wraps the excellent go-redis client and adds:
 //
-//   • Robust `Connect` which retries the connection using the supplied
+//   - Robust `Connect` which retries the connection using the supplied
 //     configuration.
-//   • A thin `Storage` key-value wrapper that satisfies various cache / session
+//   - A thin `Storage` key-value wrapper that satisfies various cache / session
 //     interfaces (e.g. Fiber storage).
-//   • Health-check helpers to integrate Redis into HTTP or GRPC liveness /
+//   - Health-check helpers to integrate Redis into HTTP or GRPC liveness /
 //     readiness probes.
 //
 // Configuration is described by the `Config` struct whose fields can be
@@ -17,39 +17,39 @@
 //
 // Import the package:
 //
-// 	import "github.com/dmitrymomot/saaskit/pkg/redis"
+//	import "github.com/dmitrymomot/saaskit/pkg/redis"
 //
 // Create configuration (most projects rely on env parsing):
 //
-// 	cfg := redis.Config{
-// 	    ConnectionURL:  "redis://localhost:6379/0",
-// 	    RetryAttempts:  3,
-// 	    RetryInterval:  5 * time.Second,
-// 	    ConnectTimeout: 30 * time.Second,
-// 	}
+//	cfg := redis.Config{
+//	    ConnectionURL:  "redis://localhost:6379/0",
+//	    RetryAttempts:  3,
+//	    RetryInterval:  5 * time.Second,
+//	    ConnectTimeout: 30 * time.Second,
+//	}
 //
 // Connect with auto-retry:
 //
-// 	ctx := context.Background()
-// 	client, err := redis.Connect(ctx, cfg)
-// 	if err != nil {
-// 	    // handle error, probably terminate the application
-// 	}
-// 	defer client.Close()
+//	ctx := context.Background()
+//	client, err := redis.Connect(ctx, cfg)
+//	if err != nil {
+//	    // handle error, probably terminate the application
+//	}
+//	defer client.Close()
 //
 // Wrap client with the Storage helper if you need a simple key/value store:
 //
-// 	store := redis.NewStorage(client)
-// 	if err := store.Set("foo", []byte("bar"), 0); err != nil {
-// 	    log.Fatal(err)
-// 	}
+//	store := redis.NewStorage(client)
+//	if err := store.Set("foo", []byte("bar"), 0); err != nil {
+//	    log.Fatal(err)
+//	}
 //
 // Register a health-check in your observability stack:
 //
-// 	checker := redis.Healthcheck(client)
-// 	if err := checker(ctx); err != nil {
-// 	    // redis is not healthy
-// 	}
+//	checker := redis.Healthcheck(client)
+//	if err := checker(ctx); err != nil {
+//	    // redis is not healthy
+//	}
 //
 // # Errors
 //
@@ -59,6 +59,6 @@
 //
 // # See Also
 //
-//   • https://github.com/redis/go-redis – underlying driver
-//   • Fiber storage interface – github.com/gofiber/storage
+//   - https://github.com/redis/go-redis – underlying driver
+//   - Fiber storage interface – github.com/gofiber/storage
 package redis

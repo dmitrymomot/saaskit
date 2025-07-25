@@ -18,7 +18,7 @@
 // # Usage
 //
 //	import (
-// 	    "context"
+//	    "context"
 //	    "time"
 //	    "github.com/dmitrymomot/saaskit/pkg/async"
 //	)

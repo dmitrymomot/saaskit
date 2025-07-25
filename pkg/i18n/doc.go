@@ -4,15 +4,15 @@
 //
 // The package allows you to:
 //
-//   • Load translations from the local file-system, an embedded file-system, or any custom
+//   - Load translations from the local file-system, an embedded file-system, or any custom
 //     storage by implementing the TranslationAdapter interface.
-//   • Detect the preferred user language via HTTP request inspection with pluggable language
+//   - Detect the preferred user language via HTTP request inspection with pluggable language
 //     extractors as well as helper functions for parsing the Accept-Language header.
-//   • Translate strings with variable substitution using named placeholders (`%{key}`) and
+//   - Translate strings with variable substitution using named placeholders (`%{key}`) and
 //     count-aware pluralisation helpers.
-//   • Format durations and "time ago" messages in a locale aware manner.
-//   • Expose JSON dumps of the translations for client-side consumption.
-//   • Seamlessly integrate with the standard `net/http` stack through middleware that injects
+//   - Format durations and "time ago" messages in a locale aware manner.
+//   - Expose JSON dumps of the translations for client-side consumption.
+//   - Seamlessly integrate with the standard `net/http` stack through middleware that injects
 //     a ready-to-use translator into the request context.
 //
 // # Architecture

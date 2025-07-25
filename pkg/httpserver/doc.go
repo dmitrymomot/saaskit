@@ -5,19 +5,19 @@
 // The core type is Server which embeds *http.Server behaviour and augments it
 // with:
 //
-//   • Graceful Shutdown – Run blocks until the context is cancelled or an
+//   - Graceful Shutdown – Run blocks until the context is cancelled or an
 //     interrupt/TERM signal is received and then shuts the server down using
 //     http.Server.Shutdown with a configurable deadline.
 //
-//   • Functional Options – Construction is done through New or NewFromConfig
+//   - Functional Options – Construction is done through New or NewFromConfig
 //     together with Option helpers such as WithAddr, WithReadTimeout and
 //     WithLogger. This keeps the API stable while allowing incremental
 //     features.
 //
-//   • Hooks – WithStartHook and WithStopHook let callers execute side-effects
+//   - Hooks – WithStartHook and WithStopHook let callers execute side-effects
 //     around the server life-cycle.
 //
-//   • Health Checks – HealthCheckHandler returns an http.HandlerFunc that can
+//   - Health Checks – HealthCheckHandler returns an http.HandlerFunc that can
 //     be mounted as both liveness and readiness probes.
 //
 // # Architecture

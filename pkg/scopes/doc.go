@@ -12,11 +12,11 @@
 // The package treats a scope as an opaque token but understands three
 // syntactic conventions:
 //
-//   • ScopeSeparator (" ") white-space between individual scopes inside a
+//   - ScopeSeparator (" ") white-space between individual scopes inside a
 //     scope list string.
-//   • ScopeDelimiter (".") hierarchy delimiter that allows prefixes such as
+//   - ScopeDelimiter (".") hierarchy delimiter that allows prefixes such as
 //     "admin.*" to match all sub-scopes starting with "admin.".
-//   • ScopeWildcard ("*") a wild-card that matches everything or, when used
+//   - ScopeWildcard ("*") a wild-card that matches everything or, when used
 //     as a suffix (e.g. "admin.*"), everything inside a hierarchy.
 //
 // Together these rules make it trivial to express rich permission models while
@@ -59,8 +59,8 @@
 //
 // The package exposes two sentinel errors:
 //
-//   • ErrInvalidScope    – the supplied scope string is syntactically invalid.
-//   • ErrScopeNotAllowed – the scope is not in the list of allowed scopes.
+//   - ErrInvalidScope    – the supplied scope string is syntactically invalid.
+//   - ErrScopeNotAllowed – the scope is not in the list of allowed scopes.
 //
 // These can be matched with errors.Is.
 //

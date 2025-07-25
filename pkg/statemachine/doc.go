@@ -4,10 +4,10 @@
 // The package revolves around two minimal interfaces – State and Event – that
 // give you full freedom to model domain specific states and events while the
 // library takes care of:
-//   1. Transition validation and lookup.
-//   2. Optional Guard evaluation to accept or reject transitions.
-//   3. Execution of side-effect Actions during a transition.
-//   4. Concurrency-safe access to the current state and transition map.
+//  1. Transition validation and lookup.
+//  2. Optional Guard evaluation to accept or reject transitions.
+//  3. Execution of side-effect Actions during a transition.
+//  4. Concurrency-safe access to the current state and transition map.
 //
 // Ready-made helpers such as StringState and StringEvent let you get started
 // quickly for simple scenarios, while your own struct types can satisfy the

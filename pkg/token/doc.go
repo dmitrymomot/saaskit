@@ -3,7 +3,7 @@
 //
 // A token has the following shape:
 //
-// 	base64url(payload).base64url(signature)
+//	base64url(payload).base64url(signature)
 //
 // where
 //
@@ -52,5 +52,4 @@
 // with network round-trips.
 //
 // Example usage can be found in the package tests.
-//
 package token

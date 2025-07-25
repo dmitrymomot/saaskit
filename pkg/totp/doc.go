@@ -14,14 +14,14 @@
 //
 // Internally the package is divided into three cohesive layers.
 //
-//   • crypto   – helpers in aes256.go implement symmetric encryption/decryption of the secret key
+//   - crypto   – helpers in aes256.go implement symmetric encryption/decryption of the secret key
 //     with AES-256-GCM as well as random key generation utilities.
 //
-//   • totp     – functions in otp.go provide secret key generation (GenerateSecretKey), HOTP/TOTP
+//   - totp     – functions in otp.go provide secret key generation (GenerateSecretKey), HOTP/TOTP
 //     code calculation (GenerateTOTP/ValidateTOTP/GenerateHOTP) and convenient URI construction
 //     (GetTOTPURI) for onboarding to Google Authenticator, 1Password and compatible apps.
 //
-//   • recovery – helpers in recovery.go create, hash and verify single-use recovery codes that can
+//   - recovery – helpers in recovery.go create, hash and verify single-use recovery codes that can
 //     be offered to users in case they permanently lose access to their authenticator device.
 //
 // Configuration such as the encryption key is loaded once per process via the env tag aware
@@ -72,8 +72,8 @@
 //
 // # See Also
 //
-//   • RFC 4226 – HMAC-Based One-Time Password (HOTP) Algorithm
-//   • RFC 6238 – Time-Based One-Time Password (TOTP) Algorithm
+//   - RFC 4226 – HMAC-Based One-Time Password (HOTP) Algorithm
+//   - RFC 6238 – Time-Based One-Time Password (TOTP) Algorithm
 //
 // To explore more usage scenarios refer to the package level examples and unit-tests.
 package totp

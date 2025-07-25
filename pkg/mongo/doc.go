@@ -3,11 +3,11 @@
 //
 // It wraps the official MongoDB Go driver and offers:
 //
-//   • Config type for environment-driven connection parameters
-//   • New and NewWithDatabase helpers that establish a client with configurable
+//   - Config type for environment-driven connection parameters
+//   - New and NewWithDatabase helpers that establish a client with configurable
 //     retry logic and time-outs
-//   • Healthcheck helper that can be plugged into readiness / liveness probes
-//   • Pre-declared error variables describing common failure scenarios
+//   - Healthcheck helper that can be plugged into readiness / liveness probes
+//   - Pre-declared error variables describing common failure scenarios
 //
 // # Usage
 //
