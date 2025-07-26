@@ -6,9 +6,9 @@ on:
     branches:
       - main
     paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
   # branches-ignore:
   #   - main
   #   - "releases/**"
@@ -18,9 +18,9 @@ on:
       - main
       - "releases/**"
     paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
 
 jobs:
   tests:
@@ -37,4 +37,4 @@ jobs:
         run: go mod download -x
 
       - name: Run tests
-        run: go test -v -p 1 -count=1 -race -cover ./...
+        run: go test -p 5 -count=1 -race -cover ./...
