@@ -4,8 +4,46 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 )
+
+// Common validation patterns
+var (
+	// tenantIDPattern allows alphanumeric characters, hyphens, and underscores
+	// Minimum 3 characters, maximum 63 characters (DNS subdomain compatible)
+	tenantIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-_]{2,62}$`)
+
+	// uuidPattern matches standard UUID format
+	uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+)
+
+// isValidTenantID validates tenant identifier format
+func isValidTenantID(id string) bool {
+	if id == "" {
+		return false
+	}
+
+	// Check if it's a valid UUID
+	if uuidPattern.MatchString(id) {
+		return true
+	}
+
+	// Check if it matches the general tenant ID pattern
+	return tenantIDPattern.MatchString(id)
+}
+
+// sanitizeTenantID removes any potentially dangerous characters
+func sanitizeTenantID(id string) string {
+	// Remove any characters that aren't alphanumeric, hyphen, or underscore
+	return strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r == '-' || r == '_' {
+			return r
+		}
+		return -1
+	}, id)
+}
 
 // Resolver extracts tenant identifier from HTTP requests.
 type Resolver interface {
@@ -81,6 +119,11 @@ func (r *SubdomainResolver) Resolve(req *http.Request) (string, error) {
 		}
 	}
 
+	// Validate the subdomain format
+	if subdomain != "" && !isValidTenantID(subdomain) {
+		return "", fmt.Errorf("%w: subdomain '%s'", ErrInvalidIdentifier, subdomain)
+	}
+
 	return subdomain, nil
 }
 
@@ -101,6 +144,17 @@ func NewHeaderResolver(headerName string) *HeaderResolver {
 // Resolve extracts tenant from the configured header.
 func (r *HeaderResolver) Resolve(req *http.Request) (string, error) {
 	value := req.Header.Get(r.HeaderName)
+
+	// Return empty if no header value
+	if value == "" {
+		return "", nil
+	}
+
+	// Validate the header value
+	if !isValidTenantID(value) {
+		return "", fmt.Errorf("%w: header value '%s'", ErrInvalidIdentifier, value)
+	}
+
 	return value, nil
 }
 
@@ -133,7 +187,19 @@ func (r *PathResolver) Resolve(req *http.Request) (string, error) {
 		return "", nil
 	}
 
-	return parts[r.Position-1], nil
+	value := parts[r.Position-1]
+
+	// Return empty if no value at position
+	if value == "" {
+		return "", nil
+	}
+
+	// Validate the path segment
+	if !isValidTenantID(value) {
+		return "", fmt.Errorf("%w: path segment '%s'", ErrInvalidIdentifier, value)
+	}
+
+	return value, nil
 }
 
 // CompositeResolver tries multiple resolvers in order until one succeeds.
@@ -200,7 +266,19 @@ func (r *SessionResolver) Resolve(req *http.Request) (string, error) {
 		return "", nil
 	}
 
-	return session.GetString("tenant_id"), nil
+	value := session.GetString("tenant_id")
+
+	// Return empty if no tenant in session
+	if value == "" {
+		return "", nil
+	}
+
+	// Validate the session value
+	if !isValidTenantID(value) {
+		return "", fmt.Errorf("%w: session value '%s'", ErrInvalidIdentifier, value)
+	}
+
+	return value, nil
 }
 
 // ResolverFunc is an adapter to allow the use of ordinary functions as Resolvers.

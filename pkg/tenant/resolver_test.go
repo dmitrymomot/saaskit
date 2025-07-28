@@ -95,6 +95,43 @@ func TestSubdomainResolver(t *testing.T) {
 		assert.Empty(t, id)
 	})
 
+	t.Run("validates subdomain format", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewSubdomainResolver("")
+
+		// Invalid characters in subdomain
+		req := httptest.NewRequest("GET", "https://app.com/test", nil)
+		req.Host = "invalid!@#.app.com"
+
+		id, err := resolver.Resolve(req)
+		assert.Error(t, err)
+		assert.Empty(t, id)
+		assert.ErrorIs(t, err, tenant.ErrInvalidIdentifier)
+	})
+
+	t.Run("accepts valid subdomain formats", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewSubdomainResolver("")
+		validSubdomains := []string{
+			"tenant123",
+			"tenant-123",
+			"tenant_123",
+			"TENANT123",
+			"a1b2c3d4-e5f6-7890-1234-567890abcdef", // UUID format
+		}
+
+		for _, subdomain := range validSubdomains {
+			req := httptest.NewRequest("GET", "https://"+subdomain+".app.com/test", nil)
+			req.Host = subdomain + ".app.com"
+
+			id, err := resolver.Resolve(req)
+			require.NoError(t, err, "subdomain %s should be valid", subdomain)
+			assert.Equal(t, subdomain, id)
+		}
+	})
+
 	t.Run("handles empty host", func(t *testing.T) {
 		t.Parallel()
 
@@ -156,6 +193,40 @@ func TestHeaderResolver(t *testing.T) {
 		id, err := resolver.Resolve(req)
 		require.NoError(t, err)
 		assert.Equal(t, "company456", id)
+	})
+
+	t.Run("validates header value format", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("X-Tenant-ID", "invalid!@#$%")
+
+		id, err := resolver.Resolve(req)
+		assert.Error(t, err)
+		assert.Empty(t, id)
+		assert.ErrorIs(t, err, tenant.ErrInvalidIdentifier)
+	})
+
+	t.Run("accepts valid header values", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
+		validIDs := []string{
+			"tenant123",
+			"tenant-123",
+			"tenant_123",
+			"a1b2c3d4-e5f6-7890-1234-567890abcdef", // UUID format
+		}
+
+		for _, tenantID := range validIDs {
+			req := httptest.NewRequest("GET", "/test", nil)
+			req.Header.Set("X-Tenant-ID", tenantID)
+
+			id, err := resolver.Resolve(req)
+			require.NoError(t, err, "tenant ID %s should be valid", tenantID)
+			assert.Equal(t, tenantID, id)
+		}
 	})
 }
 
@@ -237,6 +308,38 @@ func TestPathResolver(t *testing.T) {
 		id, err := resolver.Resolve(req)
 		require.NoError(t, err)
 		assert.Empty(t, id)
+	})
+
+	t.Run("validates path segment format", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewPathResolver(2)
+		req := httptest.NewRequest("GET", "/api/invalid!@#/users", nil)
+
+		id, err := resolver.Resolve(req)
+		assert.Error(t, err)
+		assert.Empty(t, id)
+		assert.ErrorIs(t, err, tenant.ErrInvalidIdentifier)
+	})
+
+	t.Run("accepts valid path segments", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewPathResolver(1)
+		validIDs := []string{
+			"tenant123",
+			"tenant-123",
+			"tenant_123",
+			"a1b2c3d4-e5f6-7890-1234-567890abcdef", // UUID format
+		}
+
+		for _, tenantID := range validIDs {
+			req := httptest.NewRequest("GET", "/"+tenantID+"/api/users", nil)
+
+			id, err := resolver.Resolve(req)
+			require.NoError(t, err, "tenant ID %s should be valid", tenantID)
+			assert.Equal(t, tenantID, id)
+		}
 	})
 }
 
@@ -414,6 +517,50 @@ func TestSessionResolver(t *testing.T) {
 		id, err := resolver.Resolve(req)
 		require.NoError(t, err)
 		assert.Empty(t, id)
+	})
+
+	t.Run("validates session tenant ID format", func(t *testing.T) {
+		t.Parallel()
+
+		getSession := func(r *http.Request) (tenant.SessionData, error) {
+			return &mockSession{
+				data: map[string]string{"tenant_id": "invalid!@#$%"},
+			}, nil
+		}
+
+		resolver := tenant.NewSessionResolver(getSession)
+		req := httptest.NewRequest("GET", "/test", nil)
+
+		id, err := resolver.Resolve(req)
+		assert.Error(t, err)
+		assert.Empty(t, id)
+		assert.ErrorIs(t, err, tenant.ErrInvalidIdentifier)
+	})
+
+	t.Run("accepts valid session tenant IDs", func(t *testing.T) {
+		t.Parallel()
+
+		validIDs := []string{
+			"tenant123",
+			"tenant-123",
+			"tenant_123",
+			"a1b2c3d4-e5f6-7890-1234-567890abcdef", // UUID format
+		}
+
+		for _, tenantID := range validIDs {
+			getSession := func(r *http.Request) (tenant.SessionData, error) {
+				return &mockSession{
+					data: map[string]string{"tenant_id": tenantID},
+				}, nil
+			}
+
+			resolver := tenant.NewSessionResolver(getSession)
+			req := httptest.NewRequest("GET", "/test", nil)
+
+			id, err := resolver.Resolve(req)
+			require.NoError(t, err, "tenant ID %s should be valid", tenantID)
+			assert.Equal(t, tenantID, id)
+		}
 	})
 }
 

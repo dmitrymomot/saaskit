@@ -3,6 +3,7 @@ package tenant_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -295,6 +296,35 @@ func TestMiddleware_Caching(t *testing.T) {
 		assert.Equal(t, 0, provider.getCalls()) // Never hit provider
 	})
 
+	t.Run("respects cache size limit", func(t *testing.T) {
+		// Not parallel due to cache behavior
+
+		// Test direct cache behavior first
+		cache := tenant.NewInMemoryCacheWithSize(2)
+		defer cache.Close()
+
+		// Fill cache to capacity
+		cache.Set(context.Background(), "tenant1", createTestTenant("tenant1", true), 1*time.Hour)
+		cache.Set(context.Background(), "tenant2", createTestTenant("tenant2", true), 1*time.Hour)
+
+		// Verify both are cached
+		_, ok1 := cache.Get(context.Background(), "tenant1")
+		_, ok2 := cache.Get(context.Background(), "tenant2")
+		assert.True(t, ok1)
+		assert.True(t, ok2)
+
+		// Add third item, should evict tenant1
+		cache.Set(context.Background(), "tenant3", createTestTenant("tenant3", true), 1*time.Hour)
+
+		// Check what's in cache
+		_, ok1 = cache.Get(context.Background(), "tenant1")
+		_, ok2 = cache.Get(context.Background(), "tenant2")
+		_, ok3 := cache.Get(context.Background(), "tenant3")
+		assert.False(t, ok1, "tenant1 should be evicted")
+		assert.True(t, ok2, "tenant2 should be cached")
+		assert.True(t, ok3, "tenant3 should be cached")
+	})
+
 	t.Run("no-op cache disables caching", func(t *testing.T) {
 		t.Parallel()
 
@@ -391,7 +421,7 @@ func TestMiddleware_ConcurrentRequests(t *testing.T) {
 
 	// Add multiple tenants
 	for i := range 10 {
-		testTenant := createTestTenant("tenant"+string(rune(i)), true)
+		testTenant := createTestTenant(fmt.Sprintf("tenant%03d", i), true)
 		provider.addTenant(testTenant)
 	}
 
@@ -416,7 +446,7 @@ func TestMiddleware_ConcurrentRequests(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 
-			tenantID := "tenant" + string(rune(i%10))
+			tenantID := fmt.Sprintf("tenant%03d", i%10)
 			req := httptest.NewRequest("GET", "/test", nil)
 			req.Header.Set("X-Tenant-ID", tenantID)
 			w := httptest.NewRecorder()

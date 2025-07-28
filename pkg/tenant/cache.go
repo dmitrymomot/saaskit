@@ -16,13 +16,20 @@ type Cache interface {
 
 	// Delete removes a tenant from cache.
 	Delete(ctx context.Context, key string)
+
+	// Close releases any resources held by the cache.
+	Close() error
 }
 
 // inMemoryCache is the default in-memory cache implementation.
 type inMemoryCache struct {
-	mu    sync.RWMutex
-	items map[string]cacheItem
-	stop  chan struct{}
+	mu      sync.RWMutex
+	items   map[string]cacheItem
+	lru     []string // LRU queue for eviction
+	maxSize int      // Maximum number of items
+	stop    chan struct{}
+	done    chan struct{}
+	closed  bool
 }
 
 type cacheItem struct {
@@ -30,11 +37,26 @@ type cacheItem struct {
 	expiresAt time.Time
 }
 
+// DefaultCacheSize is the default maximum number of items in the cache.
+const DefaultCacheSize = 1000
+
 // NewInMemoryCache creates a new in-memory cache with automatic cleanup.
 func NewInMemoryCache() Cache {
+	return NewInMemoryCacheWithSize(DefaultCacheSize)
+}
+
+// NewInMemoryCacheWithSize creates a new in-memory cache with specified size limit.
+func NewInMemoryCacheWithSize(maxSize int) Cache {
+	if maxSize <= 0 {
+		maxSize = DefaultCacheSize
+	}
+
 	cache := &inMemoryCache{
-		items: make(map[string]cacheItem),
-		stop:  make(chan struct{}),
+		items:   make(map[string]cacheItem),
+		lru:     make([]string, 0, maxSize),
+		maxSize: maxSize,
+		stop:    make(chan struct{}),
+		done:    make(chan struct{}),
 	}
 
 	// Start cleanup goroutine
@@ -45,8 +67,8 @@ func NewInMemoryCache() Cache {
 
 // Get retrieves a tenant from cache.
 func (c *inMemoryCache) Get(ctx context.Context, key string) (*Tenant, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	item, exists := c.items[key]
 	if !exists {
@@ -55,8 +77,13 @@ func (c *inMemoryCache) Get(ctx context.Context, key string) (*Tenant, bool) {
 
 	// Check if expired
 	if time.Now().After(item.expiresAt) {
+		delete(c.items, key)
+		c.removeLRU(key)
 		return nil, false
 	}
+
+	// Update LRU order
+	c.updateLRU(key)
 
 	return item.tenant, true
 }
@@ -66,10 +93,23 @@ func (c *inMemoryCache) Set(ctx context.Context, key string, tenant *Tenant, ttl
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Check if we need to evict
+	if _, exists := c.items[key]; !exists && len(c.items) >= c.maxSize {
+		// Evict least recently used item
+		if len(c.lru) > 0 {
+			evictKey := c.lru[0]
+			delete(c.items, evictKey)
+			c.lru = c.lru[1:]
+		}
+	}
+
 	c.items[key] = cacheItem{
 		tenant:    tenant,
 		expiresAt: time.Now().Add(ttl),
 	}
+
+	// Update LRU order
+	c.updateLRU(key)
 }
 
 // Delete removes a tenant from cache.
@@ -78,12 +118,14 @@ func (c *inMemoryCache) Delete(ctx context.Context, key string) {
 	defer c.mu.Unlock()
 
 	delete(c.items, key)
+	c.removeLRU(key)
 }
 
 // cleanup periodically removes expired items from cache.
 func (c *inMemoryCache) cleanup() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
+	defer close(c.done)
 
 	for {
 		select {
@@ -104,13 +146,47 @@ func (c *inMemoryCache) removeExpired() {
 	for key, item := range c.items {
 		if now.After(item.expiresAt) {
 			delete(c.items, key)
+			c.removeLRU(key)
 		}
 	}
 }
 
-// Close stops the cleanup goroutine.
-func (c *inMemoryCache) Close() {
+// updateLRU moves the key to the end of the LRU queue (most recently used).
+func (c *inMemoryCache) updateLRU(key string) {
+	// Remove from current position
+	for i, k := range c.lru {
+		if k == key {
+			c.lru = append(c.lru[:i], c.lru[i+1:]...)
+			break
+		}
+	}
+	// Add to end (most recently used)
+	c.lru = append(c.lru, key)
+}
+
+// removeLRU removes the key from the LRU queue.
+func (c *inMemoryCache) removeLRU(key string) {
+	for i, k := range c.lru {
+		if k == key {
+			c.lru = append(c.lru[:i], c.lru[i+1:]...)
+			return
+		}
+	}
+}
+
+// Close stops the cleanup goroutine and waits for it to finish.
+func (c *inMemoryCache) Close() error {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return nil
+	}
+	c.closed = true
+	c.mu.Unlock()
+
 	close(c.stop)
+	<-c.done
+	return nil
 }
 
 // noOpCache is a cache that doesn't cache anything.
@@ -130,4 +206,8 @@ func (n *noOpCache) Set(ctx context.Context, key string, tenant *Tenant, ttl tim
 }
 
 func (n *noOpCache) Delete(ctx context.Context, key string) {
+}
+
+func (n *noOpCache) Close() error {
+	return nil
 }

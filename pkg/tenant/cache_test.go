@@ -2,6 +2,7 @@ package tenant_test
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -237,6 +238,98 @@ func TestCache_EdgeCases(t *testing.T) {
 	})
 }
 
+// getGoroutineCount returns the current number of goroutines
+func getGoroutineCount() int {
+	return runtime.NumGoroutine()
+}
+
+func TestInMemoryCache_SizeLimits(t *testing.T) {
+	t.Parallel()
+
+	t.Run("enforces maximum size", func(t *testing.T) {
+		t.Parallel()
+
+		cache := tenant.NewInMemoryCacheWithSize(3)
+		defer cache.Close()
+
+		// Add 3 items (at capacity)
+		cache.Set(context.Background(), "tenant1", createTestTenant("tenant1", true), 1*time.Hour)
+		cache.Set(context.Background(), "tenant2", createTestTenant("tenant2", true), 1*time.Hour)
+		cache.Set(context.Background(), "tenant3", createTestTenant("tenant3", true), 1*time.Hour)
+
+		// Verify all exist
+		_, ok1 := cache.Get(context.Background(), "tenant1")
+		_, ok2 := cache.Get(context.Background(), "tenant2")
+		_, ok3 := cache.Get(context.Background(), "tenant3")
+		assert.True(t, ok1)
+		assert.True(t, ok2)
+		assert.True(t, ok3)
+
+		// Add 4th item, should evict tenant1 (LRU)
+		cache.Set(context.Background(), "tenant4", createTestTenant("tenant4", true), 1*time.Hour)
+
+		// tenant1 should be evicted, others should exist
+		_, ok1 = cache.Get(context.Background(), "tenant1")
+		_, ok2 = cache.Get(context.Background(), "tenant2")
+		_, ok3 = cache.Get(context.Background(), "tenant3")
+		_, ok4 := cache.Get(context.Background(), "tenant4")
+		assert.False(t, ok1, "tenant1 should have been evicted")
+		assert.True(t, ok2)
+		assert.True(t, ok3)
+		assert.True(t, ok4)
+	})
+
+	t.Run("LRU eviction works correctly", func(t *testing.T) {
+		t.Parallel()
+
+		cache := tenant.NewInMemoryCacheWithSize(3)
+		defer cache.Close()
+
+		// Add 3 items
+		cache.Set(context.Background(), "tenant1", createTestTenant("tenant1", true), 1*time.Hour)
+		cache.Set(context.Background(), "tenant2", createTestTenant("tenant2", true), 1*time.Hour)
+		cache.Set(context.Background(), "tenant3", createTestTenant("tenant3", true), 1*time.Hour)
+
+		// Access tenant1 and tenant2 to make them more recently used
+		cache.Get(context.Background(), "tenant1")
+		cache.Get(context.Background(), "tenant2")
+
+		// Add tenant4, should evict tenant3 (least recently used)
+		cache.Set(context.Background(), "tenant4", createTestTenant("tenant4", true), 1*time.Hour)
+
+		// tenant3 should be evicted
+		_, ok1 := cache.Get(context.Background(), "tenant1")
+		_, ok2 := cache.Get(context.Background(), "tenant2")
+		_, ok3 := cache.Get(context.Background(), "tenant3")
+		_, ok4 := cache.Get(context.Background(), "tenant4")
+		assert.True(t, ok1)
+		assert.True(t, ok2)
+		assert.False(t, ok3, "tenant3 should have been evicted as LRU")
+		assert.True(t, ok4)
+	})
+
+	t.Run("updating existing item doesn't trigger eviction", func(t *testing.T) {
+		t.Parallel()
+
+		cache := tenant.NewInMemoryCacheWithSize(2)
+		defer cache.Close()
+
+		// Add 2 items (at capacity)
+		cache.Set(context.Background(), "tenant1", createTestTenant("tenant1", true), 1*time.Hour)
+		cache.Set(context.Background(), "tenant2", createTestTenant("tenant2", true), 1*time.Hour)
+
+		// Update tenant1
+		cache.Set(context.Background(), "tenant1", createTestTenant("tenant1-updated", true), 1*time.Hour)
+
+		// Both should still exist
+		tenant1, ok1 := cache.Get(context.Background(), "tenant1")
+		_, ok2 := cache.Get(context.Background(), "tenant2")
+		assert.True(t, ok1)
+		assert.True(t, ok2)
+		assert.Equal(t, "tenant1-updated", tenant1.Subdomain)
+	})
+}
+
 // TestInMemoryCache_Internal tests the unexported inMemoryCache type directly
 func TestInMemoryCache_Internal(t *testing.T) {
 	t.Parallel()
@@ -244,12 +337,43 @@ func TestInMemoryCache_Internal(t *testing.T) {
 	t.Run("close stops cleanup goroutine", func(t *testing.T) {
 		t.Parallel()
 
-		// Type assertion to access Close method
+		// Close should work without errors
 		cache := tenant.NewInMemoryCache()
-		if closeable, ok := cache.(interface{ Close() }); ok {
-			// Should not panic
-			closeable.Close()
+		err := cache.Close()
+		assert.NoError(t, err)
+
+		// Closing again should be idempotent
+		err = cache.Close()
+		assert.NoError(t, err)
+	})
+
+	t.Run("cleanup goroutine terminates on close", func(t *testing.T) {
+		// Cannot run in parallel due to goroutine count checks
+
+		// Create multiple caches to verify they clean up properly
+		caches := make([]tenant.Cache, 5)
+		for i := range caches {
+			caches[i] = tenant.NewInMemoryCache()
+			testTenant := createTestTenant("test", true)
+			caches[i].Set(context.Background(), "key", testTenant, 100*time.Millisecond)
 		}
+
+		// Record goroutine count with caches running
+		beforeClose := getGoroutineCount()
+
+		// Close all caches
+		for _, cache := range caches {
+			err := cache.Close()
+			require.NoError(t, err)
+		}
+
+		// Give some time for goroutines to finish
+		time.Sleep(100 * time.Millisecond)
+
+		// Goroutine count should decrease by at least the number of caches
+		afterClose := getGoroutineCount()
+		assert.Less(t, afterClose, beforeClose,
+			"goroutine leak detected: before=%d, after=%d", beforeClose, afterClose)
 	})
 }
 

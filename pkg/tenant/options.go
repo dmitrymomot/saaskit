@@ -28,6 +28,14 @@ func WithCache(cache Cache) Option {
 	}
 }
 
+// WithCacheSize sets the maximum cache size.
+// This will replace the default cache with a size-limited one.
+func WithCacheSize(size int) Option {
+	return func(c *config) {
+		c.cache = NewInMemoryCacheWithSize(size)
+	}
+}
+
 // WithCacheTTL sets the cache time-to-live.
 func WithCacheTTL(ttl time.Duration) Option {
 	return func(c *config) {

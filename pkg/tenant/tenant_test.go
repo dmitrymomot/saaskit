@@ -61,6 +61,10 @@ func (m *mockProvider) getCalls() int {
 	return m.calls
 }
 
+func (m *mockProvider) getCallCount() int {
+	return m.getCalls()
+}
+
 func TestTenant_Structure(t *testing.T) {
 	t.Parallel()
 
