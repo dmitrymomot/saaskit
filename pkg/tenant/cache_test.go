@@ -2,6 +2,7 @@ package tenant_test
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"sync"
 	"testing"
@@ -19,7 +20,9 @@ func TestInMemoryCache(t *testing.T) {
 	t.Run("stores and retrieves tenant", func(t *testing.T) {
 		t.Parallel()
 
-		cache := tenant.NewInMemoryCache()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCache(ctx)
 		testTenant := createTestTenant("acme", true)
 
 		cache.Set(context.Background(), "key1", testTenant, 1*time.Hour)
@@ -32,7 +35,9 @@ func TestInMemoryCache(t *testing.T) {
 	t.Run("returns false for missing key", func(t *testing.T) {
 		t.Parallel()
 
-		cache := tenant.NewInMemoryCache()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCache(ctx)
 
 		retrieved, ok := cache.Get(context.Background(), "missing")
 		assert.False(t, ok)
@@ -42,7 +47,9 @@ func TestInMemoryCache(t *testing.T) {
 	t.Run("respects TTL expiration", func(t *testing.T) {
 		t.Parallel()
 
-		cache := tenant.NewInMemoryCache()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCache(ctx)
 		testTenant := createTestTenant("acme", true)
 
 		// Set with very short TTL
@@ -65,7 +72,9 @@ func TestInMemoryCache(t *testing.T) {
 	t.Run("overwrites existing entries", func(t *testing.T) {
 		t.Parallel()
 
-		cache := tenant.NewInMemoryCache()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCache(ctx)
 		tenant1 := createTestTenant("acme", true)
 		tenant2 := createTestTenant("globex", true)
 
@@ -80,7 +89,9 @@ func TestInMemoryCache(t *testing.T) {
 	t.Run("deletes entries", func(t *testing.T) {
 		t.Parallel()
 
-		cache := tenant.NewInMemoryCache()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCache(ctx)
 		testTenant := createTestTenant("acme", true)
 
 		cache.Set(context.Background(), "delete", testTenant, 1*time.Hour)
@@ -100,7 +111,9 @@ func TestInMemoryCache(t *testing.T) {
 	t.Run("handles concurrent access", func(t *testing.T) {
 		t.Parallel()
 
-		cache := tenant.NewInMemoryCache()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCache(ctx)
 		var wg sync.WaitGroup
 		iterations := 100
 
@@ -109,7 +122,7 @@ func TestInMemoryCache(t *testing.T) {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
-				testTenant := createTestTenant("tenant"+string(rune(i)), true)
+				testTenant := createTestTenant(fmt.Sprintf("tenant%d", i), true)
 				cache.Set(context.Background(), "concurrent", testTenant, 1*time.Hour)
 			}(i)
 		}
@@ -139,7 +152,9 @@ func TestInMemoryCache(t *testing.T) {
 	t.Run("cleanup removes expired entries", func(t *testing.T) {
 		t.Parallel()
 
-		cache := tenant.NewInMemoryCache()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCache(ctx)
 
 		// Add entries with different TTLs
 		cache.Set(context.Background(), "short", createTestTenant("short", true), 50*time.Millisecond)
@@ -192,7 +207,9 @@ func TestCache_EdgeCases(t *testing.T) {
 	t.Run("handles zero TTL", func(t *testing.T) {
 		t.Parallel()
 
-		cache := tenant.NewInMemoryCache()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCache(ctx)
 		testTenant := createTestTenant("acme", true)
 
 		// Set with zero TTL (should expire immediately)
@@ -207,7 +224,9 @@ func TestCache_EdgeCases(t *testing.T) {
 	t.Run("handles negative TTL", func(t *testing.T) {
 		t.Parallel()
 
-		cache := tenant.NewInMemoryCache()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCache(ctx)
 		testTenant := createTestTenant("acme", true)
 
 		// Set with negative TTL
@@ -222,7 +241,9 @@ func TestCache_EdgeCases(t *testing.T) {
 	t.Run("handles empty keys", func(t *testing.T) {
 		t.Parallel()
 
-		cache := tenant.NewInMemoryCache()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCache(ctx)
 		testTenant := createTestTenant("acme", true)
 
 		// Empty key should work
@@ -249,8 +270,9 @@ func TestInMemoryCache_SizeLimits(t *testing.T) {
 	t.Run("enforces maximum size", func(t *testing.T) {
 		t.Parallel()
 
-		cache := tenant.NewInMemoryCacheWithSize(3)
-		defer cache.Close()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCacheWithSize(ctx, 3)
 
 		// Add 3 items (at capacity)
 		cache.Set(context.Background(), "tenant1", createTestTenant("tenant1", true), 1*time.Hour)
@@ -282,8 +304,9 @@ func TestInMemoryCache_SizeLimits(t *testing.T) {
 	t.Run("LRU eviction works correctly", func(t *testing.T) {
 		t.Parallel()
 
-		cache := tenant.NewInMemoryCacheWithSize(3)
-		defer cache.Close()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCacheWithSize(ctx, 3)
 
 		// Add 3 items
 		cache.Set(context.Background(), "tenant1", createTestTenant("tenant1", true), 1*time.Hour)
@@ -311,8 +334,9 @@ func TestInMemoryCache_SizeLimits(t *testing.T) {
 	t.Run("updating existing item doesn't trigger eviction", func(t *testing.T) {
 		t.Parallel()
 
-		cache := tenant.NewInMemoryCacheWithSize(2)
-		defer cache.Close()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCacheWithSize(ctx, 2)
 
 		// Add 2 items (at capacity)
 		cache.Set(context.Background(), "tenant1", createTestTenant("tenant1", true), 1*time.Hour)
@@ -334,37 +358,67 @@ func TestInMemoryCache_SizeLimits(t *testing.T) {
 func TestInMemoryCache_Internal(t *testing.T) {
 	t.Parallel()
 
-	t.Run("close stops cleanup goroutine", func(t *testing.T) {
+	t.Run("context cancellation stops cleanup goroutine", func(t *testing.T) {
 		t.Parallel()
 
-		// Close should work without errors
-		cache := tenant.NewInMemoryCache()
-		err := cache.Close()
-		assert.NoError(t, err)
+		// Context cancellation should stop cleanup goroutine gracefully
+		ctx, cancel := context.WithCancel(context.Background())
+		cache := tenant.NewInMemoryCache(ctx)
 
-		// Closing again should be idempotent
-		err = cache.Close()
-		assert.NoError(t, err)
+		// Add an item to verify cache is working
+		cache.Set(context.Background(), "test", createTestTenant("test", true), 1*time.Hour)
+		_, ok := cache.Get(context.Background(), "test")
+		assert.True(t, ok)
+
+		// Cancel context - this should stop the cleanup goroutine
+		cancel()
+
+		// Cache should still work for basic operations even after context cancellation
+		cache.Set(context.Background(), "test2", createTestTenant("test2", true), 1*time.Hour)
+		_, ok = cache.Get(context.Background(), "test2")
+		assert.True(t, ok)
 	})
 
-	t.Run("cleanup goroutine terminates on close", func(t *testing.T) {
+	t.Run("handles nil tenant gracefully", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCache(ctx)
+
+		// Setting nil tenant should work
+		cache.Set(context.Background(), "nil-tenant", nil, 1*time.Hour)
+
+		retrieved, ok := cache.Get(context.Background(), "nil-tenant")
+		require.True(t, ok)
+		assert.Nil(t, retrieved)
+	})
+
+	t.Run("cleanup goroutine terminates on context cancellation", func(t *testing.T) {
 		// Cannot run in parallel due to goroutine count checks
 
 		// Create multiple caches to verify they clean up properly
-		caches := make([]tenant.Cache, 5)
+		type cacheWithCancel struct {
+			cache  tenant.Cache
+			cancel context.CancelFunc
+		}
+
+		caches := make([]cacheWithCancel, 5)
 		for i := range caches {
-			caches[i] = tenant.NewInMemoryCache()
+			ctx, cancel := context.WithCancel(context.Background())
+			cache := tenant.NewInMemoryCache(ctx)
+			caches[i] = cacheWithCancel{cache: cache, cancel: cancel}
+
 			testTenant := createTestTenant("test", true)
-			caches[i].Set(context.Background(), "key", testTenant, 100*time.Millisecond)
+			cache.Set(context.Background(), "key", testTenant, 100*time.Millisecond)
 		}
 
 		// Record goroutine count with caches running
 		beforeClose := getGoroutineCount()
 
-		// Close all caches
-		for _, cache := range caches {
-			err := cache.Close()
-			require.NoError(t, err)
+		// Cancel all cache contexts
+		for _, cacheInfo := range caches {
+			cacheInfo.cancel()
 		}
 
 		// Give some time for goroutines to finish
@@ -379,41 +433,46 @@ func TestInMemoryCache_Internal(t *testing.T) {
 
 // Benchmark cache operations
 func BenchmarkCache_Set(b *testing.B) {
-	cache := tenant.NewInMemoryCache()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cache := tenant.NewInMemoryCache(ctx)
 	testTenant := createTestTenant("bench", true)
-	ctx := context.Background()
+	testCtx := context.Background()
 
 	b.ResetTimer()
 	for i := range b.N {
-		cache.Set(ctx, "key"+string(rune(i%100)), testTenant, 1*time.Hour)
+		cache.Set(testCtx, fmt.Sprintf("key%d", i%100), testTenant, 1*time.Hour)
 	}
 }
 
 func BenchmarkCache_Get(b *testing.B) {
-	cache := tenant.NewInMemoryCache()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cache := tenant.NewInMemoryCache(ctx)
 	testTenant := createTestTenant("bench", true)
-	ctx := context.Background()
+	testCtx := context.Background()
 
 	// Pre-populate cache
 	for i := range 100 {
-		cache.Set(ctx, "key"+string(rune(i)), testTenant, 1*time.Hour)
+		cache.Set(testCtx, fmt.Sprintf("key%d", i), testTenant, 1*time.Hour)
 	}
 
 	b.ResetTimer()
 	for i := range b.N {
-		cache.Get(ctx, "key"+string(rune(i%100)))
+		cache.Get(testCtx, fmt.Sprintf("key%d", i%100))
 	}
 }
 
 func BenchmarkCache_ConcurrentAccess(b *testing.B) {
-	cache := tenant.NewInMemoryCache()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cache := tenant.NewInMemoryCache(ctx)
 	testTenant := createTestTenant("bench", true)
-	ctx := context.Background()
 
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
 		for pb.Next() {
-			key := "key" + string(rune(i%100))
+			key := fmt.Sprintf("key%d", i%100)
 			if i%2 == 0 {
 				cache.Set(ctx, key, testTenant, 1*time.Hour)
 			} else {

@@ -152,6 +152,35 @@ func TestMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
 
+	t.Run("handles provider timeout", func(t *testing.T) {
+		t.Parallel()
+
+		provider := newMockProvider()
+		slowTenant := createTestTenant("slow", true)
+		provider.addTenant(slowTenant)
+
+		// Create a context with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		defer cancel()
+
+		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
+		middleware := tenant.Middleware(resolver, provider)
+
+		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Simulate slow processing after tenant resolution
+			time.Sleep(20 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest("GET", "/test", nil).WithContext(ctx)
+		req.Header.Set("X-Tenant-ID", "slow")
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+		// Should still resolve tenant quickly, timeout happens later
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
 	t.Run("skips configured paths", func(t *testing.T) {
 		t.Parallel()
 
@@ -214,7 +243,10 @@ func TestMiddleware_Caching(t *testing.T) {
 		provider.addTenant(testTenant)
 
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-		middleware := tenant.Middleware(resolver, provider)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCache(ctx)
+		middleware := tenant.Middleware(resolver, provider, tenant.WithCache(cache))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -276,7 +308,9 @@ func TestMiddleware_Caching(t *testing.T) {
 		provider.addTenant(inactiveTenant)
 
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-		cache := tenant.NewInMemoryCache()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCache(ctx)
 
 		// Pre-populate cache with inactive tenant
 		cache.Set(context.Background(), "inactive", inactiveTenant, 1*time.Hour)
@@ -300,8 +334,9 @@ func TestMiddleware_Caching(t *testing.T) {
 		// Not parallel due to cache behavior
 
 		// Test direct cache behavior first
-		cache := tenant.NewInMemoryCacheWithSize(2)
-		defer cache.Close()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cache := tenant.NewInMemoryCacheWithSize(ctx, 2)
 
 		// Fill cache to capacity
 		cache.Set(context.Background(), "tenant1", createTestTenant("tenant1", true), 1*time.Hour)
