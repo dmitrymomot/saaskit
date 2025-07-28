@@ -12,7 +12,7 @@ import (
 func Middleware(resolver Resolver, provider Provider, opts ...Option) func(http.Handler) http.Handler {
 	// Apply default configuration
 	cfg := &config{
-		cache:         NewInMemoryCache(),
+		cache:         NewNoOpCache(),
 		cacheTTL:      5 * time.Minute,
 		errorHandler:  defaultErrorHandler,
 		requireActive: true,
@@ -77,7 +77,7 @@ func Middleware(resolver Resolver, provider Provider, opts ...Option) func(http.
 			}
 
 			// Step 5: Cache the tenant
-			cfg.cache.Set(r.Context(), identifier, tenant, cfg.cacheTTL)
+			_ = cfg.cache.Set(r.Context(), identifier, tenant, cfg.cacheTTL) // Ignore cache errors
 
 			// Step 6: Add to context and continue
 			ctx := WithTenant(r.Context(), tenant)

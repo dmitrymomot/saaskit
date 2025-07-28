@@ -12,13 +12,10 @@ type Cache interface {
 	Get(ctx context.Context, key string) (*Tenant, bool)
 
 	// Set stores a tenant in cache with the given TTL.
-	Set(ctx context.Context, key string, tenant *Tenant, ttl time.Duration)
+	Set(ctx context.Context, key string, tenant *Tenant, ttl time.Duration) error
 
 	// Delete removes a tenant from cache.
-	Delete(ctx context.Context, key string)
-
-	// Close releases any resources held by the cache.
-	Close() error
+	Delete(ctx context.Context, key string) error
 }
 
 // inMemoryCache is the default in-memory cache implementation.
@@ -27,9 +24,8 @@ type inMemoryCache struct {
 	items   map[string]cacheItem
 	lru     []string // LRU queue for eviction
 	maxSize int      // Maximum number of items
-	stop    chan struct{}
-	done    chan struct{}
-	closed  bool
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
 type cacheItem struct {
@@ -41,22 +37,23 @@ type cacheItem struct {
 const DefaultCacheSize = 1000
 
 // NewInMemoryCache creates a new in-memory cache with automatic cleanup.
-func NewInMemoryCache() Cache {
-	return NewInMemoryCacheWithSize(DefaultCacheSize)
+func NewInMemoryCache(ctx context.Context) Cache {
+	return NewInMemoryCacheWithSize(ctx, DefaultCacheSize)
 }
 
 // NewInMemoryCacheWithSize creates a new in-memory cache with specified size limit.
-func NewInMemoryCacheWithSize(maxSize int) Cache {
+func NewInMemoryCacheWithSize(ctx context.Context, maxSize int) Cache {
 	if maxSize <= 0 {
 		maxSize = DefaultCacheSize
 	}
 
+	cacheCtx, cancel := context.WithCancel(ctx)
 	cache := &inMemoryCache{
 		items:   make(map[string]cacheItem),
 		lru:     make([]string, 0, maxSize),
 		maxSize: maxSize,
-		stop:    make(chan struct{}),
-		done:    make(chan struct{}),
+		ctx:     cacheCtx,
+		cancel:  cancel,
 	}
 
 	// Start cleanup goroutine
@@ -89,7 +86,7 @@ func (c *inMemoryCache) Get(ctx context.Context, key string) (*Tenant, bool) {
 }
 
 // Set stores a tenant in cache.
-func (c *inMemoryCache) Set(ctx context.Context, key string, tenant *Tenant, ttl time.Duration) {
+func (c *inMemoryCache) Set(ctx context.Context, key string, tenant *Tenant, ttl time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -110,28 +107,29 @@ func (c *inMemoryCache) Set(ctx context.Context, key string, tenant *Tenant, ttl
 
 	// Update LRU order
 	c.updateLRU(key)
+	return nil
 }
 
 // Delete removes a tenant from cache.
-func (c *inMemoryCache) Delete(ctx context.Context, key string) {
+func (c *inMemoryCache) Delete(ctx context.Context, key string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	delete(c.items, key)
 	c.removeLRU(key)
+	return nil
 }
 
 // cleanup periodically removes expired items from cache.
 func (c *inMemoryCache) cleanup() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
-	defer close(c.done)
 
 	for {
 		select {
 		case <-ticker.C:
 			c.removeExpired()
-		case <-c.stop:
+		case <-c.ctx.Done():
 			return
 		}
 	}
@@ -174,21 +172,6 @@ func (c *inMemoryCache) removeLRU(key string) {
 	}
 }
 
-// Close stops the cleanup goroutine and waits for it to finish.
-func (c *inMemoryCache) Close() error {
-	c.mu.Lock()
-	if c.closed {
-		c.mu.Unlock()
-		return nil
-	}
-	c.closed = true
-	c.mu.Unlock()
-
-	close(c.stop)
-	<-c.done
-	return nil
-}
-
 // noOpCache is a cache that doesn't cache anything.
 // Useful for testing or when caching should be disabled.
 type noOpCache struct{}
@@ -202,12 +185,10 @@ func (n *noOpCache) Get(ctx context.Context, key string) (*Tenant, bool) {
 	return nil, false
 }
 
-func (n *noOpCache) Set(ctx context.Context, key string, tenant *Tenant, ttl time.Duration) {
+func (n *noOpCache) Set(ctx context.Context, key string, tenant *Tenant, ttl time.Duration) error {
+	return nil
 }
 
-func (n *noOpCache) Delete(ctx context.Context, key string) {
-}
-
-func (n *noOpCache) Close() error {
+func (n *noOpCache) Delete(ctx context.Context, key string) error {
 	return nil
 }

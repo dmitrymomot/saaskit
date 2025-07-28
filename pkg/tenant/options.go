@@ -1,6 +1,7 @@
 package tenant
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -30,9 +31,10 @@ func WithCache(cache Cache) Option {
 
 // WithCacheSize sets the maximum cache size.
 // This will replace the default cache with a size-limited one.
-func WithCacheSize(size int) Option {
+// NOTE: This requires a context for the cache lifecycle. Consider using WithCache instead.
+func WithCacheSize(ctx context.Context, size int) Option {
 	return func(c *config) {
-		c.cache = NewInMemoryCacheWithSize(size)
+		c.cache = NewInMemoryCacheWithSize(ctx, size)
 	}
 }
 

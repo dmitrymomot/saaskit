@@ -291,7 +291,9 @@ func TestIntegration_CacheInvalidation(t *testing.T) {
 	provider.addTenant(activeTenant)
 
 	resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-	cache := tenant.NewInMemoryCache()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cache := tenant.NewInMemoryCache(ctx)
 	middleware := tenant.Middleware(resolver, provider,
 		tenant.WithCache(cache),
 		tenant.WithCacheTTL(1*time.Hour), // Long TTL

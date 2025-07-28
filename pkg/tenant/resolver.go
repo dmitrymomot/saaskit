@@ -33,18 +33,6 @@ func isValidTenantID(id string) bool {
 	return tenantIDPattern.MatchString(id)
 }
 
-// sanitizeTenantID removes any potentially dangerous characters
-func sanitizeTenantID(id string) string {
-	// Remove any characters that aren't alphanumeric, hyphen, or underscore
-	return strings.Map(func(r rune) rune {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
-			(r >= '0' && r <= '9') || r == '-' || r == '_' {
-			return r
-		}
-		return -1
-	}, id)
-}
-
 // Resolver extracts tenant identifier from HTTP requests.
 type Resolver interface {
 	// Resolve extracts the tenant identifier from the request.
