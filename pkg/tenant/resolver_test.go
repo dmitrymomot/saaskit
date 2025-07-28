@@ -1,0 +1,448 @@
+package tenant_test
+
+import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dmitrymomot/saaskit/pkg/tenant"
+)
+
+func TestSubdomainResolver(t *testing.T) {
+	t.Parallel()
+
+	t.Run("extracts subdomain from host", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewSubdomainResolver("")
+		req := httptest.NewRequest("GET", "https://acme.app.com/test", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "acme", id)
+	})
+
+	t.Run("extracts subdomain with custom suffix", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewSubdomainResolver(".saas.com")
+		req := httptest.NewRequest("GET", "https://acme.saas.com/test", nil)
+		req.Host = "acme.saas.com"
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "acme", id)
+	})
+
+	t.Run("handles host with port", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewSubdomainResolver("")
+		req := httptest.NewRequest("GET", "http://acme.app.localhost:8080/test", nil)
+		req.Host = "acme.app.localhost:8080"
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "acme", id)
+	})
+
+	t.Run("skips www prefix", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewSubdomainResolver("")
+		req := httptest.NewRequest("GET", "https://www.acme.app.com/test", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "acme", id)
+	})
+
+	t.Run("returns empty for base domain", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewSubdomainResolver("")
+		req := httptest.NewRequest("GET", "https://app.com/test", nil)
+		req.Host = "app.com"
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Empty(t, id)
+	})
+
+	t.Run("returns empty for single part domain", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewSubdomainResolver("")
+		req := httptest.NewRequest("GET", "https://localhost/test", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Empty(t, id)
+	})
+
+	t.Run("returns empty for www only", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewSubdomainResolver("")
+		req := httptest.NewRequest("GET", "https://www/test", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Empty(t, id)
+	})
+
+	t.Run("handles empty host", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewSubdomainResolver("")
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Host = ""
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Empty(t, id)
+	})
+}
+
+func TestHeaderResolver(t *testing.T) {
+	t.Parallel()
+
+	t.Run("extracts tenant from custom header", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("X-Tenant-ID", "tenant123")
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "tenant123", id)
+	})
+
+	t.Run("uses default header when empty", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewHeaderResolver("")
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("X-Tenant-ID", "tenant123")
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "tenant123", id)
+	})
+
+	t.Run("returns empty for missing header", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
+		req := httptest.NewRequest("GET", "/test", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Empty(t, id)
+	})
+
+	t.Run("handles different header names", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewHeaderResolver("X-Company-ID")
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("X-Company-ID", "company456")
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "company456", id)
+	})
+}
+
+func TestPathResolver(t *testing.T) {
+	t.Parallel()
+
+	t.Run("extracts tenant from path position", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewPathResolver(2)
+		req := httptest.NewRequest("GET", "/api/tenant123/users", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "tenant123", id)
+	})
+
+	t.Run("handles different positions", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewPathResolver(1)
+		req := httptest.NewRequest("GET", "/tenant123/api/users", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "tenant123", id)
+	})
+
+	t.Run("returns error for invalid position", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewPathResolver(0)
+		req := httptest.NewRequest("GET", "/api/tenant123/users", nil)
+
+		_, err := resolver.Resolve(req)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid path position")
+	})
+
+	t.Run("returns empty for position beyond path length", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewPathResolver(5)
+		req := httptest.NewRequest("GET", "/api/v1", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Empty(t, id)
+	})
+
+	t.Run("handles trailing slashes", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewPathResolver(2)
+		req := httptest.NewRequest("GET", "/api/tenant123/", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "tenant123", id)
+	})
+
+	t.Run("handles leading slashes", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewPathResolver(1)
+		req := httptest.NewRequest("GET", "/tenant123/api", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "tenant123", id)
+	})
+
+	t.Run("returns empty for root path", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewPathResolver(1)
+		req := httptest.NewRequest("GET", "/", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Empty(t, id)
+	})
+}
+
+func TestCompositeResolver(t *testing.T) {
+	t.Parallel()
+
+	t.Run("tries resolvers in order", func(t *testing.T) {
+		t.Parallel()
+
+		headerResolver := tenant.NewHeaderResolver("X-Tenant-ID")
+		pathResolver := tenant.NewPathResolver(2)
+		composite := tenant.NewCompositeResolver(headerResolver, pathResolver)
+
+		// Request with header
+		req := httptest.NewRequest("GET", "/api/users", nil)
+		req.Header.Set("X-Tenant-ID", "header-tenant")
+
+		id, err := composite.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "header-tenant", id)
+	})
+
+	t.Run("falls back to next resolver", func(t *testing.T) {
+		t.Parallel()
+
+		headerResolver := tenant.NewHeaderResolver("X-Tenant-ID")
+		pathResolver := tenant.NewPathResolver(2)
+		composite := tenant.NewCompositeResolver(headerResolver, pathResolver)
+
+		// Request without header but with path
+		req := httptest.NewRequest("GET", "/api/path-tenant/users", nil)
+
+		id, err := composite.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "path-tenant", id)
+	})
+
+	t.Run("returns empty when all resolvers return empty", func(t *testing.T) {
+		t.Parallel()
+
+		headerResolver := tenant.NewHeaderResolver("X-Tenant-ID")
+		pathResolver := tenant.NewPathResolver(5) // Beyond path length
+		composite := tenant.NewCompositeResolver(headerResolver, pathResolver)
+
+		req := httptest.NewRequest("GET", "/api", nil)
+
+		id, err := composite.Resolve(req)
+		require.NoError(t, err)
+		assert.Empty(t, id)
+	})
+
+	t.Run("aggregates errors from resolvers", func(t *testing.T) {
+		t.Parallel()
+
+		// Create resolvers that return errors
+		errorResolver1 := tenant.ResolverFunc(func(r *http.Request) (string, error) {
+			return "", errors.New("resolver1 error")
+		})
+		errorResolver2 := tenant.ResolverFunc(func(r *http.Request) (string, error) {
+			return "", errors.New("resolver2 error")
+		})
+
+		composite := tenant.NewCompositeResolver(errorResolver1, errorResolver2)
+		req := httptest.NewRequest("GET", "/test", nil)
+
+		_, err := composite.Resolve(req)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "composite resolver errors")
+		assert.Contains(t, err.Error(), "resolver1 error")
+		assert.Contains(t, err.Error(), "resolver2 error")
+	})
+
+	t.Run("continues on error if later resolver succeeds", func(t *testing.T) {
+		t.Parallel()
+
+		errorResolver := tenant.ResolverFunc(func(r *http.Request) (string, error) {
+			return "", errors.New("resolver error")
+		})
+		successResolver := tenant.ResolverFunc(func(r *http.Request) (string, error) {
+			return "success-tenant", nil
+		})
+
+		composite := tenant.NewCompositeResolver(errorResolver, successResolver)
+		req := httptest.NewRequest("GET", "/test", nil)
+
+		id, err := composite.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "success-tenant", id)
+	})
+}
+
+// Mock session for testing
+type mockSession struct {
+	data map[string]string
+}
+
+func (m *mockSession) GetString(key string) string {
+	return m.data[key]
+}
+
+func TestSessionResolver(t *testing.T) {
+	t.Parallel()
+
+	t.Run("extracts tenant from session", func(t *testing.T) {
+		t.Parallel()
+
+		getSession := func(r *http.Request) (tenant.SessionData, error) {
+			return &mockSession{
+				data: map[string]string{"tenant_id": "session-tenant"},
+			}, nil
+		}
+
+		resolver := tenant.NewSessionResolver(getSession)
+		req := httptest.NewRequest("GET", "/test", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "session-tenant", id)
+	})
+
+	t.Run("returns empty for missing tenant in session", func(t *testing.T) {
+		t.Parallel()
+
+		getSession := func(r *http.Request) (tenant.SessionData, error) {
+			return &mockSession{
+				data: map[string]string{},
+			}, nil
+		}
+
+		resolver := tenant.NewSessionResolver(getSession)
+		req := httptest.NewRequest("GET", "/test", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Empty(t, id)
+	})
+
+	t.Run("returns error when GetSession is nil", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.NewSessionResolver(nil)
+		req := httptest.NewRequest("GET", "/test", nil)
+
+		_, err := resolver.Resolve(req)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "GetSession function not configured")
+	})
+
+	t.Run("propagates session retrieval error", func(t *testing.T) {
+		t.Parallel()
+
+		sessionErr := errors.New("session error")
+		getSession := func(r *http.Request) (tenant.SessionData, error) {
+			return nil, sessionErr
+		}
+
+		resolver := tenant.NewSessionResolver(getSession)
+		req := httptest.NewRequest("GET", "/test", nil)
+
+		_, err := resolver.Resolve(req)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "session resolver")
+	})
+
+	t.Run("handles nil session", func(t *testing.T) {
+		t.Parallel()
+
+		getSession := func(r *http.Request) (tenant.SessionData, error) {
+			return nil, nil
+		}
+
+		resolver := tenant.NewSessionResolver(getSession)
+		req := httptest.NewRequest("GET", "/test", nil)
+
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Empty(t, id)
+	})
+}
+
+func TestResolverFunc(t *testing.T) {
+	t.Parallel()
+
+	t.Run("allows function as resolver", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := tenant.ResolverFunc(func(r *http.Request) (string, error) {
+			return "custom-tenant", nil
+		})
+
+		req := httptest.NewRequest("GET", "/test", nil)
+		id, err := resolver.Resolve(req)
+		require.NoError(t, err)
+		assert.Equal(t, "custom-tenant", id)
+	})
+
+	t.Run("can return errors", func(t *testing.T) {
+		t.Parallel()
+
+		customErr := errors.New("custom error")
+		resolver := tenant.ResolverFunc(func(r *http.Request) (string, error) {
+			return "", customErr
+		})
+
+		req := httptest.NewRequest("GET", "/test", nil)
+		_, err := resolver.Resolve(req)
+		assert.ErrorIs(t, err, customErr)
+	})
+}
