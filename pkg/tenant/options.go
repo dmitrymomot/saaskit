@@ -1,10 +1,8 @@
 package tenant
 
 import (
-	"context"
 	"errors"
 	"net/http"
-	"time"
 )
 
 // ErrorHandler handles errors that occur during tenant resolution.
@@ -13,7 +11,6 @@ type ErrorHandler func(w http.ResponseWriter, r *http.Request, err error)
 // config holds middleware configuration.
 type config struct {
 	cache         Cache
-	cacheTTL      time.Duration
 	errorHandler  ErrorHandler
 	skipPaths     []string
 	requireActive bool
@@ -29,21 +26,6 @@ func WithCache(cache Cache) Option {
 	}
 }
 
-// WithCacheSize sets the maximum cache size.
-// This will replace the default cache with a size-limited one.
-// NOTE: This requires a context for the cache lifecycle. Consider using WithCache instead.
-func WithCacheSize(ctx context.Context, size int) Option {
-	return func(c *config) {
-		c.cache = NewInMemoryCacheWithSize(ctx, size)
-	}
-}
-
-// WithCacheTTL sets the cache time-to-live.
-func WithCacheTTL(ttl time.Duration) Option {
-	return func(c *config) {
-		c.cacheTTL = ttl
-	}
-}
 
 // WithErrorHandler sets a custom error handler.
 func WithErrorHandler(handler ErrorHandler) Option {

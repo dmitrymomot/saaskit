@@ -149,10 +149,12 @@ func TestContext_Propagation(t *testing.T) {
 		testTenant := createTestTenant("acme", true)
 
 		// Create a chain of contexts
+		type key1Type struct{}
+		type key2Type struct{}
 		ctx := context.Background()
-		ctx = context.WithValue(ctx, "key1", "value1")
+		ctx = context.WithValue(ctx, key1Type{}, "value1")
 		ctx = tenant.WithTenant(ctx, testTenant)
-		ctx = context.WithValue(ctx, "key2", "value2")
+		ctx = context.WithValue(ctx, key2Type{}, "value2")
 
 		// Verify tenant is still accessible
 		retrieved, ok := tenant.FromContext(ctx)
@@ -160,8 +162,8 @@ func TestContext_Propagation(t *testing.T) {
 		assert.Equal(t, testTenant, retrieved)
 
 		// Verify other context values are preserved
-		assert.Equal(t, "value1", ctx.Value("key1"))
-		assert.Equal(t, "value2", ctx.Value("key2"))
+		assert.Equal(t, "value1", ctx.Value(key1Type{}))
+		assert.Equal(t, "value2", ctx.Value(key2Type{}))
 	})
 
 	t.Run("cancelled context still returns tenant", func(t *testing.T) {

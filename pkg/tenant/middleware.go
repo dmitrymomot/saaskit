@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 )
 
 // Middleware creates HTTP middleware that extracts tenant information
@@ -12,8 +11,7 @@ import (
 func Middleware(resolver Resolver, provider Provider, opts ...Option) func(http.Handler) http.Handler {
 	// Apply default configuration
 	cfg := &config{
-		cache:         NewNoOpCache(),
-		cacheTTL:      5 * time.Minute,
+		cache:         &NoOpCache{},
 		errorHandler:  defaultErrorHandler,
 		requireActive: true,
 	}
@@ -77,7 +75,7 @@ func Middleware(resolver Resolver, provider Provider, opts ...Option) func(http.
 			}
 
 			// Step 5: Cache the tenant
-			_ = cfg.cache.Set(r.Context(), identifier, tenant, cfg.cacheTTL) // Ignore cache errors
+			_ = cfg.cache.Set(r.Context(), identifier, tenant) // Ignore cache errors
 
 			// Step 6: Add to context and continue
 			ctx := WithTenant(r.Context(), tenant)

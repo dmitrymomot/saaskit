@@ -545,3 +545,59 @@ func indexOf(slice []string, item string) int {
 	}
 	return -1
 }
+
+// Benchmark tests for RBAC performance optimization
+
+func BenchmarkAuthorizer_Can(b *testing.B) {
+	ctx := context.Background()
+	roles := getTestRoles()
+	source := rbac.NewInMemRoleSource(roles)
+	auth, _ := rbac.NewAuthorizer(ctx, source)
+
+	b.ResetTimer()
+	b.Run("exact_match", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = auth.Can("editor", "content.write")
+		}
+	})
+
+	b.Run("inherited_permission", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = auth.Can("editor", "content.read")
+		}
+	})
+
+	b.Run("wildcard_match", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = auth.Can("admin", "admin.users.create")
+		}
+	})
+}
+
+func BenchmarkAuthorizer_CanAny(b *testing.B) {
+	ctx := context.Background()
+	roles := getTestRoles()
+	source := rbac.NewInMemRoleSource(roles)
+	auth, _ := rbac.NewAuthorizer(ctx, source)
+
+	permissions := []string{"content.read", "content.write", "admin.users.create"}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = auth.CanAny("editor", permissions...)
+	}
+}
+
+func BenchmarkAuthorizer_CanAll(b *testing.B) {
+	ctx := context.Background()
+	roles := getTestRoles()
+	source := rbac.NewInMemRoleSource(roles)
+	auth, _ := rbac.NewAuthorizer(ctx, source)
+
+	permissions := []string{"content.read", "content.write"}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = auth.CanAll("editor", permissions...)
+	}
+}

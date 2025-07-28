@@ -61,9 +61,7 @@ func (m *mockProvider) getCalls() int {
 	return m.calls
 }
 
-func (m *mockProvider) getCallCount() int {
-	return m.getCalls()
-}
+// getCallCount removed as it's unused
 
 func TestTenant_Structure(t *testing.T) {
 	t.Parallel()
@@ -166,9 +164,4 @@ func createTestTenant(subdomain string, active bool) *tenant.Tenant {
 	}
 }
 
-// Helper function to create test tenant with specific ID
-func createTestTenantWithID(id uuid.UUID, subdomain string, active bool) *tenant.Tenant {
-	t := createTestTenant(subdomain, active)
-	t.ID = id
-	return t
-}
+// createTestTenantWithID removed as it's unused

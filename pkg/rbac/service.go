@@ -46,8 +46,9 @@ type RoleSource interface {
 // authorizer implements the Authorizer interface.
 type authorizer struct {
 	// rolePermissions contains all permissions (direct and inherited) for each role.
+	// Using map[string]struct{} for O(1) permission lookups and zero memory overhead.
 	// This map is treated as immutable after initialization for thread safety.
-	rolePermissions map[string][]string
+	rolePermissions map[string]map[string]struct{}
 	// sortedRoles lists all roles sorted by inheritance (base roles first).
 	sortedRoles []string
 }
@@ -69,11 +70,18 @@ func NewAuthorizer(ctx context.Context, source RoleSource) (Authorizer, error) {
 		return nil, err
 	}
 
-	// Precompute all permissions for each role
-	rolePermissions := make(map[string][]string)
+	// Precompute all permissions for each role as sets for O(1) lookups
+	rolePermissions := make(map[string]map[string]struct{})
 	for roleName := range roles {
 		allPermissions := getAllPermissions(roleName, roles, make(map[string]bool), 0)
-		rolePermissions[roleName] = scopes.NormalizeScopes(allPermissions)
+		normalizedPermissions := scopes.NormalizeScopes(allPermissions)
+		
+		// Convert slice to set (map[string]struct{})
+		permissionSet := make(map[string]struct{}, len(normalizedPermissions))
+		for _, perm := range normalizedPermissions {
+			permissionSet[perm] = struct{}{}
+		}
+		rolePermissions[roleName] = permissionSet
 	}
 
 	// Sort roles by inheritance
@@ -87,11 +95,23 @@ func NewAuthorizer(ctx context.Context, source RoleSource) (Authorizer, error) {
 
 // Can checks if a role has the specified permission (direct or inherited).
 func (a *authorizer) Can(roleName, permission string) error {
-	permissions, exists := a.rolePermissions[roleName]
+	permissionSet, exists := a.rolePermissions[roleName]
 	if !exists {
 		return ErrInvalidRole
 	}
 
+	// Check for exact permission match (O(1) lookup)
+	if _, hasPermission := permissionSet[permission]; hasPermission {
+		return nil
+	}
+
+	// Check for wildcard permissions using the existing scopes logic
+	// Convert back to slice for compatibility with scopes package
+	permissions := make([]string, 0, len(permissionSet))
+	for perm := range permissionSet {
+		permissions = append(permissions, perm)
+	}
+	
 	if !scopes.HasScope(permissions, permission) {
 		return ErrInsufficientPermissions
 	}
@@ -105,9 +125,22 @@ func (a *authorizer) CanAny(roleName string, permissions ...string) error {
 		return nil
 	}
 
-	rolePermissions, exists := a.rolePermissions[roleName]
+	permissionSet, exists := a.rolePermissions[roleName]
 	if !exists {
 		return ErrInvalidRole
+	}
+
+	// First try exact matches (O(1) for each)
+	for _, permission := range permissions {
+		if _, hasPermission := permissionSet[permission]; hasPermission {
+			return nil // Found at least one exact match
+		}
+	}
+
+	// If no exact matches, fall back to wildcard checking
+	rolePermissions := make([]string, 0, len(permissionSet))
+	for perm := range permissionSet {
+		rolePermissions = append(rolePermissions, perm)
 	}
 
 	if !scopes.HasAnyScopes(rolePermissions, permissions) {
@@ -123,13 +156,38 @@ func (a *authorizer) CanAll(roleName string, permissions ...string) error {
 		return nil
 	}
 
-	rolePermissions, exists := a.rolePermissions[roleName]
+	permissionSet, exists := a.rolePermissions[roleName]
 	if !exists {
 		return ErrInvalidRole
 	}
 
-	if !scopes.HasAllScopes(rolePermissions, permissions) {
-		return ErrInsufficientPermissions
+	// Check each permission individually for efficiency
+	exactMatches := 0
+	var remainingPermissions []string
+	
+	for _, permission := range permissions {
+		if _, hasPermission := permissionSet[permission]; hasPermission {
+			exactMatches++
+		} else {
+			remainingPermissions = append(remainingPermissions, permission)
+		}
+	}
+
+	// If all permissions have exact matches, we're done
+	if exactMatches == len(permissions) {
+		return nil
+	}
+
+	// For remaining permissions, check wildcards
+	if len(remainingPermissions) > 0 {
+		rolePermissions := make([]string, 0, len(permissionSet))
+		for perm := range permissionSet {
+			rolePermissions = append(rolePermissions, perm)
+		}
+
+		if !scopes.HasAllScopes(rolePermissions, remainingPermissions) {
+			return ErrInsufficientPermissions
+		}
 	}
 
 	return nil
@@ -313,11 +371,9 @@ func checkCircularInheritance(roleName string, roles map[string]Role, visited ma
 
 	for _, inheritedRole := range role.Inherits {
 		// Check if we've seen this role in the current path
-		for _, pathRole := range path {
-			if pathRole == inheritedRole {
-				return errors.Join(ErrCircularInheritance,
-					fmt.Errorf("circular inheritance detected: %s -> %s", roleName, inheritedRole))
-			}
+		if slices.Contains(path, inheritedRole) {
+			return errors.Join(ErrCircularInheritance,
+				fmt.Errorf("circular inheritance detected: %s -> %s", roleName, inheritedRole))
 		}
 
 		// Continue DFS

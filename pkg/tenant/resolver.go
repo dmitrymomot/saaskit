@@ -8,23 +8,58 @@ import (
 	"strings"
 )
 
+// Validation constants
+const (
+	// MaxTenantIDLength defines the maximum allowed length for tenant identifiers
+	// This prevents DoS attacks via very long tenant IDs and ensures DNS compatibility
+	MaxTenantIDLength = 63
+	
+	// MinTenantIDLength defines the minimum allowed length for tenant identifiers
+	MinTenantIDLength = 1
+)
+
 // Common validation patterns
 var (
 	// tenantIDPattern allows alphanumeric characters, hyphens, and underscores
-	// Minimum 3 characters, maximum 63 characters (DNS subdomain compatible)
-	tenantIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-_]{2,62}$`)
+	// Minimum 1 character, maximum 63 characters (DNS subdomain compatible)
+	// Must start with alphanumeric character
+	tenantIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-_]*$`)
 
 	// uuidPattern matches standard UUID format
 	uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	
+	// dangerousCharsPattern matches potentially dangerous characters
+	dangerousCharsPattern = regexp.MustCompile(`[\x00-\x1f\x7f-\x9f\/\\<>:"|\?\*\.]`)
 )
 
-// isValidTenantID validates tenant identifier format
+// sanitizeTenantID cleans and preprocesses tenant identifier input.
+// It trims whitespace and removes potentially dangerous characters.
+func sanitizeTenantID(id string) string {
+	// Trim whitespace
+	id = strings.TrimSpace(id)
+	
+	// Remove dangerous characters but preserve valid ones
+	// This is a conservative approach that removes control chars and path traversal
+	id = dangerousCharsPattern.ReplaceAllString(id, "")
+	
+	return id
+}
+
+// isValidTenantID validates tenant identifier format after sanitization.
 func isValidTenantID(id string) bool {
+	// Sanitize input first
+	id = sanitizeTenantID(id)
+	
 	if id == "" {
 		return false
 	}
 
-	// Check if it's a valid UUID
+	// Check length limits to prevent DoS attacks
+	if len(id) < MinTenantIDLength || len(id) > MaxTenantIDLength {
+		return false
+	}
+
+	// Check if it's a valid UUID (UUIDs have their own length constraints)
 	if uuidPattern.MatchString(id) {
 		return true
 	}
@@ -108,8 +143,12 @@ func (r *SubdomainResolver) Resolve(req *http.Request) (string, error) {
 	}
 
 	// Validate the subdomain format
-	if subdomain != "" && !isValidTenantID(subdomain) {
-		return "", fmt.Errorf("%w: subdomain '%s'", ErrInvalidIdentifier, subdomain)
+	if subdomain != "" {
+		sanitized := sanitizeTenantID(subdomain)
+		if !isValidTenantID(subdomain) {
+			return "", fmt.Errorf("%w: subdomain '%s'", ErrInvalidIdentifier, sanitized)
+		}
+		return sanitized, nil
 	}
 
 	return subdomain, nil
@@ -139,11 +178,12 @@ func (r *HeaderResolver) Resolve(req *http.Request) (string, error) {
 	}
 
 	// Validate the header value
+	sanitized := sanitizeTenantID(value)
 	if !isValidTenantID(value) {
-		return "", fmt.Errorf("%w: header value '%s'", ErrInvalidIdentifier, value)
+		return "", fmt.Errorf("%w: header value '%s'", ErrInvalidIdentifier, sanitized)
 	}
 
-	return value, nil
+	return sanitized, nil
 }
 
 // PathResolver extracts tenant identifier from URL path segment.
@@ -183,11 +223,12 @@ func (r *PathResolver) Resolve(req *http.Request) (string, error) {
 	}
 
 	// Validate the path segment
+	sanitized := sanitizeTenantID(value)
 	if !isValidTenantID(value) {
-		return "", fmt.Errorf("%w: path segment '%s'", ErrInvalidIdentifier, value)
+		return "", fmt.Errorf("%w: path segment '%s'", ErrInvalidIdentifier, sanitized)
 	}
 
-	return value, nil
+	return sanitized, nil
 }
 
 // CompositeResolver tries multiple resolvers in order until one succeeds.
@@ -262,11 +303,12 @@ func (r *SessionResolver) Resolve(req *http.Request) (string, error) {
 	}
 
 	// Validate the session value
+	sanitized := sanitizeTenantID(value)
 	if !isValidTenantID(value) {
-		return "", fmt.Errorf("%w: session value '%s'", ErrInvalidIdentifier, value)
+		return "", fmt.Errorf("%w: session value '%s'", ErrInvalidIdentifier, sanitized)
 	}
 
-	return value, nil
+	return sanitized, nil
 }
 
 // ResolverFunc is an adapter to allow the use of ordinary functions as Resolvers.
