@@ -32,7 +32,8 @@ func TestCounterRegistry(t *testing.T) {
 			return 42, nil
 		}
 
-		registry.Register(limits.ResourceUsers, counter)
+		err := registry.Register(limits.ResourceUsers, counter)
+		require.NoError(t, err)
 
 		// Verify counter was registered
 		registeredCounter, exists := registry[limits.ResourceUsers]
@@ -57,8 +58,10 @@ func TestCounterRegistry(t *testing.T) {
 			return 5, nil
 		}
 
-		registry.Register(limits.ResourceUsers, userCounter)
-		registry.Register(limits.ResourceProjects, projectCounter)
+		err := registry.Register(limits.ResourceUsers, userCounter)
+		require.NoError(t, err)
+		err = registry.Register(limits.ResourceProjects, projectCounter)
+		require.NoError(t, err)
 
 		assert.Len(t, registry, 2)
 
@@ -78,14 +81,16 @@ func TestCounterRegistry(t *testing.T) {
 		registry := limits.NewRegistry()
 
 		// Register initial counter
-		registry.Register(limits.ResourceUsers, func(ctx context.Context, tenantID uuid.UUID) (int64, error) {
+		err := registry.Register(limits.ResourceUsers, func(ctx context.Context, tenantID uuid.UUID) (int64, error) {
 			return 1, nil
 		})
+		require.NoError(t, err)
 
 		// Replace with new counter
-		registry.Register(limits.ResourceUsers, func(ctx context.Context, tenantID uuid.UUID) (int64, error) {
+		err = registry.Register(limits.ResourceUsers, func(ctx context.Context, tenantID uuid.UUID) (int64, error) {
 			return 2, nil
 		})
+		require.NoError(t, err)
 
 		assert.Len(t, registry, 1)
 
@@ -95,14 +100,14 @@ func TestCounterRegistry(t *testing.T) {
 		assert.Equal(t, int64(2), count)
 	})
 
-	t.Run("panic on nil counter", func(t *testing.T) {
+	t.Run("error on nil counter", func(t *testing.T) {
 		t.Parallel()
 
 		registry := limits.NewRegistry()
 
-		assert.Panics(t, func() {
-			registry.Register(limits.ResourceUsers, nil)
-		}, "should panic when registering nil counter")
+		err := registry.Register(limits.ResourceUsers, nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "CounterFunc for resource \"users\" cannot be nil")
 	})
 
 	t.Run("counter with error", func(t *testing.T) {
@@ -115,7 +120,8 @@ func TestCounterRegistry(t *testing.T) {
 			return 0, expectedErr
 		}
 
-		registry.Register(limits.ResourceUsers, counter)
+		err := registry.Register(limits.ResourceUsers, counter)
+		require.NoError(t, err)
 
 		count, err := registry[limits.ResourceUsers](context.Background(), uuid.New())
 		assert.Error(t, err)
@@ -138,7 +144,8 @@ func TestCounterRegistry(t *testing.T) {
 			}
 		}
 
-		registry.Register(limits.ResourceUsers, counter)
+		err := registry.Register(limits.ResourceUsers, counter)
+		require.NoError(t, err)
 
 		// Test with normal context
 		count, err := registry[limits.ResourceUsers](context.Background(), uuid.New())
@@ -173,7 +180,8 @@ func TestCounterRegistry(t *testing.T) {
 			return 0, nil
 		}
 
-		registry.Register(limits.ResourceUsers, counter)
+		err := registry.Register(limits.ResourceUsers, counter)
+		require.NoError(t, err)
 
 		// Test different tenants
 		tenant1 := uuid.MustParse("11111111-1111-1111-1111-111111111111")
@@ -204,7 +212,8 @@ func TestCounterRegistry(t *testing.T) {
 			return 1000, nil
 		}
 
-		registry.Register(customResource, counter)
+		err := registry.Register(customResource, counter)
+		require.NoError(t, err)
 
 		count, err := registry[customResource](context.Background(), uuid.New())
 		require.NoError(t, err)

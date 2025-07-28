@@ -68,7 +68,7 @@ func TestPlan_IsTrialActive(t *testing.T) {
 			TrialDays: 14,
 		}
 		// Started yesterday
-		startedAt := time.Now().AddDate(0, 0, -1)
+		startedAt := time.Now().UTC().UTC().AddDate(0, 0, -1)
 
 		result := plan.IsTrialActive(startedAt)
 
@@ -83,7 +83,7 @@ func TestPlan_IsTrialActive(t *testing.T) {
 			TrialDays: 14,
 		}
 		// Started 15 days ago
-		startedAt := time.Now().AddDate(0, 0, -15)
+		startedAt := time.Now().UTC().UTC().AddDate(0, 0, -15)
 
 		result := plan.IsTrialActive(startedAt)
 
@@ -97,7 +97,7 @@ func TestPlan_IsTrialActive(t *testing.T) {
 			ID:        "free",
 			TrialDays: 0,
 		}
-		startedAt := time.Now()
+		startedAt := time.Now().UTC()
 
 		result := plan.IsTrialActive(startedAt)
 
@@ -111,11 +111,35 @@ func TestPlan_IsTrialActive(t *testing.T) {
 			ID:        "legacy",
 			TrialDays: -5,
 		}
-		startedAt := time.Now()
+		startedAt := time.Now().UTC()
 
 		result := plan.IsTrialActive(startedAt)
 
 		assert.False(t, result)
+	})
+
+	t.Run("UTC time zone handling", func(t *testing.T) {
+		t.Parallel()
+
+		plan := limits.Plan{
+			ID:        "pro",
+			TrialDays: 1,
+		}
+
+		// Create a time in a different timezone
+		loc, err := time.LoadLocation("America/New_York")
+		require.NoError(t, err)
+
+		// Start time 23 hours ago in New York time
+		startedAt := time.Now().In(loc).Add(-23 * time.Hour)
+
+		// Trial should still be active regardless of timezone
+		result := plan.IsTrialActive(startedAt)
+		assert.True(t, result)
+
+		// Verify TrialEndsAt returns UTC
+		trialEnd := plan.TrialEndsAt(startedAt)
+		assert.Equal(t, time.UTC, trialEnd.Location())
 	})
 }
 

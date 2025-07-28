@@ -22,7 +22,7 @@ func (p Plan) TrialEndsAt(startedAt time.Time) time.Time {
 	if p.TrialDays <= 0 {
 		return startedAt
 	}
-	return startedAt.AddDate(0, 0, p.TrialDays)
+	return startedAt.AddDate(0, 0, p.TrialDays).UTC()
 }
 
 // IsTrialActive reports whether the tenant is still in its trial window for this plan.
@@ -31,7 +31,7 @@ func (p Plan) IsTrialActive(startedAt time.Time) bool {
 	if p.TrialDays <= 0 {
 		return false
 	}
-	return time.Now().Before(p.TrialEndsAt(startedAt))
+	return time.Now().UTC().Before(p.TrialEndsAt(startedAt))
 }
 
 // PlanComparison contains the differences between two plans.

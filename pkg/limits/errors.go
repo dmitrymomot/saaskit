@@ -5,9 +5,10 @@ import "errors"
 // Domain errors for limits operations
 var (
 	// Plan errors
-	ErrPlanNotFound       = errors.New("limits.errors.plan_not_found")
-	ErrPlanIDNotFound     = errors.New("limits.errors.plan_id_not_found")
-	ErrPlanIDNotInContext = errors.New("limits.errors.plan_id_not_in_context")
+	ErrPlanNotFound             = errors.New("limits.errors.plan_not_found")
+	ErrPlanIDNotFound           = errors.New("limits.errors.plan_id_not_found")
+	ErrPlanIDNotInContext       = errors.New("limits.errors.plan_id_not_in_context")
+	ErrInvalidPlanConfiguration = errors.New("limits.errors.invalid_plan_configuration")
 
 	// Resource limit errors
 	ErrLimitExceeded        = errors.New("limits.errors.limit_exceeded")

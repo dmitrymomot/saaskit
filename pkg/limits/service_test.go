@@ -636,17 +636,48 @@ func TestService_CheckTrial(t *testing.T) {
 
 		source := limits.NewInMemSource(plans)
 		counters := createTestCounters()
-		svc, err := limits.NewLimitsService(context.Background(), source, counters, nil)
-		require.NoError(t, err)
 
-		ctx := limits.SetPlanIDToContext(context.Background(), "broken")
-		tenantID := uuid.New()
-		startedAt := time.Now()
-
-		err = svc.CheckTrial(ctx, tenantID, startedAt)
+		// Service creation should fail due to invalid plan configuration
+		_, err := limits.NewLimitsService(context.Background(), source, counters, nil)
 
 		assert.Error(t, err)
-		assert.ErrorIs(t, err, limits.ErrTrialExpired) // Negative trial days are treated as expired
+		assert.ErrorIs(t, err, limits.ErrInvalidPlanConfiguration)
+		assert.Contains(t, err.Error(), "negative trial days")
+		assert.Contains(t, err.Error(), "broken")
+	})
+
+	t.Run("zero trial days should be valid", func(t *testing.T) {
+		t.Parallel()
+
+		// Create plans with zero trial days (should be valid)
+		plans := map[string]limits.Plan{
+			"valid": {
+				ID:        "valid",
+				Name:      "Valid Plan",
+				TrialDays: 0, // Zero trial days (no trial)
+				Limits: map[limits.Resource]int64{
+					limits.ResourceUsers: 10,
+				},
+			},
+		}
+
+		source := limits.NewInMemSource(plans)
+		counters := createTestCounters()
+
+		// Service creation should succeed
+		svc, err := limits.NewLimitsService(context.Background(), source, counters, nil)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, svc)
+
+		// Verify that CheckTrial works correctly for zero trial days
+		ctx := limits.SetPlanIDToContext(context.Background(), "valid")
+		tenantID := uuid.New()
+		startedAt := time.Now().UTC()
+
+		err = svc.CheckTrial(ctx, tenantID, startedAt)
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, limits.ErrTrialNotAvailable) // Zero trial days means no trial available
 	})
 }
 

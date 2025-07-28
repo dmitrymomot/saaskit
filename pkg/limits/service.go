@@ -3,6 +3,7 @@ package limits
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -66,6 +67,11 @@ func NewLimitsService(ctx context.Context, src Source, counters CounterRegistry,
 
 	if plans == nil {
 		plans = make(map[string]Plan)
+	}
+
+	// Validate plan configurations
+	if err := validatePlans(plans); err != nil {
+		return nil, err
 	}
 
 	if counters == nil {
@@ -317,4 +323,15 @@ func (s *service) GetAllUsage(ctx context.Context, tenantID uuid.UUID) (map[Reso
 	}
 
 	return result, nil
+}
+
+// validatePlans checks plan configurations for validity.
+func validatePlans(plans map[string]Plan) error {
+	for planID, plan := range plans {
+		if plan.TrialDays < 0 {
+			return errors.Join(ErrInvalidPlanConfiguration,
+				fmt.Errorf("plan %s has negative trial days: %d", planID, plan.TrialDays))
+		}
+	}
+	return nil
 }

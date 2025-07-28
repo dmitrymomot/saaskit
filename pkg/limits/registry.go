@@ -20,10 +20,11 @@ func NewRegistry() CounterRegistry {
 	return make(CounterRegistry)
 }
 
-// Register sets or replaces the CounterFunc for the given resource. Panics if fn is nil.
-func (r CounterRegistry) Register(res Resource, fn CounterFunc) {
+// Register sets or replaces the CounterFunc for the given resource. Returns error if fn is nil.
+func (r CounterRegistry) Register(res Resource, fn CounterFunc) error {
 	if fn == nil {
-		panic(fmt.Sprintf("limits: CounterFunc for resource %q cannot be nil", res))
+		return fmt.Errorf("limits: CounterFunc for resource %q cannot be nil", res)
 	}
 	r[res] = fn
+	return nil
 }
