@@ -225,12 +225,7 @@ func (s *service) GetUsagePercentage(ctx context.Context, tenantID uuid.UUID, re
 		return 100
 	}
 
-	percentage := int((used * 100) / limit)
-	if percentage > 100 {
-		percentage = 100
-	}
-
-	return percentage
+	return min(int((used*100)/limit), 100)
 }
 
 // CanDowngrade checks if downgrade is possible given current usage.
