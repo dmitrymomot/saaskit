@@ -5,11 +5,14 @@
 // context-based authentication systems. It supports hierarchical permissions with
 // wildcard matching for scalable authorization patterns.
 //
+// The system includes built-in protection against circular role inheritance and
+// enforces a maximum inheritance depth to prevent performance issues.
+//
 // Key concepts:
 //
 //   - Role: A named set of permissions that can inherit from other roles
 //   - Permission: A dot-separated scope string (e.g., "users.read", "projects.write")
-//   - Inheritance: Roles can inherit permissions from other roles
+//   - Inheritance: Roles can inherit permissions from other roles (max depth: 10)
 //   - Wildcards: Use "*" for pattern matching (e.g., "admin.*" matches all admin permissions)
 //
 // Basic usage:
@@ -32,6 +35,10 @@
 //	// Create role source and authorizer
 //	source := rbac.NewInMemRoleSource(roles)
 //	auth, err := rbac.NewAuthorizer(ctx, source)
+//	if err != nil {
+//	    // May return ErrCircularInheritance if roles have circular dependencies
+//	    log.Fatal(err)
+//	}
 //
 //	// Check permissions
 //	if err := auth.Can("editor", "projects.write"); err != nil {

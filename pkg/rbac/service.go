@@ -3,6 +3,7 @@ package rbac
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/dmitrymomot/saaskit/pkg/scopes"
@@ -63,10 +64,15 @@ func NewAuthorizer(ctx context.Context, source RoleSource) (Authorizer, error) {
 		roles = make(map[string]Role)
 	}
 
+	// Validate role inheritance for circular dependencies
+	if err := validateRoleInheritance(roles); err != nil {
+		return nil, err
+	}
+
 	// Precompute all permissions for each role
 	rolePermissions := make(map[string][]string)
 	for roleName := range roles {
-		allPermissions := getAllPermissions(roleName, roles, make(map[string]bool))
+		allPermissions := getAllPermissions(roleName, roles, make(map[string]bool), 0)
 		rolePermissions[roleName] = scopes.NormalizeScopes(allPermissions)
 	}
 
@@ -173,7 +179,12 @@ func (a *authorizer) GetRoles() []string {
 }
 
 // getAllPermissions recursively collects all permissions for a role, including inherited ones.
-func getAllPermissions(roleName string, roles map[string]Role, visited map[string]bool) []string {
+func getAllPermissions(roleName string, roles map[string]Role, visited map[string]bool, depth int) []string {
+	// Check maximum depth
+	if depth > MaxInheritanceDepth {
+		return nil
+	}
+
 	// Prevent infinite recursion in case of circular inheritance
 	if visited[roleName] {
 		return nil
@@ -191,7 +202,7 @@ func getAllPermissions(roleName string, roles map[string]Role, visited map[strin
 
 	// Add inherited permissions
 	for _, inheritedRole := range role.Inherits {
-		inheritedPerms := getAllPermissions(inheritedRole, roles, visited)
+		inheritedPerms := getAllPermissions(inheritedRole, roles, visited, depth+1)
 		result = append(result, inheritedPerms...)
 	}
 
@@ -263,4 +274,58 @@ func calculateRoleDepth(roleName string, roles map[string]Role, depths map[strin
 	visited[roleName] = true
 	inProcess[roleName] = false
 	return maxDepth
+}
+
+// validateRoleInheritance checks for circular dependencies and excessive depth in role inheritance.
+func validateRoleInheritance(roles map[string]Role) error {
+	// Check each role for circular dependencies
+	for roleName := range roles {
+		if err := checkCircularInheritance(roleName, roles, make(map[string]bool), []string{roleName}); err != nil {
+			return err
+		}
+	}
+
+	// Check maximum inheritance depth
+	depths := make(map[string]int)
+	visited := make(map[string]bool)
+	for roleName := range roles {
+		if !visited[roleName] {
+			depth := calculateRoleDepth(roleName, roles, depths, visited, make(map[string]bool))
+			if depth > MaxInheritanceDepth {
+				return errors.Join(ErrCircularInheritance,
+					fmt.Errorf("inheritance depth exceeds maximum allowed depth of %d", MaxInheritanceDepth))
+			}
+		}
+	}
+
+	return nil
+}
+
+// checkCircularInheritance performs DFS to detect circular dependencies in role inheritance.
+func checkCircularInheritance(roleName string, roles map[string]Role, visited map[string]bool, path []string) error {
+	visited[roleName] = true
+	defer func() { visited[roleName] = false }()
+
+	role, exists := roles[roleName]
+	if !exists {
+		return nil
+	}
+
+	for _, inheritedRole := range role.Inherits {
+		// Check if we've seen this role in the current path
+		for _, pathRole := range path {
+			if pathRole == inheritedRole {
+				return errors.Join(ErrCircularInheritance,
+					fmt.Errorf("circular inheritance detected: %s -> %s", roleName, inheritedRole))
+			}
+		}
+
+		// Continue DFS
+		newPath := append(path, inheritedRole)
+		if err := checkCircularInheritance(inheritedRole, roles, visited, newPath); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

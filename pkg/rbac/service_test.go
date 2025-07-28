@@ -3,6 +3,7 @@ package rbac_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -310,43 +311,144 @@ func TestInMemRoleSource(t *testing.T) {
 func TestCircularInheritance(t *testing.T) {
 	ctx := context.Background()
 
-	// Create roles with circular inheritance
-	roles := map[string]rbac.Role{
-		"role1": {
-			Permissions: []string{"perm1"},
-			Inherits:    []string{"role2"},
-		},
-		"role2": {
-			Permissions: []string{"perm2"},
-			Inherits:    []string{"role3"},
-		},
-		"role3": {
-			Permissions: []string{"perm3"},
-			Inherits:    []string{"role1"}, // Circular reference
-		},
-	}
+	t.Run("direct circular reference", func(t *testing.T) {
+		// Create roles with direct circular inheritance
+		roles := map[string]rbac.Role{
+			"role1": {
+				Permissions: []string{"perm1"},
+				Inherits:    []string{"role2"},
+			},
+			"role2": {
+				Permissions: []string{"perm2"},
+				Inherits:    []string{"role1"}, // Direct circular reference
+			},
+		}
 
-	source := rbac.NewInMemRoleSource(roles)
-	auth, err := rbac.NewAuthorizer(ctx, source)
-	require.NoError(t, err)
+		source := rbac.NewInMemRoleSource(roles)
+		_, err := rbac.NewAuthorizer(ctx, source)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, rbac.ErrCircularInheritance))
+		assert.Contains(t, err.Error(), "circular inheritance detected")
+	})
 
-	// Should handle circular inheritance gracefully
-	err = auth.Can("role1", "perm1")
-	assert.NoError(t, err)
+	t.Run("indirect circular reference", func(t *testing.T) {
+		// Create roles with indirect circular inheritance
+		roles := map[string]rbac.Role{
+			"role1": {
+				Permissions: []string{"perm1"},
+				Inherits:    []string{"role2"},
+			},
+			"role2": {
+				Permissions: []string{"perm2"},
+				Inherits:    []string{"role3"},
+			},
+			"role3": {
+				Permissions: []string{"perm3"},
+				Inherits:    []string{"role1"}, // Indirect circular reference
+			},
+		}
 
-	// Should have permissions from role2 (before cycle is detected)
-	err = auth.Can("role1", "perm2")
-	assert.NoError(t, err)
+		source := rbac.NewInMemRoleSource(roles)
+		_, err := rbac.NewAuthorizer(ctx, source)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, rbac.ErrCircularInheritance))
+		assert.Contains(t, err.Error(), "circular inheritance detected")
+	})
 
-	// Should have permissions from role3 (before cycle is detected)
-	err = auth.Can("role1", "perm3")
-	assert.NoError(t, err)
+	t.Run("self-reference", func(t *testing.T) {
+		// Create role that inherits from itself
+		roles := map[string]rbac.Role{
+			"role1": {
+				Permissions: []string{"perm1"},
+				Inherits:    []string{"role1"}, // Self-reference
+			},
+		}
 
-	// All roles should have all permissions due to circular inheritance
-	err = auth.Can("role2", "perm1")
-	assert.NoError(t, err)
-	err = auth.Can("role3", "perm1")
-	assert.NoError(t, err)
+		source := rbac.NewInMemRoleSource(roles)
+		_, err := rbac.NewAuthorizer(ctx, source)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, rbac.ErrCircularInheritance))
+		assert.Contains(t, err.Error(), "circular inheritance detected")
+	})
+
+	t.Run("valid inheritance without cycles", func(t *testing.T) {
+		// Create valid role hierarchy
+		roles := map[string]rbac.Role{
+			"base": {
+				Permissions: []string{"read"},
+			},
+			"editor": {
+				Permissions: []string{"write"},
+				Inherits:    []string{"base"},
+			},
+			"admin": {
+				Permissions: []string{"delete"},
+				Inherits:    []string{"editor"},
+			},
+		}
+
+		source := rbac.NewInMemRoleSource(roles)
+		auth, err := rbac.NewAuthorizer(ctx, source)
+		require.NoError(t, err)
+
+		// Admin should have all permissions
+		assert.NoError(t, auth.Can("admin", "read"))
+		assert.NoError(t, auth.Can("admin", "write"))
+		assert.NoError(t, auth.Can("admin", "delete"))
+	})
+}
+
+func TestMaxInheritanceDepth(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("exceeds maximum depth", func(t *testing.T) {
+		// Create a deep inheritance chain
+		roles := make(map[string]rbac.Role)
+
+		// Create a chain longer than MaxInheritanceDepth
+		for i := 0; i <= rbac.MaxInheritanceDepth+2; i++ {
+			roleName := fmt.Sprintf("role%d", i)
+			role := rbac.Role{
+				Permissions: []string{fmt.Sprintf("perm%d", i)},
+			}
+			if i > 0 {
+				role.Inherits = []string{fmt.Sprintf("role%d", i-1)}
+			}
+			roles[roleName] = role
+		}
+
+		source := rbac.NewInMemRoleSource(roles)
+		_, err := rbac.NewAuthorizer(ctx, source)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, rbac.ErrCircularInheritance))
+		assert.Contains(t, err.Error(), "inheritance depth exceeds maximum allowed depth")
+	})
+
+	t.Run("at maximum depth", func(t *testing.T) {
+		// Create a chain exactly at MaxInheritanceDepth
+		roles := make(map[string]rbac.Role)
+
+		for i := 0; i <= rbac.MaxInheritanceDepth; i++ {
+			roleName := fmt.Sprintf("role%d", i)
+			role := rbac.Role{
+				Permissions: []string{fmt.Sprintf("perm%d", i)},
+			}
+			if i > 0 {
+				role.Inherits = []string{fmt.Sprintf("role%d", i-1)}
+			}
+			roles[roleName] = role
+		}
+
+		source := rbac.NewInMemRoleSource(roles)
+		auth, err := rbac.NewAuthorizer(ctx, source)
+		require.NoError(t, err)
+
+		// Should have all permissions from the chain
+		topRole := fmt.Sprintf("role%d", rbac.MaxInheritanceDepth)
+		for i := 0; i <= rbac.MaxInheritanceDepth; i++ {
+			assert.NoError(t, auth.Can(topRole, fmt.Sprintf("perm%d", i)))
+		}
+	})
 }
 
 func TestWildcardPermissions(t *testing.T) {

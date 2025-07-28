@@ -2,6 +2,10 @@ package rbac
 
 import "github.com/dmitrymomot/saaskit/pkg/scopes"
 
+// MaxInheritanceDepth is the maximum allowed depth of role inheritance
+// to prevent excessive nesting and potential performance issues.
+const MaxInheritanceDepth = 10
+
 // Permission represents a string-based permission scope.
 // Permissions can be hierarchical using dots (e.g., "users.read")
 // and support wildcards (e.g., "admin.*").
