@@ -303,6 +303,23 @@ func TestService_CanCreate(t *testing.T) {
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, limits.ErrPlanIDNotFound)
 	})
+
+	t.Run("empty plan ID", func(t *testing.T) {
+		t.Parallel()
+
+		source := limits.NewInMemSource(createTestPlans())
+		counters := createTestCounters()
+		svc, err := limits.NewLimitsService(context.Background(), source, counters, nil)
+		require.NoError(t, err)
+
+		ctx := limits.SetPlanIDToContext(context.Background(), "")
+		tenantID := uuid.New()
+
+		err = svc.CanCreate(ctx, tenantID, limits.ResourceUsers)
+
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, limits.ErrPlanNotFound)
+	})
 }
 
 func TestService_GetUsage(t *testing.T) {
@@ -510,6 +527,22 @@ func TestService_HasFeature(t *testing.T) {
 
 		assert.False(t, hasFeature)
 	})
+
+	t.Run("empty plan ID returns false", func(t *testing.T) {
+		t.Parallel()
+
+		source := limits.NewInMemSource(createTestPlans())
+		counters := createTestCounters()
+		svc, err := limits.NewLimitsService(context.Background(), source, counters, nil)
+		require.NoError(t, err)
+
+		ctx := limits.SetPlanIDToContext(context.Background(), "")
+		tenantID := uuid.New()
+
+		hasFeature := svc.HasFeature(ctx, tenantID, limits.FeatureAI)
+
+		assert.False(t, hasFeature)
+	})
 }
 
 func TestService_CheckTrial(t *testing.T) {
@@ -584,6 +617,36 @@ func TestService_CheckTrial(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, limits.ErrPlanNotFound)
+	})
+
+	t.Run("negative trial days", func(t *testing.T) {
+		t.Parallel()
+
+		// Create plans with a plan that has negative trial days
+		plans := map[string]limits.Plan{
+			"broken": {
+				ID:        "broken",
+				Name:      "Broken Plan",
+				TrialDays: -7, // Negative trial days
+				Limits: map[limits.Resource]int64{
+					limits.ResourceUsers: 10,
+				},
+			},
+		}
+
+		source := limits.NewInMemSource(plans)
+		counters := createTestCounters()
+		svc, err := limits.NewLimitsService(context.Background(), source, counters, nil)
+		require.NoError(t, err)
+
+		ctx := limits.SetPlanIDToContext(context.Background(), "broken")
+		tenantID := uuid.New()
+		startedAt := time.Now()
+
+		err = svc.CheckTrial(ctx, tenantID, startedAt)
+
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, limits.ErrTrialExpired) // Negative trial days are treated as expired
 	})
 }
 
