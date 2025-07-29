@@ -556,19 +556,19 @@ func BenchmarkAuthorizer_Can(b *testing.B) {
 
 	b.ResetTimer()
 	b.Run("exact_match", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = auth.Can("editor", "content.write")
 		}
 	})
 
 	b.Run("inherited_permission", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = auth.Can("editor", "content.read")
 		}
 	})
 
 	b.Run("wildcard_match", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = auth.Can("admin", "admin.users.create")
 		}
 	})
@@ -583,7 +583,7 @@ func BenchmarkAuthorizer_CanAny(b *testing.B) {
 	permissions := []string{"content.read", "content.write", "admin.users.create"}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = auth.CanAny("editor", permissions...)
 	}
 }
@@ -597,7 +597,7 @@ func BenchmarkAuthorizer_CanAll(b *testing.B) {
 	permissions := []string{"content.read", "content.write"}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = auth.CanAll("editor", permissions...)
 	}
 }

@@ -120,7 +120,7 @@ func TestValidUUIDVersion(t *testing.T) {
 	t.Parallel()
 	t.Run("valid UUID version 4", func(t *testing.T) {
 		// Generate a few v4 UUIDs
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			uuidV4 := uuid.New() // uuid.New() generates v4
 			rule := validator.ValidUUIDVersion("uuid", uuidV4, 4)
 			err := validator.Apply(rule)

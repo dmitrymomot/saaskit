@@ -154,7 +154,7 @@ func TestVerifyRecoveryCodeSecurity(t *testing.T) {
 	hash := totp.HashRecoveryCode(code)
 
 	// Multiple verifications should yield the same result
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		result := totp.VerifyRecoveryCode(code, hash)
 		assert.True(t, result, "Verification should be consistent")
 	}
@@ -175,7 +175,7 @@ func BenchmarkVerifyRecoveryCode(b *testing.B) {
 	hashedCode := totp.HashRecoveryCode(code)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		totp.VerifyRecoveryCode(code, hashedCode)
 	}
 }

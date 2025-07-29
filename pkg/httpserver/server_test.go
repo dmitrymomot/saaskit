@@ -43,7 +43,7 @@ func TestRunAndShutdown(t *testing.T) {
 	var resp *http.Response
 	var err error
 	// Wait for server to start listening with more generous timeouts
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		resp, err = http.Get("http://" + addr)
 		if err == nil {
 			break
@@ -229,7 +229,7 @@ func TestSignalShutdown(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- srv.Run(context.Background(), http.NewServeMux()) }()
 	// Wait for server to start listening
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		conn, err := net.Dial("tcp", addr)
 		if err == nil {
 			_ = conn.Close()
