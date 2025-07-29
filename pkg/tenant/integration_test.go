@@ -172,7 +172,21 @@ func TestIntegration_SessionBasedMultiTenancy(t *testing.T) {
 	provider.addTenant(globexTenant)
 
 	sessionResolver := session.NewTenantResolver(getSession)
-	resolver := tenant.NewSessionResolverAdapter(sessionResolver)
+
+	// Wrap session resolver with validation
+	resolver := func(r *http.Request) (string, error) {
+		id, err := sessionResolver.Resolve(r)
+		if err != nil {
+			return "", err
+		}
+
+		if id == "" {
+			return "", nil
+		}
+
+		// The session resolver already validates, so we can just return
+		return id, nil
+	}
 	tenantMiddleware := tenant.Middleware(resolver, provider)
 
 	// API handler

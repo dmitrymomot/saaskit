@@ -136,9 +136,9 @@ func TestMiddleware(t *testing.T) {
 		t.Parallel()
 
 		provider := newMockProvider()
-		errorResolver := tenant.ResolverFunc(func(r *http.Request) (string, error) {
+		errorResolver := func(r *http.Request) (string, error) {
 			return "", errors.New("resolver error")
-		})
+		}
 		middleware := tenant.Middleware(errorResolver, provider)
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
