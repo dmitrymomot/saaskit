@@ -323,6 +323,12 @@ func (s *service) GetAllUsage(ctx context.Context, tenantID uuid.UUID) (map[Reso
 // validatePlans checks plan configurations for validity.
 func validatePlans(plans map[string]Plan) error {
 	for planID, plan := range plans {
+		// Validate plan ID matches the map key
+		if plan.ID != planID {
+			return errors.Join(ErrInvalidPlanConfiguration,
+				fmt.Errorf("plan ID mismatch: map key %s != plan.ID %s", planID, plan.ID))
+		}
+
 		if plan.TrialDays < 0 {
 			return errors.Join(ErrInvalidPlanConfiguration,
 				fmt.Errorf("plan %s has negative trial days: %d", planID, plan.TrialDays))
