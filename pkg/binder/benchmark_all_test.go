@@ -79,7 +79,7 @@ func BenchmarkCombinedBinders(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/users/123/products?page=1&page_size=20&sort=name",
@@ -174,7 +174,7 @@ func BenchmarkRealWorldScenario_UserProfile(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		req := httptest.NewRequest(http.MethodPost, "/profile/update", bytes.NewReader(body.Bytes()))
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -265,7 +265,7 @@ func BenchmarkRealWorldScenario_ProductListing(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		// Create request with JSON body first
 		jsonReq := httptest.NewRequest(http.MethodPost, "/stores/store123/products?draft=false&preview=true", bytes.NewReader(jsonBytes))
 		jsonReq.Header.Set("Content-Type", "application/json")

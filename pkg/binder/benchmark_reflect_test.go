@@ -24,7 +24,7 @@ func BenchmarkBindToStruct_SmallStruct(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		req := httptest.NewRequest(http.MethodGet, "/?field1=value1&field2=42&field3=true&field4=value4&field5=123456", nil)
 		var s SmallStruct
 		_ = queryBinder(req, &s)
@@ -99,7 +99,7 @@ func BenchmarkBindToStruct_LargeStruct(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		req := httptest.NewRequest(http.MethodGet, "/?"+queryString, nil)
 		var s LargeStruct
 		_ = queryBinder(req, &s)
@@ -155,7 +155,7 @@ func BenchmarkBindToStruct_MixedTypes(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body.Bytes()))
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -200,7 +200,7 @@ func BenchmarkBindToStruct_NestedStruct(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body.Bytes()))
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -234,7 +234,7 @@ func BenchmarkBindToStruct_PointerFields(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body.Bytes()))
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -268,7 +268,7 @@ func BenchmarkForm_TagParsing(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body.Bytes()))
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 

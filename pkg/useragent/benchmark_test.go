@@ -29,7 +29,7 @@ var (
 func BenchmarkParse_ChromeDesktop(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		result, err = useragent.Parse(chromeDesktopUA)
 	}
 }
@@ -38,7 +38,7 @@ func BenchmarkParse_ChromeDesktop(b *testing.B) {
 func BenchmarkParse_SafariMobile(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		result, err = useragent.Parse(safariMobileUA)
 	}
 }
@@ -47,7 +47,7 @@ func BenchmarkParse_SafariMobile(b *testing.B) {
 func BenchmarkParse_EdgeBrowser(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		result, err = useragent.Parse(edgeBrowserUA)
 	}
 }
@@ -56,7 +56,7 @@ func BenchmarkParse_EdgeBrowser(b *testing.B) {
 func BenchmarkParse_AndroidTablet(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		result, err = useragent.Parse(androidTabletUA)
 	}
 }
@@ -65,7 +65,7 @@ func BenchmarkParse_AndroidTablet(b *testing.B) {
 func BenchmarkParse_Bot(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		result, err = useragent.Parse(botUA)
 	}
 }
@@ -74,7 +74,7 @@ func BenchmarkParse_Bot(b *testing.B) {
 func BenchmarkParse_SamsungBrowser(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		result, err = useragent.Parse(samsungBrowserUA)
 	}
 }
@@ -83,7 +83,7 @@ func BenchmarkParse_SamsungBrowser(b *testing.B) {
 func BenchmarkParse_UCBrowser(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		result, err = useragent.Parse(ucBrowserUA)
 	}
 }
@@ -92,7 +92,7 @@ func BenchmarkParse_UCBrowser(b *testing.B) {
 func BenchmarkParse_EmptyUA(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		result, err = useragent.Parse(emptyUA)
 	}
 }
@@ -101,7 +101,8 @@ func BenchmarkParse_EmptyUA(b *testing.B) {
 func BenchmarkParse_All(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		// Mix of different user agents to simulate real-world usage
 		switch i % 8 {
 		case 0:
@@ -121,6 +122,7 @@ func BenchmarkParse_All(b *testing.B) {
 		case 7:
 			result, err = useragent.Parse(emptyUA)
 		}
+		i++
 	}
 }
 
@@ -136,10 +138,12 @@ func BenchmarkParseDeviceType(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		// Use modulo to cycle through the user agents
 		ua := userAgents[i%len(userAgents)]
 		_ = useragent.ParseDeviceType(strings.ToLower(ua))
+		i++
 	}
 }
 
@@ -157,10 +161,12 @@ func BenchmarkGetDeviceModel(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		// Use modulo to cycle through the test cases
 		tc := testCases[i%len(testCases)]
 		_ = useragent.GetDeviceModel(strings.ToLower(tc.ua), tc.deviceType)
+		i++
 	}
 }
 
@@ -176,10 +182,12 @@ func BenchmarkParseOS(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		// Use modulo to cycle through the user agents
 		ua := userAgents[i%len(userAgents)]
 		_ = useragent.ParseOS(strings.ToLower(ua))
+		i++
 	}
 }
 
@@ -196,10 +204,12 @@ func BenchmarkParseBrowser(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		// Use modulo to cycle through the user agents
 		ua := userAgents[i%len(userAgents)]
 		_ = useragent.ParseBrowser(strings.ToLower(ua))
+		i++
 	}
 }
 
@@ -218,9 +228,11 @@ func BenchmarkGetShortIdentifier(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		// Use modulo to cycle through the user agents
 		ua := userAgents[i%len(userAgents)]
 		_ = ua.GetShortIdentifier()
+		i++
 	}
 }
