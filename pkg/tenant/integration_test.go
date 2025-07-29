@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dmitrymomot/saaskit/pkg/session"
 	"github.com/dmitrymomot/saaskit/pkg/tenant"
 )
 
@@ -132,9 +133,9 @@ func TestIntegration_SessionBasedMultiTenancy(t *testing.T) {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
-	
+
 	// GetSession function for resolver
-	getSession := func(r *http.Request) (tenant.SessionData, error) {
+	getSession := func(r *http.Request) (*session.Session, error) {
 		sessionID, ok := r.Context().Value(sessionKey{}).(string)
 		if !ok {
 			return nil, fmt.Errorf("no session ID in context")
@@ -145,10 +146,22 @@ func TestIntegration_SessionBasedMultiTenancy(t *testing.T) {
 
 		data, exists := store.sessions[sessionID]
 		if !exists {
-			return &mockSession{data: make(map[string]string)}, nil
+			return &session.Session{
+				ID:   uuid.New(),
+				Data: make(map[string]any),
+			}, nil
 		}
 
-		return &mockSession{data: data}, nil
+		// Convert string map to any map
+		sessionData := make(map[string]any)
+		for k, v := range data {
+			sessionData[k] = v
+		}
+
+		return &session.Session{
+			ID:   uuid.New(),
+			Data: sessionData,
+		}, nil
 	}
 
 	// Setup tenant resolution
@@ -158,7 +171,8 @@ func TestIntegration_SessionBasedMultiTenancy(t *testing.T) {
 	provider.addTenant(acmeTenant)
 	provider.addTenant(globexTenant)
 
-	resolver := tenant.NewSessionResolver(getSession)
+	sessionResolver := session.NewTenantResolver(getSession)
+	resolver := tenant.NewSessionResolverAdapter(sessionResolver)
 	tenantMiddleware := tenant.Middleware(resolver, provider)
 
 	// API handler
