@@ -197,7 +197,7 @@ func (w *Worker) run() {
 					<-w.sem // Release slot immediately
 					return
 				}
-				
+
 				// Got a slot, process task in background
 				w.wg.Add(1)
 				go func() {
