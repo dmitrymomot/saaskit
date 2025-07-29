@@ -27,19 +27,11 @@ var (
 	// subdomainPattern allows alphanumeric characters and hyphens only.
 	// Must start with alphanumeric character. No dots allowed.
 	subdomainPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]*$`)
-
-	// uuidPattern matches standard UUID format.
-	uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 )
 
 // Resolver extracts tenant identifier from HTTP request.
 // Returns empty string if no tenant found, error if extraction failed.
 type Resolver func(r *http.Request) (string, error)
-
-// isValidUUID validates UUID format.
-func isValidUUID(id string) bool {
-	return uuidPattern.MatchString(id)
-}
 
 // isValidPath validates path segment format.
 func isValidPath(id string) bool {
