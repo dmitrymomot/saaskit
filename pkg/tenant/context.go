@@ -2,6 +2,7 @@ package tenant
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/google/uuid"
 )
@@ -40,4 +41,14 @@ func MustFromContext(ctx context.Context) *Tenant {
 		panic("tenant: no tenant in context")
 	}
 	return tenant
+}
+
+// LoggerExtractor returns a ContextExtractor for the logger that extracts tenant ID from context
+func LoggerExtractor() func(ctx context.Context) (slog.Attr, bool) {
+	return func(ctx context.Context) (slog.Attr, bool) {
+		if id, ok := IDFromContext(ctx); ok {
+			return slog.String("tenant_id", id.String()), true
+		}
+		return slog.Attr{}, false
+	}
 }

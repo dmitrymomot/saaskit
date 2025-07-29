@@ -2,6 +2,7 @@ package tenant
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -14,6 +15,7 @@ func Middleware(resolver Resolver, provider Provider, opts ...Option) func(http.
 		cache:         &NoOpCache{},
 		errorHandler:  defaultErrorHandler,
 		requireActive: true,
+		logger:        slog.Default(),
 	}
 
 	// Apply options
@@ -75,7 +77,11 @@ func Middleware(resolver Resolver, provider Provider, opts ...Option) func(http.
 			}
 
 			// Step 5: Cache the tenant
-			_ = cfg.cache.Set(r.Context(), identifier, tenant) // Ignore cache errors
+			if err := cfg.cache.Set(r.Context(), identifier, tenant); err != nil {
+				cfg.logger.WarnContext(r.Context(), "failed to cache tenant",
+					"tenant_id", identifier,
+					"error", err)
+			}
 
 			// Step 6: Add to context and continue
 			ctx := WithTenant(r.Context(), tenant)

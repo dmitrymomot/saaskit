@@ -20,33 +20,29 @@ const (
 
 // Common validation patterns
 var (
-	// tenantIDPattern allows alphanumeric characters, hyphens, and underscores.
+	// pathPattern allows alphanumeric characters and hyphens only.
 	// Must start with alphanumeric character.
-	tenantIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-_]*$`)
+	pathPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]*$`)
+
+	// subdomainPattern allows alphanumeric characters and hyphens only.
+	// Must start with alphanumeric character. No dots allowed.
+	subdomainPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]*$`)
 
 	// uuidPattern matches standard UUID format.
 	uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
-
-	// dangerousCharsPattern matches potentially dangerous characters.
-	dangerousCharsPattern = regexp.MustCompile(`[\x00-\x1f\x7f-\x9f\/\\<>:"|\?\*\.]`)
 )
 
 // Resolver extracts tenant identifier from HTTP request.
 // Returns empty string if no tenant found, error if extraction failed.
 type Resolver func(r *http.Request) (string, error)
 
-// sanitizeTenantID cleans and preprocesses tenant identifier input.
-// It trims whitespace and removes potentially dangerous characters.
-func sanitizeTenantID(id string) string {
-	id = strings.TrimSpace(id)
-	id = dangerousCharsPattern.ReplaceAllString(id, "")
-	return id
+// isValidUUID validates UUID format.
+func isValidUUID(id string) bool {
+	return uuidPattern.MatchString(id)
 }
 
-// isValidTenantID validates tenant identifier format after sanitization.
-func isValidTenantID(id string) bool {
-	id = sanitizeTenantID(id)
-
+// isValidPath validates path segment format.
+func isValidPath(id string) bool {
 	if id == "" {
 		return false
 	}
@@ -55,11 +51,20 @@ func isValidTenantID(id string) bool {
 		return false
 	}
 
-	if uuidPattern.MatchString(id) {
-		return true
+	return pathPattern.MatchString(id)
+}
+
+// isValidSubdomain validates subdomain format.
+func isValidSubdomain(id string) bool {
+	if id == "" {
+		return false
 	}
 
-	return tenantIDPattern.MatchString(id)
+	if len(id) < MinTenantIDLength || len(id) > MaxTenantIDLength {
+		return false
+	}
+
+	return subdomainPattern.MatchString(id)
 }
 
 // NewSubdomainResolver creates a resolver that extracts tenant from subdomain.
@@ -100,14 +105,14 @@ func NewSubdomainResolver(suffix string) Resolver {
 		}
 
 		if subdomain != "" {
-			sanitized := sanitizeTenantID(subdomain)
-			if !isValidTenantID(subdomain) {
-				return "", fmt.Errorf("%w: subdomain '%s'", ErrInvalidIdentifier, sanitized)
+			subdomain = strings.TrimSpace(subdomain)
+			if !isValidSubdomain(subdomain) {
+				return "", fmt.Errorf("%w: subdomain '%s'", ErrInvalidIdentifier, subdomain)
 			}
-			return sanitized, nil
+			return subdomain, nil
 		}
 
-		return subdomain, nil
+		return "", nil
 	}
 }
 
@@ -127,12 +132,12 @@ func NewHeaderResolver(headerName string) Resolver {
 		}
 
 		// Validate the header value
-		sanitized := sanitizeTenantID(value)
-		if !isValidTenantID(value) {
-			return "", fmt.Errorf("%w: header value '%s'", ErrInvalidIdentifier, sanitized)
+		value = strings.TrimSpace(value)
+		if !isValidPath(value) { // Use same validation as path for consistency
+			return "", fmt.Errorf("%w: header value '%s'", ErrInvalidIdentifier, value)
 		}
 
-		return sanitized, nil
+		return value, nil
 	}
 }
 
@@ -165,12 +170,12 @@ func NewPathResolver(position int) Resolver {
 		}
 
 		// Validate the path segment
-		sanitized := sanitizeTenantID(value)
-		if !isValidTenantID(value) {
-			return "", fmt.Errorf("%w: path segment '%s'", ErrInvalidIdentifier, sanitized)
+		value = strings.TrimSpace(value)
+		if !isValidPath(value) {
+			return "", fmt.Errorf("%w: path segment '%s'", ErrInvalidIdentifier, value)
 		}
 
-		return sanitized, nil
+		return value, nil
 	}
 }
 

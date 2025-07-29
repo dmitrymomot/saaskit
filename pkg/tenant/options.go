@@ -2,6 +2,7 @@ package tenant
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 )
 
@@ -14,6 +15,7 @@ type config struct {
 	errorHandler  ErrorHandler
 	skipPaths     []string
 	requireActive bool
+	logger        *slog.Logger
 }
 
 // Option configures the middleware.
@@ -44,6 +46,13 @@ func WithSkipPaths(paths []string) Option {
 func WithRequireActive(require bool) Option {
 	return func(c *config) {
 		c.requireActive = require
+	}
+}
+
+// WithLogger sets a custom logger for the middleware.
+func WithLogger(logger *slog.Logger) Option {
+	return func(c *config) {
+		c.logger = logger
 	}
 }
 
