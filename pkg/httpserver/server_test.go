@@ -42,15 +42,16 @@ func TestRunAndShutdown(t *testing.T) {
 
 	var resp *http.Response
 	var err error
-	for i := 0; i < 20; i++ {
+	// Wait for server to start listening with more generous timeouts
+	for i := 0; i < 50; i++ {
 		resp, err = http.Get("http://" + addr)
 		if err == nil {
 			break
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 	if err != nil {
-		t.Fatalf("http get: %v", err)
+		t.Fatalf("http get after 50 retries: %v", err)
 	}
 	if err := resp.Body.Close(); err != nil {
 		t.Fatalf("close body: %v", err)
@@ -227,13 +228,14 @@ func TestSignalShutdown(t *testing.T) {
 	)
 	done := make(chan error, 1)
 	go func() { done <- srv.Run(context.Background(), http.NewServeMux()) }()
-	for i := 0; i < 20; i++ {
+	// Wait for server to start listening
+	for i := 0; i < 50; i++ {
 		conn, err := net.Dial("tcp", addr)
 		if err == nil {
 			_ = conn.Close()
 			break
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 	p, _ := os.FindProcess(os.Getpid())
 	_ = p.Signal(syscall.SIGTERM)

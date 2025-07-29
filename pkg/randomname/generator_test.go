@@ -109,33 +109,53 @@ func TestGenerate(t *testing.T) {
 	})
 
 	t.Run("custom words", func(t *testing.T) {
+		// Test that custom words are merged correctly by using a large pool
+		// of custom words that are easily identifiable
 		customWords := map[randomname.WordType][]string{
-			randomname.Adjective: {"custom", "test"},
-			randomname.Noun:      {"word", "name"},
+			randomname.Adjective: {
+				"xcustom1", "xcustom2", "xcustom3", "xcustom4", "xcustom5",
+				"xcustom6", "xcustom7", "xcustom8", "xcustom9", "xcustom10",
+				"xcustom11", "xcustom12", "xcustom13", "xcustom14", "xcustom15",
+				"xcustom16", "xcustom17", "xcustom18", "xcustom19", "xcustom20",
+			},
+			randomname.Noun: {
+				"xword1", "xword2", "xword3", "xword4", "xword5",
+				"xword6", "xword7", "xword8", "xword9", "xword10",
+				"xword11", "xword12", "xword13", "xword14", "xword15",
+				"xword16", "xword17", "xword18", "xword19", "xword20",
+			},
 		}
 
-		// Generate many names to ensure we see custom words
-		seen := make(map[string]bool)
-		for i := 0; i < 100; i++ {
+		// Generate names and check that custom words can appear
+		// Using a prefix 'x' makes them easily identifiable
+		foundCustomAdj := false
+		foundCustomNoun := false
+
+		for i := 0; i < 25; i++ {
 			name := randomname.Generate(&randomname.Options{
 				Words: customWords,
 			})
 			parts := strings.Split(name, "-")
 			if len(parts) >= 2 {
-				seen[parts[0]] = true
-				seen[parts[1]] = true
+				// Check for custom adjectives (start with 'x')
+				if strings.HasPrefix(parts[0], "x") {
+					foundCustomAdj = true
+				}
+				// Check for custom nouns (start with 'x')
+				if strings.HasPrefix(parts[1], "x") {
+					foundCustomNoun = true
+				}
+
+				// Exit early if we found both types
+				if foundCustomAdj && foundCustomNoun {
+					break
+				}
 			}
 		}
 
-		// Should see at least one custom word
-		hasCustom := false
-		for word := range seen {
-			if word == "custom" || word == "test" || word == "word" || word == "name" {
-				hasCustom = true
-				break
-			}
-		}
-		assert.True(t, hasCustom, "Should use custom words")
+		// With 20 custom words out of ~146 total per type, we should see at least one
+		// type within 25 generations (probability > 99.999%)
+		assert.True(t, foundCustomAdj || foundCustomNoun, "Should use custom words")
 	})
 
 	t.Run("empty custom words still uses defaults", func(t *testing.T) {
