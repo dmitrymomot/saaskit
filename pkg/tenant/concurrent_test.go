@@ -29,7 +29,7 @@ func TestResolvers_ConcurrentAccess(t *testing.T) {
 
 				for j := 0; j < numOperations; j++ {
 					req := httptest.NewRequest("GET", "http://test.example.com/", nil)
-					tenantID, err := resolver.Resolve(req)
+					tenantID, err := resolver(req)
 
 					assert.NoError(t, err)
 					assert.Equal(t, "test", tenantID)
@@ -58,7 +58,7 @@ func TestResolvers_ConcurrentAccess(t *testing.T) {
 					req := httptest.NewRequest("GET", "http://example.com/", nil)
 					req.Header.Set("X-Tenant-ID", "test-tenant")
 
-					tenantID, err := resolver.Resolve(req)
+					tenantID, err := resolver(req)
 					assert.NoError(t, err)
 					assert.Equal(t, "test-tenant", tenantID)
 				}
@@ -85,7 +85,7 @@ func TestResolvers_ConcurrentAccess(t *testing.T) {
 				for j := 0; j < numOperations; j++ {
 					req := httptest.NewRequest("GET", "http://example.com/tenants/acme/dashboard", nil)
 
-					tenantID, err := resolver.Resolve(req)
+					tenantID, err := resolver(req)
 					assert.NoError(t, err)
 					assert.Equal(t, "acme", tenantID)
 				}
@@ -124,20 +124,20 @@ func TestResolvers_ConcurrentAccess(t *testing.T) {
 					case 0:
 						// Subdomain resolution
 						req := httptest.NewRequest("GET", "http://acme.app.com/", nil)
-						tenantID, err := resolver.Resolve(req)
+						tenantID, err := resolver(req)
 						assert.NoError(t, err)
 						assert.Equal(t, "acme", tenantID)
 					case 1:
 						// Header resolution (subdomain fails)
 						req := httptest.NewRequest("GET", "http://example.com/", nil)
 						req.Header.Set("X-Tenant-ID", "header-tenant")
-						tenantID, err := resolver.Resolve(req)
+						tenantID, err := resolver(req)
 						assert.NoError(t, err)
 						assert.Equal(t, "header-tenant", tenantID)
 					case 2:
 						// Path resolution (both subdomain and header fail)
 						req := httptest.NewRequest("GET", "http://example.com/path-tenant/dashboard", nil)
-						tenantID, err := resolver.Resolve(req)
+						tenantID, err := resolver(req)
 						assert.NoError(t, err)
 						assert.Equal(t, "path-tenant", tenantID)
 					}
@@ -179,7 +179,7 @@ func TestResolver_InputValidation_Concurrent(t *testing.T) {
 				req := httptest.NewRequest("GET", "http://example.com/", nil)
 				req.Header.Set("X-Tenant-ID", value)
 
-				tenantID, err := resolver.Resolve(req)
+				tenantID, err := resolver(req)
 				assert.NoError(t, err)
 				assert.NotEmpty(t, tenantID)
 			}

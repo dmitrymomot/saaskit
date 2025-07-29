@@ -21,7 +21,7 @@ func TestSubdomainResolver(t *testing.T) {
 		resolver := tenant.NewSubdomainResolver("")
 		req := httptest.NewRequest("GET", "https://acme.app.com/test", nil)
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Equal(t, "acme", id)
 	})
@@ -33,7 +33,7 @@ func TestSubdomainResolver(t *testing.T) {
 		req := httptest.NewRequest("GET", "https://acme.saas.com/test", nil)
 		req.Host = "acme.saas.com"
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Equal(t, "acme", id)
 	})
@@ -45,7 +45,7 @@ func TestSubdomainResolver(t *testing.T) {
 		req := httptest.NewRequest("GET", "http://acme.app.localhost:8080/test", nil)
 		req.Host = "acme.app.localhost:8080"
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Equal(t, "acme", id)
 	})
@@ -56,7 +56,7 @@ func TestSubdomainResolver(t *testing.T) {
 		resolver := tenant.NewSubdomainResolver("")
 		req := httptest.NewRequest("GET", "https://www.acme.app.com/test", nil)
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Equal(t, "acme", id)
 	})
@@ -68,7 +68,7 @@ func TestSubdomainResolver(t *testing.T) {
 		req := httptest.NewRequest("GET", "https://app.com/test", nil)
 		req.Host = "app.com"
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Empty(t, id)
 	})
@@ -79,7 +79,7 @@ func TestSubdomainResolver(t *testing.T) {
 		resolver := tenant.NewSubdomainResolver("")
 		req := httptest.NewRequest("GET", "https://localhost/test", nil)
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Empty(t, id)
 	})
@@ -90,7 +90,7 @@ func TestSubdomainResolver(t *testing.T) {
 		resolver := tenant.NewSubdomainResolver("")
 		req := httptest.NewRequest("GET", "https://www/test", nil)
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Empty(t, id)
 	})
@@ -104,7 +104,7 @@ func TestSubdomainResolver(t *testing.T) {
 		req := httptest.NewRequest("GET", "https://app.com/test", nil)
 		req.Host = "invalid!@#.app.com"
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		assert.Error(t, err)
 		assert.Empty(t, id)
 		assert.ErrorIs(t, err, tenant.ErrInvalidIdentifier)
@@ -126,7 +126,7 @@ func TestSubdomainResolver(t *testing.T) {
 			req := httptest.NewRequest("GET", "https://"+subdomain+".app.com/test", nil)
 			req.Host = subdomain + ".app.com"
 
-			id, err := resolver.Resolve(req)
+			id, err := resolver(req)
 			require.NoError(t, err, "subdomain %s should be valid", subdomain)
 			assert.Equal(t, subdomain, id)
 		}
@@ -139,7 +139,7 @@ func TestSubdomainResolver(t *testing.T) {
 		req := httptest.NewRequest("GET", "/test", nil)
 		req.Host = ""
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Empty(t, id)
 	})
@@ -155,7 +155,7 @@ func TestHeaderResolver(t *testing.T) {
 		req := httptest.NewRequest("GET", "/test", nil)
 		req.Header.Set("X-Tenant-ID", "tenant123")
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Equal(t, "tenant123", id)
 	})
@@ -167,7 +167,7 @@ func TestHeaderResolver(t *testing.T) {
 		req := httptest.NewRequest("GET", "/test", nil)
 		req.Header.Set("X-Tenant-ID", "tenant123")
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Equal(t, "tenant123", id)
 	})
@@ -178,7 +178,7 @@ func TestHeaderResolver(t *testing.T) {
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
 		req := httptest.NewRequest("GET", "/test", nil)
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Empty(t, id)
 	})
@@ -190,7 +190,7 @@ func TestHeaderResolver(t *testing.T) {
 		req := httptest.NewRequest("GET", "/test", nil)
 		req.Header.Set("X-Company-ID", "company456")
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Equal(t, "company456", id)
 	})
@@ -202,7 +202,7 @@ func TestHeaderResolver(t *testing.T) {
 		req := httptest.NewRequest("GET", "/test", nil)
 		req.Header.Set("X-Tenant-ID", "invalid!@#$%")
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		assert.Error(t, err)
 		assert.Empty(t, id)
 		assert.ErrorIs(t, err, tenant.ErrInvalidIdentifier)
@@ -223,7 +223,7 @@ func TestHeaderResolver(t *testing.T) {
 			req := httptest.NewRequest("GET", "/test", nil)
 			req.Header.Set("X-Tenant-ID", tenantID)
 
-			id, err := resolver.Resolve(req)
+			id, err := resolver(req)
 			require.NoError(t, err, "tenant ID %s should be valid", tenantID)
 			assert.Equal(t, tenantID, id)
 		}
@@ -239,7 +239,7 @@ func TestPathResolver(t *testing.T) {
 		resolver := tenant.NewPathResolver(2)
 		req := httptest.NewRequest("GET", "/api/tenant123/users", nil)
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Equal(t, "tenant123", id)
 	})
@@ -250,7 +250,7 @@ func TestPathResolver(t *testing.T) {
 		resolver := tenant.NewPathResolver(1)
 		req := httptest.NewRequest("GET", "/tenant123/api/users", nil)
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Equal(t, "tenant123", id)
 	})
@@ -261,7 +261,7 @@ func TestPathResolver(t *testing.T) {
 		resolver := tenant.NewPathResolver(0)
 		req := httptest.NewRequest("GET", "/api/tenant123/users", nil)
 
-		_, err := resolver.Resolve(req)
+		_, err := resolver(req)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid path position")
 	})
@@ -272,7 +272,7 @@ func TestPathResolver(t *testing.T) {
 		resolver := tenant.NewPathResolver(5)
 		req := httptest.NewRequest("GET", "/api/v1", nil)
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Empty(t, id)
 	})
@@ -283,7 +283,7 @@ func TestPathResolver(t *testing.T) {
 		resolver := tenant.NewPathResolver(2)
 		req := httptest.NewRequest("GET", "/api/tenant123/", nil)
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Equal(t, "tenant123", id)
 	})
@@ -294,7 +294,7 @@ func TestPathResolver(t *testing.T) {
 		resolver := tenant.NewPathResolver(1)
 		req := httptest.NewRequest("GET", "/tenant123/api", nil)
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Equal(t, "tenant123", id)
 	})
@@ -305,7 +305,7 @@ func TestPathResolver(t *testing.T) {
 		resolver := tenant.NewPathResolver(1)
 		req := httptest.NewRequest("GET", "/", nil)
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		require.NoError(t, err)
 		assert.Empty(t, id)
 	})
@@ -316,7 +316,7 @@ func TestPathResolver(t *testing.T) {
 		resolver := tenant.NewPathResolver(2)
 		req := httptest.NewRequest("GET", "/api/invalid!@#/users", nil)
 
-		id, err := resolver.Resolve(req)
+		id, err := resolver(req)
 		assert.Error(t, err)
 		assert.Empty(t, id)
 		assert.ErrorIs(t, err, tenant.ErrInvalidIdentifier)
@@ -336,7 +336,7 @@ func TestPathResolver(t *testing.T) {
 		for _, tenantID := range validIDs {
 			req := httptest.NewRequest("GET", "/"+tenantID+"/api/users", nil)
 
-			id, err := resolver.Resolve(req)
+			id, err := resolver(req)
 			require.NoError(t, err, "tenant ID %s should be valid", tenantID)
 			assert.Equal(t, tenantID, id)
 		}
@@ -357,7 +357,7 @@ func TestCompositeResolver(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/users", nil)
 		req.Header.Set("X-Tenant-ID", "header-tenant")
 
-		id, err := composite.Resolve(req)
+		id, err := composite(req)
 		require.NoError(t, err)
 		assert.Equal(t, "header-tenant", id)
 	})
@@ -372,7 +372,7 @@ func TestCompositeResolver(t *testing.T) {
 		// Request without header but with path
 		req := httptest.NewRequest("GET", "/api/path-tenant/users", nil)
 
-		id, err := composite.Resolve(req)
+		id, err := composite(req)
 		require.NoError(t, err)
 		assert.Equal(t, "path-tenant", id)
 	})
@@ -386,7 +386,7 @@ func TestCompositeResolver(t *testing.T) {
 
 		req := httptest.NewRequest("GET", "/api", nil)
 
-		id, err := composite.Resolve(req)
+		id, err := composite(req)
 		require.NoError(t, err)
 		assert.Empty(t, id)
 	})
@@ -395,17 +395,17 @@ func TestCompositeResolver(t *testing.T) {
 		t.Parallel()
 
 		// Create resolvers that return errors
-		errorResolver1 := tenant.ResolverFunc(func(r *http.Request) (string, error) {
+		errorResolver1 := func(r *http.Request) (string, error) {
 			return "", errors.New("resolver1 error")
-		})
-		errorResolver2 := tenant.ResolverFunc(func(r *http.Request) (string, error) {
+		}
+		errorResolver2 := func(r *http.Request) (string, error) {
 			return "", errors.New("resolver2 error")
-		})
+		}
 
 		composite := tenant.NewCompositeResolver(errorResolver1, errorResolver2)
 		req := httptest.NewRequest("GET", "/test", nil)
 
-		_, err := composite.Resolve(req)
+		_, err := composite(req)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "composite resolver errors")
 		assert.Contains(t, err.Error(), "resolver1 error")
@@ -415,48 +415,36 @@ func TestCompositeResolver(t *testing.T) {
 	t.Run("continues on error if later resolver succeeds", func(t *testing.T) {
 		t.Parallel()
 
-		errorResolver := tenant.ResolverFunc(func(r *http.Request) (string, error) {
+		errorResolver := func(r *http.Request) (string, error) {
 			return "", errors.New("resolver error")
-		})
-		successResolver := tenant.ResolverFunc(func(r *http.Request) (string, error) {
+		}
+		successResolver := func(r *http.Request) (string, error) {
 			return "success-tenant", nil
-		})
+		}
 
 		composite := tenant.NewCompositeResolver(errorResolver, successResolver)
 		req := httptest.NewRequest("GET", "/test", nil)
 
-		id, err := composite.Resolve(req)
+		id, err := composite(req)
 		require.NoError(t, err)
 		assert.Equal(t, "success-tenant", id)
 	})
-}
 
-func TestResolverFunc(t *testing.T) {
-	t.Parallel()
-
-	t.Run("allows function as resolver", func(t *testing.T) {
+	t.Run("works with all resolver types", func(t *testing.T) {
 		t.Parallel()
 
-		resolver := tenant.ResolverFunc(func(r *http.Request) (string, error) {
-			return "custom-tenant", nil
-		})
+		composite := tenant.NewCompositeResolver(
+			tenant.NewHeaderResolver("X-Tenant-ID"),
+			tenant.NewSubdomainResolver(".app.com"),
+			tenant.NewPathResolver(1),
+		)
 
-		req := httptest.NewRequest("GET", "/test", nil)
-		id, err := resolver.Resolve(req)
+		// Test path resolution (others return empty)
+		req := httptest.NewRequest("GET", "/tenant123/api", nil)
+		req.Host = "api.com" // No subdomain
+
+		id, err := composite(req)
 		require.NoError(t, err)
-		assert.Equal(t, "custom-tenant", id)
-	})
-
-	t.Run("can return errors", func(t *testing.T) {
-		t.Parallel()
-
-		customErr := errors.New("custom error")
-		resolver := tenant.ResolverFunc(func(r *http.Request) (string, error) {
-			return "", customErr
-		})
-
-		req := httptest.NewRequest("GET", "/test", nil)
-		_, err := resolver.Resolve(req)
-		assert.ErrorIs(t, err, customErr)
+		assert.Equal(t, "tenant123", id)
 	})
 }
