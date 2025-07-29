@@ -13,7 +13,7 @@ const (
 	// MaxTenantIDLength defines the maximum allowed length for tenant identifiers
 	// This prevents DoS attacks via very long tenant IDs and ensures DNS compatibility
 	MaxTenantIDLength = 63
-	
+
 	// MinTenantIDLength defines the minimum allowed length for tenant identifiers
 	MinTenantIDLength = 1
 )
@@ -27,7 +27,7 @@ var (
 
 	// uuidPattern matches standard UUID format
 	uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
-	
+
 	// dangerousCharsPattern matches potentially dangerous characters
 	dangerousCharsPattern = regexp.MustCompile(`[\x00-\x1f\x7f-\x9f\/\\<>:"|\?\*\.]`)
 )
@@ -37,11 +37,11 @@ var (
 func sanitizeTenantID(id string) string {
 	// Trim whitespace
 	id = strings.TrimSpace(id)
-	
+
 	// Remove dangerous characters but preserve valid ones
 	// This is a conservative approach that removes control chars and path traversal
 	id = dangerousCharsPattern.ReplaceAllString(id, "")
-	
+
 	return id
 }
 
@@ -49,7 +49,7 @@ func sanitizeTenantID(id string) string {
 func isValidTenantID(id string) bool {
 	// Sanitize input first
 	id = sanitizeTenantID(id)
-	
+
 	if id == "" {
 		return false
 	}
@@ -263,58 +263,41 @@ func (c *CompositeResolver) Resolve(r *http.Request) (string, error) {
 	return "", nil
 }
 
-// SessionResolver extracts tenant identifier from session data.
-// This is useful for applications where users can switch between tenants.
-type SessionResolver struct {
-	// GetSession retrieves the session from the request
-	GetSession func(r *http.Request) (SessionData, error)
-}
-
-// SessionData represents the minimal session interface needed by the resolver.
-type SessionData interface {
-	GetString(key string) string
-}
-
-// NewSessionResolver creates a new session resolver.
-func NewSessionResolver(getSession func(r *http.Request) (SessionData, error)) *SessionResolver {
-	return &SessionResolver{GetSession: getSession}
-}
-
-// Resolve extracts tenant from session data.
-func (r *SessionResolver) Resolve(req *http.Request) (string, error) {
-	if r.GetSession == nil {
-		return "", errors.New("session resolver: GetSession function not configured")
-	}
-
-	session, err := r.GetSession(req)
-	if err != nil {
-		return "", fmt.Errorf("session resolver: %w", err)
-	}
-
-	if session == nil {
-		return "", nil
-	}
-
-	value := session.GetString("tenant_id")
-
-	// Return empty if no tenant in session
-	if value == "" {
-		return "", nil
-	}
-
-	// Validate the session value
-	sanitized := sanitizeTenantID(value)
-	if !isValidTenantID(value) {
-		return "", fmt.Errorf("%w: session value '%s'", ErrInvalidIdentifier, sanitized)
-	}
-
-	return sanitized, nil
-}
-
 // ResolverFunc is an adapter to allow the use of ordinary functions as Resolvers.
 type ResolverFunc func(r *http.Request) (string, error)
 
 // Resolve calls the function.
 func (f ResolverFunc) Resolve(r *http.Request) (string, error) {
 	return f(r)
+}
+
+// SessionResolverAdapter wraps a session-based resolver to add tenant ID validation.
+// This adapter bridges between the session package's TenantResolver and the tenant package's validation.
+type SessionResolverAdapter struct {
+	resolver Resolver
+}
+
+// NewSessionResolverAdapter creates a new adapter that wraps a session resolver with validation.
+func NewSessionResolverAdapter(resolver Resolver) *SessionResolverAdapter {
+	return &SessionResolverAdapter{resolver: resolver}
+}
+
+// Resolve extracts and validates tenant from the underlying resolver.
+func (a *SessionResolverAdapter) Resolve(r *http.Request) (string, error) {
+	value, err := a.resolver.Resolve(r)
+	if err != nil {
+		return "", err
+	}
+
+	if value == "" {
+		return "", nil
+	}
+
+	// Validate the tenant ID
+	sanitized := sanitizeTenantID(value)
+	if !isValidTenantID(value) {
+		return "", fmt.Errorf("%w: session value '%s'", ErrInvalidIdentifier, sanitized)
+	}
+
+	return sanitized, nil
 }

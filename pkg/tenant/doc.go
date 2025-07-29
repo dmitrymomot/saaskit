@@ -51,8 +51,13 @@
 // - SubdomainResolver: Extracts tenant from subdomain (e.g., "acme" from "acme.app.com")
 // - HeaderResolver: Reads tenant from HTTP header (e.g., "X-Tenant-ID")
 // - PathResolver: Extracts from URL path segment (e.g., "/tenants/{id}/dashboard")
-// - SessionResolver: Retrieves from session data for user-switchable tenancy
 // - CompositeResolver: Tries multiple strategies in order
+//
+// For session-based tenant resolution, use session.NewTenantResolver from the session package
+// wrapped with tenant.NewSessionResolverAdapter to add validation:
+//
+//	sessionResolver := session.NewTenantResolver(getSession)
+//	resolver := tenant.NewSessionResolverAdapter(sessionResolver)
 //
 // Custom resolvers can be created by implementing the Resolver interface.
 //
