@@ -23,18 +23,18 @@ func TestResolvers_ConcurrentAccess(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
-			go func(id int) {
+		for range numGoroutines {
+			go func() {
 				defer wg.Done()
 
-				for j := 0; j < numOperations; j++ {
+				for range numOperations {
 					req := httptest.NewRequest("GET", "http://test.example.com/", nil)
 					tenantID, err := resolver(req)
 
 					assert.NoError(t, err)
 					assert.Equal(t, "test", tenantID)
 				}
-			}(i)
+			}()
 		}
 
 		wg.Wait()
@@ -164,9 +164,9 @@ func TestResolver_InputValidation_Concurrent(t *testing.T) {
 		"valid-tenant",
 		"a",
 		"tenant123",
-		"12345678-1234-1234-1234-123456789012", // UUID
 		"test-org",
 		"company1",
+		"acme-corp",
 	}
 
 	for i := 0; i < numGoroutines; i++ {

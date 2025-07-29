@@ -1,9 +1,11 @@
 package tenant_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -11,10 +13,51 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dmitrymomot/saaskit/pkg/tenant"
 )
+
+// mockProvider is an internal mock implementation of the Provider interface
+type mockProvider struct {
+	mock.Mock
+}
+
+// GetByIdentifier mocks the GetByIdentifier method
+func (m *mockProvider) GetByIdentifier(ctx context.Context, identifier string) (*tenant.Tenant, error) {
+	args := m.Called(ctx, identifier)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*tenant.Tenant), args.Error(1)
+}
+
+// mockCache is an internal mock implementation of the Cache interface
+type mockCache struct {
+	mock.Mock
+}
+
+// Get mocks the Get method
+func (m *mockCache) Get(ctx context.Context, key string) (*tenant.Tenant, bool) {
+	args := m.Called(ctx, key)
+	if args.Get(0) == nil {
+		return nil, args.Bool(1)
+	}
+	return args.Get(0).(*tenant.Tenant), args.Bool(1)
+}
+
+// Set mocks the Set method
+func (m *mockCache) Set(ctx context.Context, key string, tenant *tenant.Tenant) error {
+	args := m.Called(ctx, key, tenant)
+	return args.Error(0)
+}
+
+// Delete mocks the Delete method
+func (m *mockCache) Delete(ctx context.Context, key string) error {
+	args := m.Called(ctx, key)
+	return args.Error(0)
+}
 
 func TestMiddleware(t *testing.T) {
 	t.Parallel()
@@ -22,12 +65,14 @@ func TestMiddleware(t *testing.T) {
 	t.Run("adds tenant to context when found", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
 		testTenant := createTestTenant("acme", true)
-		provider.addTenant(testTenant)
+
+		// Setup expectations
+		mockProvider.On("GetByIdentifier", mock.Anything, "acme").Return(testTenant, nil).Once()
 
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-		middleware := tenant.Middleware(resolver, provider)
+		middleware := tenant.Middleware(resolver, mockProvider)
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			retrievedTenant, ok := tenant.FromContext(r.Context())
@@ -42,14 +87,19 @@ func TestMiddleware(t *testing.T) {
 
 		handler.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
+
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
 
-	t.Run("continues without tenant when not found", func(t *testing.T) {
+	t.Run("continues without tenant when no identifier", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
+		// No expectations - provider should not be called when no identifier is provided
+
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-		middleware := tenant.Middleware(resolver, provider)
+		middleware := tenant.Middleware(resolver, mockProvider)
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, ok := tenant.FromContext(r.Context())
@@ -58,18 +108,26 @@ func TestMiddleware(t *testing.T) {
 		}))
 
 		req := httptest.NewRequest("GET", "/test", nil)
+		// No tenant header set - should continue without tenant
 		w := httptest.NewRecorder()
 
 		handler.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
+
+		// Verify no calls were made to provider
+		mockProvider.AssertExpectations(t)
 	})
 
 	t.Run("handles tenant not found error", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
+
+		// Setup expectations - nonexistent tenant returns error
+		mockProvider.On("GetByIdentifier", mock.Anything, "nonexistent").Return(nil, tenant.ErrTenantNotFound).Once()
+
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-		middleware := tenant.Middleware(resolver, provider)
+		middleware := tenant.Middleware(resolver, mockProvider)
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Error("handler should not be called")
@@ -82,17 +140,22 @@ func TestMiddleware(t *testing.T) {
 		handler.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
 		assert.Contains(t, w.Body.String(), "Tenant not found")
+
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
 
 	t.Run("handles inactive tenant", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
 		inactiveTenant := createTestTenant("inactive", false)
-		provider.addTenant(inactiveTenant)
+
+		// Setup expectations - return inactive tenant
+		mockProvider.On("GetByIdentifier", mock.Anything, "inactive").Return(inactiveTenant, nil).Once()
 
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-		middleware := tenant.Middleware(resolver, provider)
+		middleware := tenant.Middleware(resolver, mockProvider)
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Error("handler should not be called")
@@ -105,17 +168,22 @@ func TestMiddleware(t *testing.T) {
 		handler.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusForbidden, w.Code)
 		assert.Contains(t, w.Body.String(), "Tenant is inactive")
+
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
 
 	t.Run("allows inactive tenant when configured", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
 		inactiveTenant := createTestTenant("inactive", false)
-		provider.addTenant(inactiveTenant)
+
+		// Setup expectations - return inactive tenant
+		mockProvider.On("GetByIdentifier", mock.Anything, "inactive").Return(inactiveTenant, nil).Once()
 
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-		middleware := tenant.Middleware(resolver, provider, tenant.WithRequireActive(false))
+		middleware := tenant.Middleware(resolver, mockProvider, tenant.WithRequireActive(false))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			retrievedTenant, ok := tenant.FromContext(r.Context())
@@ -130,16 +198,21 @@ func TestMiddleware(t *testing.T) {
 
 		handler.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
+
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
 
 	t.Run("handles resolver errors", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
+		// No expectations - provider should not be called when resolver errors
+
 		errorResolver := func(r *http.Request) (string, error) {
 			return "", errors.New("resolver error")
 		}
-		middleware := tenant.Middleware(errorResolver, provider)
+		middleware := tenant.Middleware(errorResolver, mockProvider)
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Error("handler should not be called")
@@ -150,21 +223,26 @@ func TestMiddleware(t *testing.T) {
 
 		handler.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+		// Verify no calls were made to provider
+		mockProvider.AssertExpectations(t)
 	})
 
 	t.Run("handles provider timeout", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
 		slowTenant := createTestTenant("slow", true)
-		provider.addTenant(slowTenant)
+
+		// Setup expectations - return slow tenant
+		mockProvider.On("GetByIdentifier", mock.Anything, "slow").Return(slowTenant, nil).Once()
 
 		// Create a context with timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 		defer cancel()
 
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-		middleware := tenant.Middleware(resolver, provider)
+		middleware := tenant.Middleware(resolver, mockProvider)
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Simulate slow processing after tenant resolution
@@ -179,14 +257,19 @@ func TestMiddleware(t *testing.T) {
 		handler.ServeHTTP(w, req)
 		// Should still resolve tenant quickly, timeout happens later
 		assert.Equal(t, http.StatusOK, w.Code)
+
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
 
 	t.Run("skips configured paths", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
+		// No expectations - provider should not be called for skipped paths
+
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-		middleware := tenant.Middleware(resolver, provider,
+		middleware := tenant.Middleware(resolver, mockProvider,
 			tenant.WithSkipPaths([]string{"/health", "/metrics"}))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -202,12 +285,19 @@ func TestMiddleware(t *testing.T) {
 
 		handler.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
+
+		// Verify no calls were made to provider
+		mockProvider.AssertExpectations(t)
 	})
 
 	t.Run("custom error handler", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
+
+		// Setup expectations - tenant not found
+		mockProvider.On("GetByIdentifier", mock.Anything, "nonexistent").Return(nil, tenant.ErrTenantNotFound).Once()
+
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
 
 		customHandler := func(w http.ResponseWriter, r *http.Request, err error) {
@@ -215,7 +305,7 @@ func TestMiddleware(t *testing.T) {
 			w.Write([]byte("custom error"))
 		}
 
-		middleware := tenant.Middleware(resolver, provider,
+		middleware := tenant.Middleware(resolver, mockProvider,
 			tenant.WithErrorHandler(customHandler))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -229,6 +319,50 @@ func TestMiddleware(t *testing.T) {
 		handler.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusTeapot, w.Code)
 		assert.Equal(t, "custom error", w.Body.String())
+
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
+	})
+
+	t.Run("custom logger", func(t *testing.T) {
+		// Create a custom logger with a buffer to capture logs
+		var buf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}))
+
+		// Create a failing cache implementation
+		failingCache := &failingCacheImpl{}
+
+		mockProvider := new(mockProvider)
+		testTenant := createTestTenant("test", true)
+
+		// Setup expectations - return test tenant
+		mockProvider.On("GetByIdentifier", mock.Anything, "test").Return(testTenant, nil).Once()
+
+		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
+
+		middleware := tenant.Middleware(resolver, mockProvider,
+			tenant.WithCache(failingCache),
+			tenant.WithLogger(logger),
+		)
+
+		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("X-Tenant-ID", "test")
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		// Check that the custom logger was used
+		assert.Contains(t, buf.String(), "failed to cache tenant")
+		assert.Contains(t, buf.String(), "cache write failed")
+
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
 }
 
@@ -238,13 +372,15 @@ func TestMiddleware_Caching(t *testing.T) {
 	t.Run("uses cache for subsequent requests", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
 		testTenant := createTestTenant("acme", true)
-		provider.addTenant(testTenant)
+
+		// Setup expectations - NoOpCache doesn't cache, so provider called twice
+		mockProvider.On("GetByIdentifier", mock.Anything, "acme").Return(testTenant, nil).Twice()
 
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
 		cache := &tenant.NoOpCache{}
-		middleware := tenant.Middleware(resolver, provider, tenant.WithCache(cache))
+		middleware := tenant.Middleware(resolver, mockProvider, tenant.WithCache(cache))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -255,26 +391,29 @@ func TestMiddleware_Caching(t *testing.T) {
 		req1.Header.Set("X-Tenant-ID", "acme")
 		w1 := httptest.NewRecorder()
 		handler.ServeHTTP(w1, req1)
-		assert.Equal(t, 1, provider.getCalls())
 
 		// Second request - since we're using NoOpCache, it should hit provider again
 		req2 := httptest.NewRequest("GET", "/test", nil)
 		req2.Header.Set("X-Tenant-ID", "acme")
 		w2 := httptest.NewRecorder()
 		handler.ServeHTTP(w2, req2)
-		assert.Equal(t, 2, provider.getCalls()) // Cache is disabled, so provider called again
+
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
 
 	t.Run("respects cache TTL", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
 		testTenant := createTestTenant("acme", true)
-		provider.addTenant(testTenant)
+
+		// Setup expectations - NoOpCache doesn't cache, so provider called twice
+		mockProvider.On("GetByIdentifier", mock.Anything, "acme").Return(testTenant, nil).Twice()
 
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
 		cache := &tenant.NoOpCache{}
-		middleware := tenant.Middleware(resolver, provider, tenant.WithCache(cache))
+		middleware := tenant.Middleware(resolver, mockProvider, tenant.WithCache(cache))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -285,7 +424,6 @@ func TestMiddleware_Caching(t *testing.T) {
 		req1.Header.Set("X-Tenant-ID", "acme")
 		w1 := httptest.NewRecorder()
 		handler.ServeHTTP(w1, req1)
-		assert.Equal(t, 1, provider.getCalls())
 
 		// Wait for cache to expire
 		time.Sleep(100 * time.Millisecond)
@@ -295,20 +433,24 @@ func TestMiddleware_Caching(t *testing.T) {
 		req2.Header.Set("X-Tenant-ID", "acme")
 		w2 := httptest.NewRecorder()
 		handler.ServeHTTP(w2, req2)
-		assert.Equal(t, 2, provider.getCalls())
+
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
 
 	t.Run("validates cached inactive tenant", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
 		inactiveTenant := createTestTenant("inactive", false)
-		provider.addTenant(inactiveTenant)
+
+		// Setup expectations - return inactive tenant
+		mockProvider.On("GetByIdentifier", mock.Anything, "inactive").Return(inactiveTenant, nil).Once()
 
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
 		cache := &tenant.NoOpCache{}
 
-		middleware := tenant.Middleware(resolver, provider, tenant.WithCache(cache))
+		middleware := tenant.Middleware(resolver, mockProvider, tenant.WithCache(cache))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Error("handler should not be called")
@@ -320,7 +462,9 @@ func TestMiddleware_Caching(t *testing.T) {
 
 		handler.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusForbidden, w.Code)
-		assert.Equal(t, 1, provider.getCalls()) // Since we're using NoOpCache, provider is called
+
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
 
 	t.Run("respects cache size limit", func(t *testing.T) {
@@ -341,13 +485,15 @@ func TestMiddleware_Caching(t *testing.T) {
 	t.Run("no-op cache disables caching", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
 		testTenant := createTestTenant("acme", true)
-		provider.addTenant(testTenant)
+
+		// Setup expectations - provider called 3 times since cache is disabled
+		mockProvider.On("GetByIdentifier", mock.Anything, "acme").Return(testTenant, nil).Times(3)
 
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
 		cache := &tenant.NoOpCache{}
-		middleware := tenant.Middleware(resolver, provider, tenant.WithCache(cache))
+		middleware := tenant.Middleware(resolver, mockProvider, tenant.WithCache(cache))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -361,7 +507,8 @@ func TestMiddleware_Caching(t *testing.T) {
 			handler.ServeHTTP(w, req)
 		}
 
-		assert.Equal(t, 3, provider.getCalls())
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
 }
 
@@ -430,16 +577,23 @@ func TestRequireTenant(t *testing.T) {
 func TestMiddleware_ConcurrentRequests(t *testing.T) {
 	t.Parallel()
 
-	provider := newMockProvider()
+	mockProvider := new(mockProvider)
 
-	// Add multiple tenants
+	// Create tenant mapping
+	tenants := make(map[string]*tenant.Tenant)
 	for i := range 10 {
-		testTenant := createTestTenant(fmt.Sprintf("tenant%03d", i), true)
-		provider.addTenant(testTenant)
+		tenantID := fmt.Sprintf("tenant%03d", i)
+		testTenant := createTestTenant(tenantID, true)
+		tenants[tenantID] = testTenant
+	}
+
+	// Setup expectations for all tenants (each called multiple times)
+	for tenantID, testTenant := range tenants {
+		mockProvider.On("GetByIdentifier", mock.Anything, tenantID).Return(testTenant, nil).Maybe()
 	}
 
 	resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-	middleware := tenant.Middleware(resolver, provider)
+	middleware := tenant.Middleware(resolver, mockProvider)
 
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify correct tenant is in context
@@ -470,6 +624,9 @@ func TestMiddleware_ConcurrentRequests(t *testing.T) {
 	}
 
 	wg.Wait()
+
+	// Verify mock expectations
+	mockProvider.AssertExpectations(t)
 }
 
 func TestMiddleware_Integration(t *testing.T) {
@@ -478,12 +635,14 @@ func TestMiddleware_Integration(t *testing.T) {
 	t.Run("complete flow with subdomain resolver", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
 		testTenant := createTestTenant("acme", true)
-		provider.addTenant(testTenant)
+
+		// Setup expectations
+		mockProvider.On("GetByIdentifier", mock.Anything, "acme").Return(testTenant, nil).Once()
 
 		resolver := tenant.NewSubdomainResolver(".app.com")
-		middleware := tenant.Middleware(resolver, provider)
+		middleware := tenant.Middleware(resolver, mockProvider)
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			retrievedTenant, ok := tenant.FromContext(r.Context())
@@ -498,21 +657,26 @@ func TestMiddleware_Integration(t *testing.T) {
 
 		handler.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
+
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
 
 	t.Run("composite resolver with fallback", func(t *testing.T) {
 		t.Parallel()
 
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
 		testTenant := createTestTenant("acme", true)
-		provider.addTenant(testTenant)
+
+		// Setup expectations
+		mockProvider.On("GetByIdentifier", mock.Anything, "acme").Return(testTenant, nil).Once()
 
 		// Composite resolver: header -> subdomain
 		resolver := tenant.NewCompositeResolver(
 			tenant.NewHeaderResolver("X-Tenant-ID"),
 			tenant.NewSubdomainResolver(".app.com"),
 		)
-		middleware := tenant.Middleware(resolver, provider)
+		middleware := tenant.Middleware(resolver, mockProvider)
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			retrievedTenant, ok := tenant.FromContext(r.Context())
@@ -528,5 +692,23 @@ func TestMiddleware_Integration(t *testing.T) {
 
 		handler.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
+
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
+}
+
+// failingCacheImpl is a cache implementation that always fails on Set operations
+type failingCacheImpl struct{}
+
+func (f *failingCacheImpl) Get(ctx context.Context, key string) (*tenant.Tenant, bool) {
+	return nil, false
+}
+
+func (f *failingCacheImpl) Set(ctx context.Context, key string, tenant *tenant.Tenant) error {
+	return errors.New("cache write failed")
+}
+
+func (f *failingCacheImpl) Delete(ctx context.Context, key string) error {
+	return nil
 }

@@ -1,67 +1,14 @@
 package tenant_test
 
 import (
-	"context"
-	"errors"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/dmitrymomot/saaskit/pkg/tenant"
 )
-
-// mockProvider implements tenant.Provider for testing
-type mockProvider struct {
-	mu      sync.RWMutex
-	tenants map[string]*tenant.Tenant
-	err     error
-	calls   int
-}
-
-func newMockProvider() *mockProvider {
-	return &mockProvider{
-		tenants: make(map[string]*tenant.Tenant),
-	}
-}
-
-func (m *mockProvider) GetByIdentifier(ctx context.Context, identifier string) (*tenant.Tenant, error) {
-	m.mu.Lock()
-	m.calls++
-	err := m.err
-	m.mu.Unlock()
-
-	if err != nil {
-		return nil, err
-	}
-
-	m.mu.RLock()
-	t, ok := m.tenants[identifier]
-	m.mu.RUnlock()
-
-	if !ok {
-		return nil, tenant.ErrTenantNotFound
-	}
-	return t, nil
-}
-
-func (m *mockProvider) addTenant(t *tenant.Tenant) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.tenants[t.ID.String()] = t
-	m.tenants[t.Subdomain] = t
-}
-
-func (m *mockProvider) getCalls() int {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.calls
-}
-
-// getCallCount removed as it's unused
 
 func TestTenant_Structure(t *testing.T) {
 	t.Parallel()
@@ -89,65 +36,6 @@ func TestTenant_Structure(t *testing.T) {
 		assert.Equal(t, "pro", testTenant.PlanID)
 		assert.True(t, testTenant.Active)
 		assert.Equal(t, now, testTenant.CreatedAt)
-	})
-}
-
-func TestProvider_MockImplementation(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns tenant by UUID", func(t *testing.T) {
-		t.Parallel()
-
-		provider := newMockProvider()
-		testTenant := createTestTenant("acme", true)
-		provider.addTenant(testTenant)
-
-		result, err := provider.GetByIdentifier(context.Background(), testTenant.ID.String())
-		require.NoError(t, err)
-		assert.Equal(t, testTenant, result)
-	})
-
-	t.Run("returns tenant by subdomain", func(t *testing.T) {
-		t.Parallel()
-
-		provider := newMockProvider()
-		testTenant := createTestTenant("acme", true)
-		provider.addTenant(testTenant)
-
-		result, err := provider.GetByIdentifier(context.Background(), "acme")
-		require.NoError(t, err)
-		assert.Equal(t, testTenant, result)
-	})
-
-	t.Run("returns ErrTenantNotFound for missing tenant", func(t *testing.T) {
-		t.Parallel()
-
-		provider := newMockProvider()
-
-		_, err := provider.GetByIdentifier(context.Background(), "nonexistent")
-		assert.ErrorIs(t, err, tenant.ErrTenantNotFound)
-	})
-
-	t.Run("returns custom error when set", func(t *testing.T) {
-		t.Parallel()
-
-		provider := newMockProvider()
-		customErr := errors.New("database error")
-		provider.err = customErr
-
-		_, err := provider.GetByIdentifier(context.Background(), "any")
-		assert.ErrorIs(t, err, customErr)
-	})
-
-	t.Run("tracks call count", func(t *testing.T) {
-		t.Parallel()
-
-		provider := newMockProvider()
-
-		_, _ = provider.GetByIdentifier(context.Background(), "test")
-		_, _ = provider.GetByIdentifier(context.Background(), "test")
-
-		assert.Equal(t, 2, provider.getCalls())
 	})
 }
 

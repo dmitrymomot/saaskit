@@ -100,14 +100,22 @@ func TestSubdomainResolver(t *testing.T) {
 
 		resolver := tenant.NewSubdomainResolver("")
 
-		// Invalid characters in subdomain
-		req := httptest.NewRequest("GET", "https://app.com/test", nil)
-		req.Host = "invalid!@#.app.com"
+		invalidSubdomains := []string{
+			"invalid!@#",     // special characters
+			"tenant_123",     // underscore not allowed
+			"tenant@123",     // @ not allowed
+			"tenant%20space", // space (encoded) not allowed
+		}
 
-		id, err := resolver(req)
-		assert.Error(t, err)
-		assert.Empty(t, id)
-		assert.ErrorIs(t, err, tenant.ErrInvalidIdentifier)
+		for _, subdomain := range invalidSubdomains {
+			req := httptest.NewRequest("GET", "https://app.com/test", nil)
+			req.Host = subdomain + ".app.com"
+
+			id, err := resolver(req)
+			assert.Error(t, err, "subdomain %s should be invalid", subdomain)
+			assert.Empty(t, id)
+			assert.ErrorIs(t, err, tenant.ErrInvalidIdentifier)
+		}
 	})
 
 	t.Run("accepts valid subdomain formats", func(t *testing.T) {
@@ -117,9 +125,8 @@ func TestSubdomainResolver(t *testing.T) {
 		validSubdomains := []string{
 			"tenant123",
 			"tenant-123",
-			"tenant_123",
 			"TENANT123",
-			"a1b2c3d4-e5f6-7890-1234-567890abcdef", // UUID format
+			"a1b2c3d4-e5f6-7890-1234-567890abcdef", // UUID format with dashes only
 		}
 
 		for _, subdomain := range validSubdomains {
@@ -199,13 +206,24 @@ func TestHeaderResolver(t *testing.T) {
 		t.Parallel()
 
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-		req := httptest.NewRequest("GET", "/test", nil)
-		req.Header.Set("X-Tenant-ID", "invalid!@#$%")
 
-		id, err := resolver(req)
-		assert.Error(t, err)
-		assert.Empty(t, id)
-		assert.ErrorIs(t, err, tenant.ErrInvalidIdentifier)
+		invalidIDs := []string{
+			"invalid!@#$%", // special characters
+			"tenant_123",   // underscore not allowed
+			"tenant.com",   // dot not allowed
+			"tenant@corp",  // @ not allowed
+			"tenant space", // space not allowed
+		}
+
+		for _, invalidID := range invalidIDs {
+			req := httptest.NewRequest("GET", "/test", nil)
+			req.Header.Set("X-Tenant-ID", invalidID)
+
+			id, err := resolver(req)
+			assert.Error(t, err, "tenant ID %s should be invalid", invalidID)
+			assert.Empty(t, id)
+			assert.ErrorIs(t, err, tenant.ErrInvalidIdentifier)
+		}
 	})
 
 	t.Run("accepts valid header values", func(t *testing.T) {
@@ -215,8 +233,7 @@ func TestHeaderResolver(t *testing.T) {
 		validIDs := []string{
 			"tenant123",
 			"tenant-123",
-			"tenant_123",
-			"a1b2c3d4-e5f6-7890-1234-567890abcdef", // UUID format
+			"a1b2c3d4-e5f6-7890-1234-567890abcdef", // UUID format also works
 		}
 
 		for _, tenantID := range validIDs {
@@ -314,12 +331,23 @@ func TestPathResolver(t *testing.T) {
 		t.Parallel()
 
 		resolver := tenant.NewPathResolver(2)
-		req := httptest.NewRequest("GET", "/api/invalid!@#/users", nil)
 
-		id, err := resolver(req)
-		assert.Error(t, err)
-		assert.Empty(t, id)
-		assert.ErrorIs(t, err, tenant.ErrInvalidIdentifier)
+		invalidPaths := []string{
+			"/api/invalid!@#/users",
+			"/api/tenant_123/users",     // underscore not allowed
+			"/api/tenant.com/users",     // dot not allowed
+			"/api/tenant@corp/users",    // @ not allowed
+			"/api/tenant%20space/users", // space (encoded) not allowed
+		}
+
+		for _, path := range invalidPaths {
+			req := httptest.NewRequest("GET", path, nil)
+
+			id, err := resolver(req)
+			assert.Error(t, err, "path %s should be invalid", path)
+			assert.Empty(t, id)
+			assert.ErrorIs(t, err, tenant.ErrInvalidIdentifier)
+		}
 	})
 
 	t.Run("accepts valid path segments", func(t *testing.T) {
@@ -329,7 +357,6 @@ func TestPathResolver(t *testing.T) {
 		validIDs := []string{
 			"tenant123",
 			"tenant-123",
-			"tenant_123",
 			"a1b2c3d4-e5f6-7890-1234-567890abcdef", // UUID format
 		}
 

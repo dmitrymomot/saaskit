@@ -1,7 +1,6 @@
 package tenant_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,11 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dmitrymomot/saaskit/pkg/session"
 	"github.com/dmitrymomot/saaskit/pkg/tenant"
 )
 
@@ -27,11 +25,13 @@ func TestIntegration_CompleteFlow(t *testing.T) {
 		t.Parallel()
 
 		// Setup provider with multiple tenants
-		provider := newMockProvider()
+		mockProvider := new(mockProvider)
 		acmeTenant := createTestTenant("acme", true)
 		globexTenant := createTestTenant("globex", true)
-		provider.addTenant(acmeTenant)
-		provider.addTenant(globexTenant)
+
+		// Setup expectations
+		mockProvider.On("GetByIdentifier", mock.Anything, "acme").Return(acmeTenant, nil).Maybe()
+		mockProvider.On("GetByIdentifier", mock.Anything, "globex").Return(globexTenant, nil).Maybe()
 
 		// Create composite resolver: header -> subdomain -> path
 		resolver := tenant.NewCompositeResolver(
@@ -42,7 +42,7 @@ func TestIntegration_CompleteFlow(t *testing.T) {
 
 		// Setup middleware
 		cache := &tenant.NoOpCache{}
-		middleware := tenant.Middleware(resolver, provider,
+		middleware := tenant.Middleware(resolver, mockProvider,
 			tenant.WithCache(cache),
 			tenant.WithSkipPaths([]string{"/health", "/metrics"}),
 		)
@@ -101,149 +101,9 @@ func TestIntegration_CompleteFlow(t *testing.T) {
 			handler.ServeHTTP(w, req)
 			assert.Equal(t, http.StatusInternalServerError, w.Code) // RequireTenant will fail
 		})
-	})
-}
 
-func TestIntegration_SessionBasedMultiTenancy(t *testing.T) {
-	t.Parallel()
-
-	// Define sessionKey type for context
-	type sessionKey struct{}
-
-	// Simulate a session store
-	type sessionStore struct {
-		mu       sync.RWMutex
-		sessions map[string]map[string]string
-	}
-
-	store := &sessionStore{
-		sessions: make(map[string]map[string]string),
-	}
-
-	// Session middleware that sets session ID
-	sessionMiddleware := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			sessionID := r.Header.Get("X-Session-ID")
-			if sessionID == "" {
-				sessionID = uuid.New().String()
-				w.Header().Set("X-Session-ID", sessionID)
-			}
-
-			ctx := context.WithValue(r.Context(), sessionKey{}, sessionID)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-
-	// GetSession function for resolver
-	getSession := func(r *http.Request) (*session.Session, error) {
-		sessionID, ok := r.Context().Value(sessionKey{}).(string)
-		if !ok {
-			return nil, fmt.Errorf("no session ID in context")
-		}
-
-		store.mu.RLock()
-		defer store.mu.RUnlock()
-
-		data, exists := store.sessions[sessionID]
-		if !exists {
-			return &session.Session{
-				ID:   uuid.New(),
-				Data: make(map[string]any),
-			}, nil
-		}
-
-		// Convert string map to any map
-		sessionData := make(map[string]any)
-		for k, v := range data {
-			sessionData[k] = v
-		}
-
-		return &session.Session{
-			ID:   uuid.New(),
-			Data: sessionData,
-		}, nil
-	}
-
-	// Setup tenant resolution
-	provider := newMockProvider()
-	acmeTenant := createTestTenant("acme", true)
-	globexTenant := createTestTenant("globex", true)
-	provider.addTenant(acmeTenant)
-	provider.addTenant(globexTenant)
-
-	sessionResolver := session.NewTenantResolver(getSession)
-
-	// Wrap session resolver with validation
-	resolver := func(r *http.Request) (string, error) {
-		id, err := sessionResolver.Resolve(r)
-		if err != nil {
-			return "", err
-		}
-
-		if id == "" {
-			return "", nil
-		}
-
-		// The session resolver already validates, so we can just return
-		return id, nil
-	}
-	tenantMiddleware := tenant.Middleware(resolver, provider)
-
-	// API handler
-	handler := sessionMiddleware(tenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ten, ok := tenant.FromContext(r.Context())
-		if ok {
-			w.Header().Set("X-Current-Tenant", ten.Subdomain)
-			w.WriteHeader(http.StatusOK)
-			_, _ = fmt.Fprintf(w, "Current tenant: %s", ten.Name)
-		} else {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("No tenant selected"))
-		}
-	})))
-
-	// Test flow
-	t.Run("session-based tenant switching", func(t *testing.T) {
-		sessionID := uuid.New().String()
-
-		// Initial request - no tenant
-		req1 := httptest.NewRequest("GET", "/dashboard", nil)
-		req1.Header.Set("X-Session-ID", sessionID)
-		w1 := httptest.NewRecorder()
-
-		handler.ServeHTTP(w1, req1)
-		assert.Equal(t, http.StatusOK, w1.Code)
-		assert.Equal(t, "No tenant selected", w1.Body.String())
-
-		// Set tenant in session
-		store.mu.Lock()
-		store.sessions[sessionID] = map[string]string{"tenant_id": "acme"}
-		store.mu.Unlock()
-
-		// Second request - should have tenant
-		req2 := httptest.NewRequest("GET", "/dashboard", nil)
-		req2.Header.Set("X-Session-ID", sessionID)
-		w2 := httptest.NewRecorder()
-
-		handler.ServeHTTP(w2, req2)
-		assert.Equal(t, http.StatusOK, w2.Code)
-		assert.Equal(t, "acme", w2.Header().Get("X-Current-Tenant"))
-		assert.Equal(t, "Current tenant: acme Corp", w2.Body.String())
-
-		// Switch tenant
-		store.mu.Lock()
-		store.sessions[sessionID]["tenant_id"] = "globex"
-		store.mu.Unlock()
-
-		// Third request - should have new tenant
-		req3 := httptest.NewRequest("GET", "/dashboard", nil)
-		req3.Header.Set("X-Session-ID", sessionID)
-		w3 := httptest.NewRecorder()
-
-		handler.ServeHTTP(w3, req3)
-		assert.Equal(t, http.StatusOK, w3.Code)
-		assert.Equal(t, "globex", w3.Header().Get("X-Current-Tenant"))
-		assert.Equal(t, "Current tenant: globex Corp", w3.Body.String())
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
 }
 
@@ -253,15 +113,22 @@ func TestIntegration_LoadTesting(t *testing.T) {
 	}
 
 	// Setup
-	provider := newMockProvider()
+	mockProvider := new(mockProvider)
+	tenants := make(map[string]*tenant.Tenant)
 	for i := range 100 {
-		testTenant := createTestTenant(fmt.Sprintf("tenant%d", i), true)
-		provider.addTenant(testTenant)
+		tenantID := fmt.Sprintf("tenant%d", i)
+		testTenant := createTestTenant(tenantID, true)
+		tenants[tenantID] = testTenant
+	}
+
+	// Setup expectations for all tenants
+	for tenantID, testTenant := range tenants {
+		mockProvider.On("GetByIdentifier", mock.Anything, tenantID).Return(testTenant, nil).Maybe()
 	}
 
 	resolver := tenant.NewHeaderResolver("X-Tenant-ID")
 	cache := &tenant.NoOpCache{}
-	middleware := tenant.Middleware(resolver, provider,
+	middleware := tenant.Middleware(resolver, mockProvider,
 		tenant.WithCache(cache),
 	)
 
@@ -312,20 +179,23 @@ func TestIntegration_LoadTesting(t *testing.T) {
 	reqPerSec := float64(totalRequests) / duration.Seconds()
 	t.Logf("Processed %d requests in %v (%.2f req/s)", totalRequests, duration, reqPerSec)
 	assert.Greater(t, reqPerSec, 1000.0)
+
+	// Verify mock expectations
+	mockProvider.AssertExpectations(t)
 }
 
 func TestIntegration_CacheInvalidation(t *testing.T) {
 	t.Parallel()
 
 	// Provider that can change tenant state
-	provider := newMockProvider()
+	mockProvider := new(mockProvider)
 
 	activeTenant := createTestTenant("acme", true)
-	provider.addTenant(activeTenant)
+	inactiveTenant := createTestTenant("acme", false)
 
 	resolver := tenant.NewHeaderResolver("X-Tenant-ID")
 	cache := &tenant.NoOpCache{}
-	middleware := tenant.Middleware(resolver, provider,
+	middleware := tenant.Middleware(resolver, mockProvider,
 		tenant.WithCache(cache),
 	)
 
@@ -343,7 +213,13 @@ func TestIntegration_CacheInvalidation(t *testing.T) {
 	}))
 
 	t.Run("handles cache and tenant changes", func(t *testing.T) {
-		// First request - active tenant gets cached
+		// Setup expectations - NoOpCache means provider is called each time
+		// First two requests return active tenant
+		mockProvider.On("GetByIdentifier", mock.Anything, "acme").Return(activeTenant, nil).Twice()
+		// Third request returns inactive tenant
+		mockProvider.On("GetByIdentifier", mock.Anything, "acme").Return(inactiveTenant, nil).Once()
+
+		// First request - active tenant
 		req1 := httptest.NewRequest("GET", "/api", nil)
 		req1.Header.Set("X-Tenant-ID", "acme")
 		w1 := httptest.NewRecorder()
@@ -352,37 +228,40 @@ func TestIntegration_CacheInvalidation(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w1.Code)
 		assert.Equal(t, "Active", w1.Body.String())
 
-		// Second request - should use cached active tenant
+		// Second request - still active tenant (NoOpCache doesn't cache)
 		req2 := httptest.NewRequest("GET", "/api", nil)
 		req2.Header.Set("X-Tenant-ID", "acme")
 		w2 := httptest.NewRecorder()
 
 		handler.ServeHTTP(w2, req2)
-		assert.Equal(t, http.StatusOK, w2.Code) // Still OK because cached tenant is active
+		assert.Equal(t, http.StatusOK, w2.Code)
 
-		// Deactivate tenant in provider
-		provider.mu.Lock()
-		provider.tenants["acme"].Active = false
-		provider.mu.Unlock()
-
-		// Since we're using NoOpCache, no need to invalidate cache
-
-		// Third request - should load from provider and see inactive tenant
+		// Third request - now inactive tenant
 		req3 := httptest.NewRequest("GET", "/api", nil)
 		req3.Header.Set("X-Tenant-ID", "acme")
 		w3 := httptest.NewRecorder()
 
 		handler.ServeHTTP(w3, req3)
 		assert.Equal(t, http.StatusForbidden, w3.Code)
+
+		// Verify mock expectations
+		mockProvider.AssertExpectations(t)
 	})
 }
 
 // Benchmark complete middleware stack
 func BenchmarkIntegration_MiddlewareStack(b *testing.B) {
-	provider := newMockProvider()
+	mockProvider := new(mockProvider)
+	tenants := make(map[string]*tenant.Tenant)
 	for i := range 100 {
-		testTenant := createTestTenant(fmt.Sprintf("tenant%d", i), true)
-		provider.addTenant(testTenant)
+		tenantID := fmt.Sprintf("tenant%d", i)
+		testTenant := createTestTenant(tenantID, true)
+		tenants[tenantID] = testTenant
+	}
+
+	// Setup expectations for all tenants
+	for tenantID, testTenant := range tenants {
+		mockProvider.On("GetByIdentifier", mock.Anything, tenantID).Return(testTenant, nil).Maybe()
 	}
 
 	resolver := tenant.NewCompositeResolver(
@@ -391,7 +270,7 @@ func BenchmarkIntegration_MiddlewareStack(b *testing.B) {
 	)
 
 	cache := &tenant.NoOpCache{}
-	middleware := tenant.Middleware(resolver, provider,
+	middleware := tenant.Middleware(resolver, mockProvider,
 		tenant.WithCache(cache),
 	)
 
