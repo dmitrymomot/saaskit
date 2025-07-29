@@ -139,7 +139,7 @@ func constantTimeCompare(a, b string) bool {
 		return false
 	}
 	var result byte
-	for i := 0; i < len(a); i++ {
+	for i := range len(a) {
 		result |= a[i] ^ b[i]
 	}
 	return result == 0

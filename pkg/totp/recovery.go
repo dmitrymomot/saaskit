@@ -17,7 +17,7 @@ func GenerateRecoveryCodes(count int) ([]string, error) {
 	}
 
 	codes := make([]string, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		codeBytes := make([]byte, 8)
 		if _, err := rand.Read(codeBytes); err != nil {
 			return nil, errors.Join(ErrFailedToGenerateRecoveryCode, err)
