@@ -32,7 +32,7 @@ func Middleware(resolver Resolver, provider Provider, opts ...Option) func(http.
 			}
 
 			// Step 1: Resolve tenant identifier
-			identifier, err := resolver.Resolve(r)
+			identifier, err := resolver(r)
 			if err != nil {
 				cfg.errorHandler(w, r, err)
 				return
