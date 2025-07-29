@@ -30,7 +30,7 @@ func TestResolvers_ConcurrentAccess(t *testing.T) {
 				for j := 0; j < numOperations; j++ {
 					req := httptest.NewRequest("GET", "http://test.example.com/", nil)
 					tenantID, err := resolver.Resolve(req)
-					
+
 					assert.NoError(t, err)
 					assert.Equal(t, "test", tenantID)
 				}
@@ -57,7 +57,7 @@ func TestResolvers_ConcurrentAccess(t *testing.T) {
 				for j := 0; j < numOperations; j++ {
 					req := httptest.NewRequest("GET", "http://example.com/", nil)
 					req.Header.Set("X-Tenant-ID", "test-tenant")
-					
+
 					tenantID, err := resolver.Resolve(req)
 					assert.NoError(t, err)
 					assert.Equal(t, "test-tenant", tenantID)
@@ -84,9 +84,9 @@ func TestResolvers_ConcurrentAccess(t *testing.T) {
 
 				for j := 0; j < numOperations; j++ {
 					req := httptest.NewRequest("GET", "http://example.com/tenants/acme/dashboard", nil)
-					
+
 					tenantID, err := resolver.Resolve(req)
-					assert.NoError(t, err)  
+					assert.NoError(t, err)
 					assert.Equal(t, "acme", tenantID)
 				}
 			}(i)
@@ -101,10 +101,10 @@ func TestResolvers_ConcurrentAccess(t *testing.T) {
 		subdomainResolver := tenant.NewSubdomainResolver(".app.com")
 		headerResolver := tenant.NewHeaderResolver("X-Tenant-ID")
 		pathResolver := tenant.NewPathResolver(1)
-		
+
 		resolver := tenant.NewCompositeResolver(
 			subdomainResolver,
-			headerResolver, 
+			headerResolver,
 			pathResolver,
 		)
 
@@ -153,8 +153,8 @@ func TestResolver_InputValidation_Concurrent(t *testing.T) {
 	t.Parallel()
 
 	resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-	const numGoroutines = 50  
-	const numOperations = 100  // Reduced operations for stability
+	const numGoroutines = 50
+	const numOperations = 100 // Reduced operations for stability
 
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines)
@@ -175,10 +175,10 @@ func TestResolver_InputValidation_Concurrent(t *testing.T) {
 
 			for j := 0; j < numOperations; j++ {
 				value := testInputs[j%len(testInputs)]
-				
+
 				req := httptest.NewRequest("GET", "http://example.com/", nil)
 				req.Header.Set("X-Tenant-ID", value)
-				
+
 				tenantID, err := resolver.Resolve(req)
 				assert.NoError(t, err)
 				assert.NotEmpty(t, tenantID)

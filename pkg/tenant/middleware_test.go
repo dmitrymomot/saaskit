@@ -329,11 +329,11 @@ func TestMiddleware_Caching(t *testing.T) {
 		// Test direct cache behavior first
 		// Since we're using NoOpCache, no caching behavior to test
 		cache := &tenant.NoOpCache{}
-		
+
 		// All cache operations should be no-ops
 		err := cache.Set(context.Background(), "tenant1", createTestTenant("tenant1", true))
 		assert.NoError(t, err)
-		
+
 		_, ok := cache.Get(context.Background(), "tenant1")
 		assert.False(t, ok, "NoOpCache should always return false for Get")
 	})

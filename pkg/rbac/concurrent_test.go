@@ -25,14 +25,14 @@ func TestAuthorizer_ConcurrentAccess(t *testing.T) {
 
 		const numGoroutines = 100
 		const numOperations = 1000
-		
+
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
 
 		for i := 0; i < numGoroutines; i++ {
 			go func(id int) {
 				defer wg.Done()
-				
+
 				for j := 0; j < numOperations; j++ {
 					// Test different permission checks
 					switch j % 4 {
@@ -61,7 +61,7 @@ func TestAuthorizer_ConcurrentAccess(t *testing.T) {
 
 		const numGoroutines = 50
 		const numOperations = 500
-		
+
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
 
@@ -70,7 +70,7 @@ func TestAuthorizer_ConcurrentAccess(t *testing.T) {
 		for i := 0; i < numGoroutines; i++ {
 			go func() {
 				defer wg.Done()
-				
+
 				for j := 0; j < numOperations; j++ {
 					err := auth.CanAny("editor", permissions...)
 					assert.NoError(t, err)
@@ -86,7 +86,7 @@ func TestAuthorizer_ConcurrentAccess(t *testing.T) {
 
 		const numGoroutines = 50
 		const numOperations = 500
-		
+
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
 
@@ -96,7 +96,7 @@ func TestAuthorizer_ConcurrentAccess(t *testing.T) {
 		for i := 0; i < numGoroutines; i++ {
 			go func(id int) {
 				defer wg.Done()
-				
+
 				for j := 0; j < numOperations; j++ {
 					if id%2 == 0 {
 						err := auth.CanAll("editor", editorPermissions...)
@@ -117,16 +117,16 @@ func TestAuthorizer_ConcurrentAccess(t *testing.T) {
 
 		const numGoroutines = 50
 		const numOperations = 500
-		
+
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
 
 		for i := 0; i < numGoroutines; i++ {
 			go func() {
 				defer wg.Done()
-				
+
 				ctx := rbac.SetRoleToContext(context.Background(), "editor")
-				
+
 				for j := 0; j < numOperations; j++ {
 					err := auth.CanFromContext(ctx, "content.write")
 					assert.NoError(t, err)

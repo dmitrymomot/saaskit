@@ -26,7 +26,6 @@ func WithCache(cache Cache) Option {
 	}
 }
 
-
 // WithErrorHandler sets a custom error handler.
 func WithErrorHandler(handler ErrorHandler) Option {
 	return func(c *config) {

@@ -75,7 +75,7 @@ func NewAuthorizer(ctx context.Context, source RoleSource) (Authorizer, error) {
 	for roleName := range roles {
 		allPermissions := getAllPermissions(roleName, roles, make(map[string]bool), 0)
 		normalizedPermissions := scopes.NormalizeScopes(allPermissions)
-		
+
 		// Convert slice to set (map[string]struct{})
 		permissionSet := make(map[string]struct{}, len(normalizedPermissions))
 		for _, perm := range normalizedPermissions {
@@ -111,7 +111,7 @@ func (a *authorizer) Can(roleName, permission string) error {
 	for perm := range permissionSet {
 		permissions = append(permissions, perm)
 	}
-	
+
 	if !scopes.HasScope(permissions, permission) {
 		return ErrInsufficientPermissions
 	}
@@ -164,7 +164,7 @@ func (a *authorizer) CanAll(roleName string, permissions ...string) error {
 	// Check each permission individually for efficiency
 	exactMatches := 0
 	var remainingPermissions []string
-	
+
 	for _, permission := range permissions {
 		if _, hasPermission := permissionSet[permission]; hasPermission {
 			exactMatches++
