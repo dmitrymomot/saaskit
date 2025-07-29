@@ -27,7 +27,7 @@ func BenchmarkGenerate(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			token, err := service.Generate(claims)
 			if err != nil {
 				b.Fatal(err)
@@ -75,7 +75,7 @@ func BenchmarkGenerate(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			token, err := service.Generate(claims)
 			if err != nil {
 				b.Fatal(err)
@@ -109,7 +109,7 @@ func BenchmarkParse(b *testing.B) {
 		require.NotEmpty(b, token)
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var parsedClaims jwt.StandardClaims
 			err = service.Parse(token, &parsedClaims)
 			if err != nil {
@@ -165,7 +165,7 @@ func BenchmarkParse(b *testing.B) {
 		require.NotEmpty(b, token)
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var parsedClaims BenchClaims
 			err = service.Parse(token, &parsedClaims)
 			if err != nil {
@@ -187,14 +187,14 @@ func BenchmarkEnd2End(b *testing.B) {
 
 	b.Run("StandardClaims", func(b *testing.B) {
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			// Generate claims with unique ID to prevent caching
 			claims := jwt.StandardClaims{
 				Subject:   "user123",
 				Issuer:    "saaskit-benchmark",
 				ExpiresAt: time.Now().Add(time.Hour).Unix(),
 				IssuedAt:  time.Now().Unix(),
-				ID:        fmt.Sprintf("token-id-%d", i),
+				ID:        fmt.Sprintf("token-id-%d", time.Now().UnixNano()),
 			}
 
 			// Generate token
@@ -221,7 +221,7 @@ func BenchmarkEnd2End(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			// Generate claims with unique ID to prevent caching
 			claims := BenchClaims{
 				StandardClaims: jwt.StandardClaims{
@@ -229,7 +229,7 @@ func BenchmarkEnd2End(b *testing.B) {
 					Issuer:    "saaskit-benchmark",
 					ExpiresAt: time.Now().Add(time.Hour).Unix(),
 					IssuedAt:  time.Now().Unix(),
-					ID:        fmt.Sprintf("token-id-%d", i),
+					ID:        fmt.Sprintf("token-id-%d", time.Now().UnixNano()),
 				},
 				UserID: "usr_123456789",
 				Email:  "user@example.com",

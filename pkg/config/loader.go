@@ -51,8 +51,8 @@ var (
 func LoadEnv(filenames ...string) error {
 	// Reset singleton mechanisms to allow reloading configurations
 	globalCache.mu.Lock()
-	globalCache.values = make(map[string]any)
-	globalCache.onces = make(map[string]*sync.Once)
+	clear(globalCache.values)
+	clear(globalCache.onces)
 	defaultEnvLoaded = sync.Once{}
 	globalCache.mu.Unlock()
 
@@ -224,8 +224,8 @@ func ResetCache() {
 	defer globalCache.mu.Unlock()
 
 	// Clear all cached values and once instances
-	globalCache.values = make(map[string]any)
-	globalCache.onces = make(map[string]*sync.Once)
+	clear(globalCache.values)
+	clear(globalCache.onces)
 
 	// Reset the default env loaded state
 	defaultEnvLoaded = sync.Once{}

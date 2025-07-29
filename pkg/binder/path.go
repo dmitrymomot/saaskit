@@ -75,7 +75,7 @@ func Path(extractor func(r *http.Request, fieldName string) string) func(r *http
 
 		rt := rv.Type()
 
-		for i := 0; i < rv.NumField(); i++ {
+		for i := range rv.NumField() {
 			field := rv.Field(i)
 			fieldType := rt.Field(i)
 

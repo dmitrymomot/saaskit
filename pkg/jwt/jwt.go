@@ -13,9 +13,7 @@ import (
 
 // Constants for JWT
 const (
-	// HeaderType is the type of the JWT header
-	HeaderType = "JWT"
-	// HeaderAlgorithm is the algorithm used for signing
+	HeaderType      = "JWT"
 	HeaderAlgorithm = "HS256"
 )
 

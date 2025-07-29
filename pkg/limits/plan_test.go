@@ -68,7 +68,7 @@ func TestPlan_IsTrialActive(t *testing.T) {
 			TrialDays: 14,
 		}
 		// Started yesterday
-		startedAt := time.Now().UTC().UTC().AddDate(0, 0, -1)
+		startedAt := time.Now().UTC().AddDate(0, 0, -1)
 
 		result := plan.IsTrialActive(startedAt)
 

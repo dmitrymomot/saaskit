@@ -53,7 +53,7 @@ func Async[T any, U any](ctx context.Context, param T, fn func(context.Context, 
 	go func() {
 		defer close(f.done)
 
-		// Check if the context is already canceled
+		// Early exit prevents goroutine leak when context is pre-canceled
 		select {
 		case <-ctx.Done():
 			var zero U
@@ -63,10 +63,10 @@ func Async[T any, U any](ctx context.Context, param T, fn func(context.Context, 
 		default:
 		}
 
-		// Execute the function
+		// Execute function with potential for early cancellation via context
 		res, err := fn(ctx, param)
 
-		// Set the result and error
+		// Use sync.Once to prevent race conditions on multiple goroutine completions
 		f.once.Do(func() {
 			f.result = res
 			f.err = err

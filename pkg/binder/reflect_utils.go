@@ -24,7 +24,7 @@ func bindToStruct(v any, tagName string, values map[string][]string, bindErr err
 
 	rt := rv.Type()
 
-	for i := 0; i < rv.NumField(); i++ {
+	for i := range rv.NumField() {
 		field := rv.Field(i)
 		fieldType := rt.Field(i)
 

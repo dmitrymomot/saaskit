@@ -215,7 +215,7 @@ func TestAsyncConcurrentIncrement(t *testing.T) {
 	}
 
 	futures := make([]*async.Future[int], 0)
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		wg.Add(1)
 		future := async.Async(ctx, 1, func(ctx context.Context, delta int) (int, error) {
 			defer wg.Done()

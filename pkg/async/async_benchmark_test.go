@@ -13,7 +13,7 @@ import (
 func BenchmarkAsyncOverhead(b *testing.B) {
 	ctx := context.Background()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var wg sync.WaitGroup
 		numTasks := 1000
 
@@ -25,7 +25,7 @@ func BenchmarkAsyncOverhead(b *testing.B) {
 		}
 
 		futures := make([]*async.Future[int], numTasks)
-		for i := 0; i < numTasks; i++ {
+		for i := range numTasks {
 			wg.Add(1)
 			futures[i] = async.Async(ctx, i, func(ctx context.Context, param int) (int, error) {
 				defer wg.Done()
@@ -50,7 +50,7 @@ func BenchmarkAsyncOverhead(b *testing.B) {
 func BenchmarkAsyncWithoutSleep(b *testing.B) {
 	ctx := context.Background()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var wg sync.WaitGroup
 		numTasks := 1000
 
@@ -61,7 +61,7 @@ func BenchmarkAsyncWithoutSleep(b *testing.B) {
 		}
 
 		futures := make([]*async.Future[int], numTasks)
-		for i := 0; i < numTasks; i++ {
+		for i := range numTasks {
 			wg.Add(1)
 			futures[i] = async.Async(ctx, i, func(ctx context.Context, param int) (int, error) {
 				defer wg.Done()
@@ -86,7 +86,7 @@ func BenchmarkAsyncWithoutSleep(b *testing.B) {
 func BenchmarkAsyncWithContention(b *testing.B) {
 	ctx := context.Background()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var wg sync.WaitGroup
 		numTasks := 1000
 		var mu sync.Mutex
@@ -102,7 +102,7 @@ func BenchmarkAsyncWithContention(b *testing.B) {
 		}
 
 		futures := make([]*async.Future[int], numTasks)
-		for i := 0; i < numTasks; i++ {
+		for i := range numTasks {
 			wg.Add(1)
 			futures[i] = async.Async(ctx, i, func(ctx context.Context, param int) (int, error) {
 				defer wg.Done()

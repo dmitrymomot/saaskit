@@ -650,7 +650,7 @@ func TestManager_ConcurrentAccess(t *testing.T) {
 		}(i)
 	}
 
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		<-done
 	}
 }

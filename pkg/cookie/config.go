@@ -29,13 +29,11 @@ func DefaultConfig() Config {
 	}
 }
 
-// parseSecrets splits the secrets string into a slice
 func (c Config) parseSecrets() []string {
 	if c.Secrets == "" {
 		return nil
 	}
 
-	// Split by comma and trim whitespace
 	parts := strings.Split(c.Secrets, ",")
 	secrets := make([]string, 0, len(parts))
 
@@ -49,7 +47,6 @@ func (c Config) parseSecrets() []string {
 	return secrets
 }
 
-// NewFromConfig creates a new Manager from the provided Config.
 // Only non-zero values from the config are applied.
 func NewFromConfig(cfg Config, opts ...Option) (*Manager, error) {
 	// Parse secrets from config

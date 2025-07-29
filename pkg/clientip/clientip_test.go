@@ -306,7 +306,7 @@ func TestPerformanceRequirement(t *testing.T) {
 	req := createTestRequest(headers, "10.0.0.1:54321")
 
 	start := time.Now()
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		clientip.GetIP(req)
 	}
 	duration := time.Since(start)
