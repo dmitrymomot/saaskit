@@ -53,13 +53,9 @@
 // - PathResolver: Extracts from URL path segment (e.g., "/tenants/{id}/dashboard")
 // - CompositeResolver: Tries multiple strategies in order
 //
-// For session-based tenant resolution, use session.NewTenantResolver from the session package
-// wrapped with tenant.NewSessionResolverAdapter to add validation:
+// For session-based tenant resolution, use session.NewTenantResolver from the session package.
 //
-//	sessionResolver := session.NewTenantResolver(getSession)
-//	resolver := tenant.NewSessionResolverAdapter(sessionResolver)
-//
-// Custom resolvers can be created by implementing the Resolver interface.
+// Custom resolvers can be created by implementing the Resolver function type.
 //
 // # Caching
 //
