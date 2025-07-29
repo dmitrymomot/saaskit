@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,8 +47,9 @@ type Worker struct {
 	logger       *slog.Logger
 
 	// State management
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx      context.Context
+	cancel   context.CancelFunc
+	stopping atomic.Bool
 }
 
 // NewWorker creates a new task worker
@@ -121,6 +123,9 @@ func (w *Worker) Start(ctx context.Context) error {
 	w.ctx, w.cancel = context.WithCancel(ctx)
 	w.mu.Unlock()
 
+	// Reset stopping flag
+	w.stopping.Store(false)
+
 	// Start the main processing loop
 	go w.run()
 
@@ -142,6 +147,9 @@ func (w *Worker) Stop() error {
 	cancel := w.cancel
 	w.cancel = nil
 	w.mu.Unlock()
+
+	// Mark as stopping to prevent new tasks
+	w.stopping.Store(true)
 
 	// Cancel context to stop processing
 	cancel()
@@ -184,6 +192,12 @@ func (w *Worker) run() {
 			// Try to acquire a slot
 			select {
 			case w.sem <- struct{}{}:
+				// Check if we're stopping before adding to wait group
+				if w.stopping.Load() {
+					<-w.sem // Release slot immediately
+					return
+				}
+				
 				// Got a slot, process task in background
 				w.wg.Add(1)
 				go func() {
