@@ -13,7 +13,7 @@ func BenchmarkJSONParserLarge(b *testing.B) {
 	// Build a very large JSON structure
 	var builder strings.Builder
 	builder.WriteString(`{"en": {`)
-	for i := 0; i < 10000; i++ {
+	for i := range 10000 {
 		if i > 0 {
 			builder.WriteString(",")
 		}
@@ -64,7 +64,7 @@ func BenchmarkYAMLParserLarge(b *testing.B) {
 
 	for _, lang := range languages {
 		builder.WriteString(fmt.Sprintf("%s:\n", lang))
-		for i := 0; i < 1000; i++ {
+		for i := range 1000 {
 			builder.WriteString(fmt.Sprintf("  key_%d: \"Value %d for %s\"\n", i, i, lang))
 		}
 	}
@@ -87,7 +87,7 @@ func BenchmarkYAMLParserDeepNested(b *testing.B) {
 	builder.WriteString("en:\n")
 
 	// Create deeply nested structure
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		builder.WriteString(strings.Repeat("  ", i+1))
 		builder.WriteString(fmt.Sprintf("level_%d:\n", i))
 	}
