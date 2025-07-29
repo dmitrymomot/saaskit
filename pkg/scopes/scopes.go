@@ -209,12 +209,7 @@ func EqualScopes(scopes1, scopes2 []string) bool {
 		sort.Strings(s2)
 
 		// Compare sorted slices
-		for i := range s1 {
-			if s1[i] != s2[i] {
-				return false
-			}
-		}
-		return true
+		return slices.Equal(s1, s2)
 	}
 
 	// For larger slices, use maps for O(n) comparison
