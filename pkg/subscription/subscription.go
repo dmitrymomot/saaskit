@@ -42,14 +42,15 @@ func (s *Subscription) IsTrialExpired() bool {
 	return time.Now().UTC().After(*s.TrialEndsAt)
 }
 
-// TrialDaysRemaining returns the number of days remaining in the trial.
+// TrialDaysRemainingAt returns the number of days remaining in the trial at a given time.
 // Returns 0 if not in trial or trial has expired.
-func (s *Subscription) TrialDaysRemaining() int {
+// This method is useful for testing with fixed time values.
+func (s *Subscription) TrialDaysRemainingAt(now time.Time) int {
 	if !s.IsTrialing() || s.TrialEndsAt == nil {
 		return 0
 	}
 
-	remaining := time.Until(*s.TrialEndsAt)
+	remaining := s.TrialEndsAt.Sub(now)
 	if remaining <= 0 {
 		return 0
 	}
@@ -57,4 +58,10 @@ func (s *Subscription) TrialDaysRemaining() int {
 	// Round up partial days to be user-friendly
 	days := remaining.Hours() / 24
 	return int(days + 0.5)
+}
+
+// TrialDaysRemaining returns the number of days remaining in the trial.
+// Returns 0 if not in trial or trial has expired.
+func (s *Subscription) TrialDaysRemaining() int {
+	return s.TrialDaysRemainingAt(time.Now().UTC())
 }
