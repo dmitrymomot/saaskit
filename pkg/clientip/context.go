@@ -4,7 +4,6 @@ import (
 	"context"
 )
 
-// clientIPContextKey is the key for storing client IP in context
 type clientIPContextKey struct{}
 
 // SetIPToContext stores client IP in context

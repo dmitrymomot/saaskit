@@ -2,7 +2,6 @@ package config
 
 import "errors"
 
-// Package-specific errors
 var (
 	// ErrParsingConfig is returned when environment variables cannot be parsed into the config struct
 	ErrParsingConfig = errors.New("failed to parse environment variables into config")

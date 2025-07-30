@@ -136,14 +136,12 @@ func TestManager_SignedTamperDetection(t *testing.T) {
 		t.Fatalf("SetSigned() error = %v", err)
 	}
 
-	// Get the signed value and tamper with it
 	r := &http.Request{Header: http.Header{}}
 	r.Header.Set("Cookie", w.Header().Get("Set-Cookie"))
 
 	signedValue, _ := m.Get(r, "signed")
 	parts := strings.Split(signedValue, "|")
 	if len(parts) == 2 {
-		// Tamper with the value part
 		tamperedValue := base64.URLEncoding.EncodeToString([]byte("tampered-value")) + "|" + parts[1]
 		r = &http.Request{Header: http.Header{}}
 		r.AddCookie(&http.Cookie{Name: "signed", Value: tamperedValue})
@@ -262,7 +260,7 @@ func TestManager_Delete(t *testing.T) {
 		return
 	}
 
-	// Max-Age might be output as Max-Age=0 by some versions
+	// Go may output Max-Age as either -1 or 0 for cookie deletion
 	if !strings.Contains(cookieStr, "Max-Age=-1") && !strings.Contains(cookieStr, "Max-Age=0") {
 		t.Errorf("Delete() did not set Max-Age=-1 or Max-Age=0, got: %s", cookieStr)
 	}

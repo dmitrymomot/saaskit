@@ -8,14 +8,13 @@ import (
 	"github.com/mrz1836/postmark"
 )
 
-// postmarkClient implements the EmailSender interface.
 type postmarkClient struct {
 	client *postmark.Client
 	config Config
 }
 
 // NewPostmarkClient creates a new instance of the mailer client
-// with the provided server token and account token from the config (see mailer.Config).
+// with the provided server token and account token from the config.
 // The client is used to send emails synchronously using the Postmark API.
 // For asynchronous email sending, use the email enqueuer.
 func NewPostmarkClient(cfg Config) (EmailSender, error) {
@@ -33,7 +32,7 @@ func NewPostmarkClient(cfg Config) (EmailSender, error) {
 }
 
 // MustNewPostmarkClient creates a new instance of the mailer client
-// with the provided server token and account token from the config (see mailer.Config).
+// with the provided server token and account token from the config.
 // The client is used to send emails synchronously using the Postmark API.
 // For asynchronous email sending, use the email enqueuer.
 // Panics if the config cannot be loaded.

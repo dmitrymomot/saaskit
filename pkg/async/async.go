@@ -63,7 +63,6 @@ func Async[T any, U any](ctx context.Context, param T, fn func(context.Context, 
 		default:
 		}
 
-		// Execute function with potential for early cancellation via context
 		res, err := fn(ctx, param)
 
 		// Use sync.Once to prevent race conditions on multiple goroutine completions
@@ -81,7 +80,6 @@ func Async[T any, U any](ctx context.Context, param T, fn func(context.Context, 
 func WaitAll[U any](futures ...*Future[U]) ([]U, error) {
 	results := make([]U, len(futures))
 
-	// Wait for all futures to complete
 	for i, future := range futures {
 		result, err := future.Await()
 		results[i] = result
@@ -101,14 +99,12 @@ func WaitAny[U any](futures ...*Future[U]) (int, U, error) {
 		return -1, zero, errors.New("future: no futures provided to WaitAny")
 	}
 
-	// Create a channel to signal completion
 	done := make(chan struct {
 		index  int
 		result U
 		err    error
 	})
 
-	// Start a goroutine for each future
 	for i, future := range futures {
 		go func(index int, f *Future[U]) {
 			result, err := f.Await()
@@ -124,7 +120,6 @@ func WaitAny[U any](futures ...*Future[U]) (int, U, error) {
 		}(i, future)
 	}
 
-	// Wait for the first future to complete
 	res := <-done
 	return res.index, res.result, res.err
 }

@@ -10,14 +10,12 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/feature"
 )
 
-// Test helper context keys
 type (
 	testUserIDKey      struct{}
 	testUserGroupsKey  struct{}
 	testEnvironmentKey struct{}
 )
 
-// Test helper extractors
 func testUserIDExtractor(ctx context.Context) string {
 	userID, _ := ctx.Value(testUserIDKey{}).(string)
 	return userID
@@ -74,29 +72,24 @@ func TestTargetedStrategy(t *testing.T) {
 			feature.WithUserIDExtractor(testUserIDExtractor),
 		)
 
-		// Test with matching user ID
 		ctx := context.WithValue(context.Background(), testUserIDKey{}, "user2")
 		enabled, err := strategy.Evaluate(ctx)
 		require.NoError(t, err)
 		assert.True(t, enabled)
 
-		// Test with non-matching user ID
 		ctx = context.WithValue(context.Background(), testUserIDKey{}, "user4")
 		enabled, err = strategy.Evaluate(ctx)
 		require.NoError(t, err)
 		assert.False(t, enabled)
 
-		// Test with missing user ID
 		enabled, err = strategy.Evaluate(context.Background())
 		require.NoError(t, err)
 		assert.False(t, enabled)
-
-		// Test without extractor configured
 		strategyNoExtractor := feature.NewTargetedStrategy(criteria)
 		ctx = context.WithValue(context.Background(), testUserIDKey{}, "user2")
 		enabled, err = strategyNoExtractor.Evaluate(ctx)
 		require.NoError(t, err)
-		assert.False(t, enabled) // Should be false without extractor
+		assert.False(t, enabled)
 	})
 
 	t.Run("UserGroups", func(t *testing.T) {
@@ -135,7 +128,6 @@ func TestTargetedStrategy(t *testing.T) {
 
 	t.Run("PercentageRollout", func(t *testing.T) {
 		t.Parallel()
-		// Set up a 50% rollout
 		percentage := 50
 		criteria := feature.TargetCriteria{
 			Percentage: &percentage,
@@ -144,15 +136,14 @@ func TestTargetedStrategy(t *testing.T) {
 			feature.WithUserIDExtractor(testUserIDExtractor),
 		)
 
-		// We can't test specific outcomes since it's based on hash values,
-		// but we can test that it works without error for different user IDs
+		// Can't test specific outcomes due to hash-based distribution,
+		// but verify it works without error for different user IDs
 		for _, userID := range []string{"user1", "user2", "user3", "user4"} {
 			ctx := context.WithValue(context.Background(), testUserIDKey{}, userID)
 			_, err := strategy.Evaluate(ctx)
 			require.NoError(t, err)
 		}
 
-		// Test invalid percentage values
 		invalidPercentage := 101
 		invalidCriteria := feature.TargetCriteria{
 			Percentage: &invalidPercentage,
@@ -164,8 +155,6 @@ func TestTargetedStrategy(t *testing.T) {
 		_, err := strategy.Evaluate(ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "percentage must be between 0 and 100")
-
-		// Test with missing user ID
 		percentage = 50
 		criteria = feature.TargetCriteria{
 			Percentage: &percentage,

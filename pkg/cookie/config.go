@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-// Config holds cookie manager configuration
 type Config struct {
 	Secrets  string        `env:"COOKIE_SECRETS" envDefault:""`
 	Path     string        `env:"COOKIE_PATH" envDefault:"/"`
@@ -13,10 +12,9 @@ type Config struct {
 	MaxAge   int           `env:"COOKIE_MAX_AGE" envDefault:"0"`
 	Secure   bool          `env:"COOKIE_SECURE" envDefault:"false"`
 	HttpOnly bool          `env:"COOKIE_HTTP_ONLY" envDefault:"true"`
-	SameSite http.SameSite `env:"COOKIE_SAME_SITE" envDefault:"2"` // 2 = SameSiteLaxMode
+	SameSite http.SameSite `env:"COOKIE_SAME_SITE" envDefault:"2"` // 2 = SameSiteLaxMode for CSRF protection by default
 }
 
-// DefaultConfig returns default cookie configuration
 func DefaultConfig() Config {
 	return Config{
 		Secrets:  "",
@@ -47,12 +45,10 @@ func (c Config) parseSecrets() []string {
 	return secrets
 }
 
-// Only non-zero values from the config are applied.
+// NewFromConfig creates a Manager from configuration. Only non-zero values are applied to avoid overriding defaults.
 func NewFromConfig(cfg Config, opts ...Option) (*Manager, error) {
-	// Parse secrets from config
 	secrets := cfg.parseSecrets()
 
-	// Build options from config
 	configOpts := make([]Option, 0, 6)
 
 	if cfg.Path != "" {
@@ -74,7 +70,6 @@ func NewFromConfig(cfg Config, opts ...Option) (*Manager, error) {
 		configOpts = append(configOpts, WithSameSite(cfg.SameSite))
 	}
 
-	// Append any additional options provided
 	configOpts = append(configOpts, opts...)
 
 	return New(secrets, configOpts...)

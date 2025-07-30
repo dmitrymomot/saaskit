@@ -56,7 +56,6 @@ func TestJSON(t *testing.T) {
 		t.Parallel()
 		jsonData := `{"name":"Test"}`
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
-		// Don't set Content-Type
 
 		var result testStruct
 		bindFunc := binder.JSON()
@@ -98,7 +97,7 @@ func TestJSON(t *testing.T) {
 
 	t.Run("invalid JSON syntax", func(t *testing.T) {
 		t.Parallel()
-		jsonData := `{"name":"Test"` // Missing closing brace
+		jsonData := `{"name":"Test"`
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "application/json")
 
@@ -113,7 +112,7 @@ func TestJSON(t *testing.T) {
 
 	t.Run("invalid character in JSON", func(t *testing.T) {
 		t.Parallel()
-		jsonData := `{name:"Test"}` // Invalid JSON - unquoted key
+		jsonData := `{name:"Test"}`
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "application/json")
 
@@ -128,7 +127,7 @@ func TestJSON(t *testing.T) {
 
 	t.Run("type mismatch", func(t *testing.T) {
 		t.Parallel()
-		jsonData := `{"name":"Test","age":"not a number"}` // age should be int
+		jsonData := `{"name":"Test","age":"not a number"}`
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(jsonData))
 		req.Header.Set("Content-Type", "application/json")
 
@@ -153,7 +152,6 @@ func TestJSON(t *testing.T) {
 
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, binder.ErrInvalidJSON))
-		// The error message varies by Go version, but it should mention the unknown field
 		assert.Contains(t, err.Error(), "unknown")
 	})
 
@@ -183,9 +181,9 @@ func TestJSON(t *testing.T) {
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
-		assert.Equal(t, "", result.Name)  // zero value for string
-		assert.Equal(t, 0, result.Age)    // zero value for int
-		assert.Equal(t, "", result.Email) // zero value for string
+		assert.Equal(t, "", result.Name)
+		assert.Equal(t, 0, result.Age)
+		assert.Equal(t, "", result.Email)
 	})
 
 	t.Run("partial data", func(t *testing.T) {

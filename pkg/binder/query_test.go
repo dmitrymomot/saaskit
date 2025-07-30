@@ -19,7 +19,7 @@ func TestQuery(t *testing.T) {
 		Height   float64 `query:"height"`
 		Active   bool    `query:"active"`
 		Page     uint    `query:"page"`
-		Internal string  `query:"-"` // Should be skipped
+		Internal string  `query:"-"`
 	}
 
 	t.Run("valid query binding with all types", func(t *testing.T) {
@@ -36,7 +36,7 @@ func TestQuery(t *testing.T) {
 		assert.Equal(t, 5.9, result.Height)
 		assert.Equal(t, true, result.Active)
 		assert.Equal(t, uint(2), result.Page)
-		assert.Equal(t, "", result.Internal) // Should remain empty
+		assert.Equal(t, "", result.Internal)
 	})
 
 	t.Run("skips fields with dash tag", func(t *testing.T) {
@@ -44,13 +44,13 @@ func TestQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test?name=Test&internal=secret", nil)
 
 		var result basicStruct
-		result.Internal = "original" // Set a value that should not be overwritten
+		result.Internal = "original"
 		bindFunc := binder.Query()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Test", result.Name)
-		assert.Equal(t, "original", result.Internal) // Should not be changed
+		assert.Equal(t, "original", result.Internal)
 	})
 
 	t.Run("empty query parameters", func(t *testing.T) {
@@ -62,11 +62,11 @@ func TestQuery(t *testing.T) {
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
-		assert.Equal(t, "", result.Name)      // zero value
-		assert.Equal(t, 0, result.Age)        // zero value
-		assert.Equal(t, 0.0, result.Height)   // zero value
-		assert.Equal(t, false, result.Active) // zero value
-		assert.Equal(t, uint(0), result.Page) // zero value
+		assert.Equal(t, "", result.Name)
+		assert.Equal(t, 0, result.Age)
+		assert.Equal(t, 0.0, result.Height)
+		assert.Equal(t, false, result.Active)
+		assert.Equal(t, uint(0), result.Page)
 	})
 
 	t.Run("partial query parameters", func(t *testing.T) {
@@ -80,8 +80,8 @@ func TestQuery(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "Jane", result.Name)
 		assert.Equal(t, 25, result.Age)
-		assert.Equal(t, 0.0, result.Height)   // zero value
-		assert.Equal(t, false, result.Active) // zero value
+		assert.Equal(t, 0.0, result.Height)
+		assert.Equal(t, false, result.Active)
 	})
 
 	t.Run("invalid int value", func(t *testing.T) {
@@ -128,7 +128,6 @@ func TestQuery(t *testing.T) {
 			value    string
 			expected bool
 		}{
-			// Standard boolean strings
 			{"true", true},
 			{"false", false},
 			{"True", true},
@@ -140,11 +139,9 @@ func TestQuery(t *testing.T) {
 			{"T", true},
 			{"F", false},
 
-			// Numeric strings
 			{"1", true},
 			{"0", false},
 
-			// Alternative boolean strings
 			{"on", true},
 			{"off", false},
 			{"On", true},

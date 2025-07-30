@@ -20,7 +20,7 @@ func TestPath(t *testing.T) {
 		Height   float64 `path:"height"`
 		Active   bool    `path:"active"`
 		Page     uint    `path:"page"`
-		Internal string  `path:"-"` // Should be skipped
+		Internal string  `path:"-"`
 	}
 
 	t.Run("custom extractor function", func(t *testing.T) {
@@ -53,26 +53,26 @@ func TestPath(t *testing.T) {
 		assert.Equal(t, 5.9, result.Height)
 		assert.Equal(t, true, result.Active)
 		assert.Equal(t, uint(2), result.Page)
-		assert.Equal(t, "", result.Internal) // Should remain empty
+		assert.Equal(t, "", result.Internal)
 	})
 
 	t.Run("missing path params", func(t *testing.T) {
 		t.Parallel()
 		extractor := func(r *http.Request, fieldName string) string {
-			return "" // Always return empty
+			return ""
 		}
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		var result basicStruct
-		result.ID = "original" // Set a value that should not be overwritten
+		result.ID = "original"
 		bindFunc := binder.Path(extractor)
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
-		assert.Equal(t, "original", result.ID) // Should not be changed
-		assert.Equal(t, "", result.Username)   // Should remain empty
-		assert.Equal(t, 0, result.Age)         // Should remain zero
+		assert.Equal(t, "original", result.ID)
+		assert.Equal(t, "", result.Username)
+		assert.Equal(t, 0, result.Age)
 	})
 
 	t.Run("nil extractor", func(t *testing.T) {
@@ -112,7 +112,7 @@ func TestPath(t *testing.T) {
 
 		var result basicStruct
 		bindFunc := binder.Path(extractor)
-		err := bindFunc(req, result) // Pass by value, not pointer
+		err := bindFunc(req, result)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "target must be a non-nil pointer")
@@ -138,7 +138,7 @@ func TestPath(t *testing.T) {
 		t.Parallel()
 		pathParams := map[string]string{
 			"id":       "123",
-			"internal": "secret", // This should be ignored
+			"internal": "secret",
 		}
 
 		extractor := func(r *http.Request, fieldName string) string {

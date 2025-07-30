@@ -3,6 +3,6 @@ package email
 import "errors"
 
 var (
-	ErrFailedToSendEmail = errors.New("mailer.errors.failed_to_send_email")
-	ErrInvalidConfig     = errors.New("mailer.errors.invalid_config")
+	ErrFailedToSendEmail = errors.New("failed to send email")
+	ErrInvalidConfig     = errors.New("invalid email configuration")
 )

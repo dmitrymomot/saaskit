@@ -14,24 +14,20 @@ import (
 // 4. X-Real-IP (Nginx reverse proxy)
 // 5. RemoteAddr (Direct connection fallback)
 func GetIP(r *http.Request) string {
-	// Check Cloudflare header first (highest priority for CF+DO deployments)
 	if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
 		if parsed := parseIP(ip); parsed != "" {
 			return parsed
 		}
 	}
 
-	// Check DigitalOcean App Platform header (DO-specific primary header)
 	if ip := r.Header.Get("DO-Connecting-IP"); ip != "" {
 		if parsed := parseIP(ip); parsed != "" {
 			return parsed
 		}
 	}
 
-	// Check standard forwarded header
 	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
 		// X-Forwarded-For can contain multiple IPs, find the first valid one
-		// Use SplitSeq for better efficiency (Go 1.24+)
 		for ip := range strings.SplitSeq(forwarded, ",") {
 			if parsed := parseIP(strings.TrimSpace(ip)); parsed != "" {
 				return parsed
@@ -39,20 +35,24 @@ func GetIP(r *http.Request) string {
 		}
 	}
 
-	// Check Nginx real IP header
 	if ip := r.Header.Get("X-Real-IP"); ip != "" {
 		if parsed := parseIP(ip); parsed != "" {
 			return parsed
 		}
 	}
 
-	// Fallback to remote address
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		// If SplitHostPort fails, assume it's already just an IP
-		return parseIP(r.RemoteAddr)
+		if parsed := parseIP(r.RemoteAddr); parsed != "" {
+			return parsed
+		}
+		return r.RemoteAddr
 	}
-	return parseIP(host)
+	if parsed := parseIP(host); parsed != "" {
+		return parsed
+	}
+	return host
 }
 
 // parseIP validates and normalizes an IP address string.
@@ -63,12 +63,15 @@ func parseIP(ipStr string) string {
 		return ""
 	}
 
-	// Parse and validate the IP
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
 		return ""
 	}
 
-	// Return the normalized string representation
+	// Reject 0.0.0.0 as it's the unspecified address
+	if ip.Equal(net.IPv4zero) {
+		return ""
+	}
+
 	return ip.String()
 }

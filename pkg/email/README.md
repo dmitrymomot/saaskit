@@ -168,6 +168,6 @@ func OTP(otp string) templ.Component
 ### Error Types
 
 ```go
-var ErrFailedToSendEmail = errors.New("mailer.errors.failed_to_send_email")
-var ErrInvalidConfig = errors.New("mailer.errors.invalid_config")
+var ErrFailedToSendEmail = errors.New("failed to send email")
+var ErrInvalidConfig = errors.New("invalid email configuration")
 ```

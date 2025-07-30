@@ -84,20 +84,16 @@ func Path(extractor func(r *http.Request, fieldName string) string) func(r *http
 				continue
 			}
 
-			// Parse field tag
 			paramName, skip := parseFieldTag(fieldType, "path")
 			if skip {
 				continue
 			}
 
-			// Get value using extractor
 			value := extractor(r, paramName)
 			if value == "" {
-				// No value provided, leave as zero value
-				continue
+				continue // No value provided, leave as zero value
 			}
 
-			// Set field value based on type
 			if err := setFieldValue(field, fieldType.Type, []string{value}); err != nil {
 				return fmt.Errorf("%w: field %s: %v", ErrInvalidPath, fieldType.Name, err)
 			}

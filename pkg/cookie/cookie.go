@@ -150,6 +150,7 @@ func (m *Manager) GetFlash(w http.ResponseWriter, r *http.Request, key string, d
 		return err
 	}
 
+	// Flash cookies are automatically deleted after reading to prevent replay attacks
 	m.Delete(w, cookieName)
 
 	if err := json.Unmarshal([]byte(data), dest); err != nil {
@@ -180,11 +181,13 @@ func (m *Manager) verify(signed string) (string, error) {
 		return "", ErrInvalidFormat
 	}
 
+	// Try all secrets to support key rotation - old cookies remain valid during transition
 	for _, secret := range m.secrets {
 		mac := hmac.New(sha256.New, []byte(secret))
 		mac.Write(value)
 		expectedSig := base64.URLEncoding.EncodeToString(mac.Sum(nil))
 
+		// Use constant-time comparison to prevent timing attacks
 		if subtle.ConstantTimeCompare([]byte(signature), []byte(expectedSig)) == 1 {
 			return string(value), nil
 		}
@@ -194,6 +197,7 @@ func (m *Manager) verify(signed string) (string, error) {
 }
 
 func (m *Manager) encrypt(value string) (string, error) {
+	// AES-256 requires exactly 32 bytes for the key
 	block, err := aes.NewCipher([]byte(m.secrets[0][:32]))
 	if err != nil {
 		return "", err
@@ -204,11 +208,13 @@ func (m *Manager) encrypt(value string) (string, error) {
 		return "", err
 	}
 
+	// Generate cryptographically secure random nonce to ensure each encryption is unique
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return "", err
 	}
 
+	// Prepend nonce to ciphertext for self-contained decryption
 	ciphertext := gcm.Seal(nonce, nonce, []byte(value), nil)
 	return base64.URLEncoding.EncodeToString(ciphertext), nil
 }
@@ -219,6 +225,7 @@ func (m *Manager) decrypt(encrypted string) (string, error) {
 		return "", ErrInvalidFormat
 	}
 
+	// Try all secrets to support key rotation during decryption
 	var lastErr error
 	for _, secret := range m.secrets {
 		block, err := aes.NewCipher([]byte(secret[:32]))
@@ -238,6 +245,7 @@ func (m *Manager) decrypt(encrypted string) (string, error) {
 			continue
 		}
 
+		// Extract nonce from the beginning of ciphertext
 		nonce, ciphertext := ciphertext[:gcm.NonceSize()], ciphertext[gcm.NonceSize():]
 		plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 		if err == nil {
