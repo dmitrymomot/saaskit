@@ -7,8 +7,9 @@ import (
 	"github.com/a-h/templ"
 )
 
-// Render takes a templ.Component and renders it to a string.
-// It uses a strings.Builder to efficiently build the string from the component.
+// Render converts a templ.Component to HTML string for email bodies.
+// Uses strings.Builder for zero-allocation string construction during
+// template rendering, which is critical for email throughput performance.
 func Render(ctx context.Context, tpl templ.Component) (string, error) {
 	var sb strings.Builder
 	err := tpl.Render(ctx, &sb)
