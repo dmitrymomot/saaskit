@@ -133,7 +133,7 @@ func (s *Session) ValidateFingerprint(fingerprint string) bool {
 	return constantTimeCompare(s.Fingerprint, fingerprint)
 }
 
-// constantTimeCompare performs a constant-time string comparison
+// constantTimeCompare prevents timing attacks during fingerprint validation
 func constantTimeCompare(a, b string) bool {
 	if len(a) != len(b) {
 		return false

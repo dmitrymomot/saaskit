@@ -7,7 +7,7 @@ import (
 )
 
 // TenantResolver extracts tenant identifier from session data.
-// This is useful for applications where users can switch between tenants.
+// Useful for multi-tenant applications with tenant switching.
 type TenantResolver struct {
 	// GetSession retrieves the session from the request
 	GetSession func(r *http.Request) (*Session, error)
@@ -38,7 +38,6 @@ func (r *TenantResolver) Resolve(req *http.Request) (string, error) {
 		return "", nil
 	}
 
-	// Note: Validation of tenant ID format should be done by the tenant package
-	// This resolver only extracts the value from the session
+	// Note: tenant package should validate ID format; this only extracts from session
 	return value, nil
 }

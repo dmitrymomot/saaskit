@@ -1,22 +1,18 @@
-// Package session provides a flexible, high-performance session management
-// system for Go web applications. It offers pluggable storage back-ends,
-// multiple transport mechanisms, automatic expiry, device fingerprinting and
-// efficient activity tracking — all exposed through clean, composable
-// interfaces.
+// Package session provides flexible, high-performance session management
+// for Go web applications. Features pluggable storage, multiple transports,
+// automatic expiry, device fingerprinting, and efficient activity tracking
+// through clean, composable interfaces.
 //
-// The package is storage-agnostic: any datastore that satisfies the Store
-// interface can be plugged in. A concurrent in-memory implementation ships out
-// of the box. Likewise, session tokens can be delivered through different
-// transports such as HTTP cookies or custom headers via the Transport
-// interface.
+// Storage-agnostic design accepts any Store implementation. Includes concurrent
+// in-memory store. Session tokens delivered via pluggable Transport interface
+// (cookies, headers, etc.).
 //
 // # Architecture
 //
-// A Manager orchestrates the session life-cycle. It relies on a Transport to
-// extract / set the session token on every request and on a Store to persist
-// session state. A Config struct defines idle / max timeouts for anonymous and
-// authenticated users as well as the cleanup interval. An internal goroutine
-// processes activity updates so that hot paths remain allocation-free.
+// Manager orchestrates session lifecycle via Transport (token handling) and
+// Store (persistence). Config defines timeouts for anonymous/authenticated users
+// and cleanup intervals. Background goroutine processes activity updates to
+// keep hot paths allocation-free.
 //
 //	┌────────┐   token   ┌────────────┐
 //	│ Client │ ────────► │  Transport │
@@ -62,9 +58,8 @@
 //
 // # Configuration
 //
-// Most knobs are exposed via Option functions (e.g. WithIdleTimeout) or by
-// passing a Config struct to NewFromConfig. Twelve-factor applications can
-// populate the same fields from environment variables through DefaultConfig().
+// Configuration via Option functions or Config struct with NewFromConfig.
+// Environment variable support via DefaultConfig() for twelve-factor apps.
 //
 // # Error Handling
 //
@@ -76,8 +71,7 @@
 //
 // # Performance Considerations
 //
-// Hot paths (token lookup + map read) perform zero allocations and exhibit
-// sub-microsecond latency in benchmarks on typical hardware.
+// Hot paths achieve zero allocations with sub-microsecond latency.
 //
 // # Examples
 //

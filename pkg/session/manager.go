@@ -52,13 +52,13 @@ func New(opts ...Option) *Manager {
 
 	if m.transport == nil {
 		if m.cookieManager == nil {
-			// This should be configured by the user with proper secrets
+			// Fail fast on misconfiguration to prevent insecure runtime behavior
 			panic("session: cookie manager is required when using default cookie transport")
 		}
-		m.transport = NewCookieTransport(m.cookieManager, m.config.CookieName, m.cookieOptions...)
+		m.transport = NewCookieTransportWithSecurity(m.cookieManager, m.config.CookieName, m.config.SecureCookies, m.cookieOptions...)
 	}
 
-	// Start the activity update worker
+	// Background worker processes activity updates to keep hot paths allocation-free
 	go m.activityWorker()
 
 	return m
@@ -241,9 +241,8 @@ func (m *Manager) shouldUpdateActivity(session *Session) bool {
 func (m *Manager) queueActivityUpdate(token string) {
 	select {
 	case m.activityChan <- activityUpdate{token: token, time: time.Now()}:
-		// Update queued successfully
 	default:
-		// Channel full, drop the update (acceptable loss)
+		// Channel full, drop update (prevents blocking hot paths)
 	}
 }
 
@@ -252,10 +251,9 @@ func (m *Manager) activityWorker() {
 	for {
 		select {
 		case update := <-m.activityChan:
-			// Update activity in store, ignore errors
 			_ = m.store.UpdateActivity(context.Background(), update.token, update.time)
 		case <-m.done:
-			// Drain remaining updates before exiting
+			// Drain remaining updates for graceful shutdown
 			for {
 				select {
 				case update := <-m.activityChan:
@@ -272,7 +270,6 @@ func (m *Manager) activityWorker() {
 func (m *Manager) Close() error {
 	select {
 	case <-m.done:
-		// Already closed
 		return nil
 	default:
 		close(m.done)
