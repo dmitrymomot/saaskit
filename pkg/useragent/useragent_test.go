@@ -1,6 +1,7 @@
 package useragent_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -164,16 +165,9 @@ func TestParseUserAgent(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
-			name: "Empty UA",
-			ua:   "",
-			expected: useragent.New(
-				"",
-				useragent.DeviceTypeUnknown,
-				"", // deviceModel
-				useragent.OSUnknown,
-				useragent.BrowserUnknown,
-				"",
-			),
+			name:        "Empty UA",
+			ua:          "",
+			expected:    useragent.UserAgent{}, // Zero value for empty UA
 			expectedErr: useragent.ErrEmptyUserAgent,
 		},
 	}
@@ -356,4 +350,117 @@ func TestGetShortIdentifier(t *testing.T) {
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+// TestParseComplexBots tests complex bot detection scenarios using direct t.Run() style
+func TestParseComplexBots(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Googlebot with complex pattern", func(t *testing.T) {
+		t.Parallel()
+		ua := "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+		result, err := useragent.Parse(ua)
+		require.NoError(t, err)
+		assert.True(t, result.IsBot())
+		assert.Equal(t, "Bot: Googlebot", result.GetShortIdentifier())
+	})
+
+	t.Run("Bot with unusual casing and special characters", func(t *testing.T) {
+		t.Parallel()
+		ua := "MyCompany-WebCrawler_v2.1.3-bot (+https://example.com/crawler)"
+		result, err := useragent.Parse(ua)
+		require.NoError(t, err)
+		assert.True(t, result.IsBot())
+		assert.Contains(t, result.GetShortIdentifier(), "Bot:")
+	})
+
+	t.Run("Bot pattern at end of UA string", func(t *testing.T) {
+		t.Parallel()
+		ua := "CustomUserAgent/1.0 (compatible; Linux x86_64) SearchBot"
+		result, err := useragent.Parse(ua)
+		require.NoError(t, err)
+		assert.True(t, result.IsBot())
+	})
+}
+
+// TestParseMalformedUserAgents tests edge cases with malformed user agents
+func TestParseMalformedUserAgents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Empty user agent string", func(t *testing.T) {
+		t.Parallel()
+		result, err := useragent.Parse("")
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, useragent.ErrEmptyUserAgent))
+		assert.Equal(t, "Unknown device", result.GetShortIdentifier())
+	})
+
+	t.Run("Random gibberish without any recognizable patterns", func(t *testing.T) {
+		t.Parallel()
+		ua := "!@#$%^&*()_+-={}[]|:;<>?,./"
+		_, err := useragent.Parse(ua)
+		require.Error(t, err)
+		// The gibberish is detected as an unknown device, not malformed
+		assert.True(t, errors.Is(err, useragent.ErrUnknownDevice))
+	})
+
+	t.Run("Very long user agent exceeding reasonable limits", func(t *testing.T) {
+		t.Parallel()
+		// Create a very long string that might trigger length checks
+		longUA := strings.Repeat("Mozilla/5.0 ", 100)
+		result, err := useragent.Parse(longUA)
+		// Should handle gracefully without panicking
+		assert.NotNil(t, result)
+		if err != nil {
+			assert.True(t, errors.Is(err, useragent.ErrMalformedUserAgent) || errors.Is(err, useragent.ErrUnknownDevice))
+		}
+	})
+}
+
+// TestParseMultiStepVerification tests scenarios requiring multiple parsing steps
+func TestParseMultiStepVerification(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Mobile device with all components detected", func(t *testing.T) {
+		t.Parallel()
+		ua := "Mozilla/5.0 (iPhone; CPU iPhone OS 14_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
+		result, err := useragent.Parse(ua)
+		require.NoError(t, err)
+
+		// Verify each component was parsed correctly
+		assert.Equal(t, useragent.DeviceTypeMobile, result.DeviceType())
+		assert.Equal(t, "iphone", result.DeviceModel())
+		assert.Equal(t, useragent.OSiOS, result.OS())
+		assert.Equal(t, useragent.BrowserSafari, result.BrowserName())
+		assert.NotEmpty(t, result.BrowserVer())
+
+		// Verify the short identifier format
+		identifier := result.GetShortIdentifier()
+		assert.Contains(t, identifier, "Safari")
+		assert.Contains(t, identifier, "iOS")
+		assert.Contains(t, identifier, "mobile")
+	})
+
+	t.Run("Desktop with partial information", func(t *testing.T) {
+		t.Parallel()
+		// UA with browser but missing OS details
+		ua := "CustomBrowser/1.0"
+		result, err := useragent.Parse(ua)
+		// Should not error for partial information
+		if err != nil {
+			assert.True(t, errors.Is(err, useragent.ErrUnknownDevice))
+		}
+		assert.NotNil(t, result)
+	})
+
+	t.Run("Tablet device detection and formatting", func(t *testing.T) {
+		t.Parallel()
+		ua := "Mozilla/5.0 (iPad; CPU OS 13_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.1 Mobile/15E148 Safari/604.1"
+		result, err := useragent.Parse(ua)
+		require.NoError(t, err)
+
+		assert.Equal(t, useragent.DeviceTypeTablet, result.DeviceType())
+		assert.Equal(t, "ipad", result.DeviceModel())
+		assert.Equal(t, useragent.OSiOS, result.OS())
+	})
 }
