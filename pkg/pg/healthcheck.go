@@ -7,8 +7,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Healthcheck is a function that checks the health of the database.
-// It returns an error if the database is not healthy.
+// Healthcheck returns a closure that validates database connectivity for health endpoints.
+// Uses closure pattern to inject the connection dependency while maintaining
+// compatibility with standard health check interfaces that expect func(context.Context) error.
 func Healthcheck(conn *pgxpool.Pool) func(context.Context) error {
 	return func(ctx context.Context) error {
 		if err := conn.Ping(ctx); err != nil {

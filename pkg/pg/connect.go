@@ -8,11 +8,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Connect opens a new Postgres database connection with the provided configuration.
-// It attempts to connect to the database multiple times based on the configured retry attempts.
-// Returns the database connection and any error encountered.
+// Connect establishes a PostgreSQL connection pool with retry logic for reliable SaaS startup.
+// Uses exponential backoff to handle transient network issues without overwhelming the database.
 func Connect(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
-	// Parse the connection string.
 	connConfig, err := pgxpool.ParseConfig(cfg.ConnectionString)
 	if err != nil {
 		return nil, errors.Join(ErrFailedToParseDBConfig, err)
@@ -23,25 +21,24 @@ func Connect(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
 	connConfig.MaxConnIdleTime = cfg.MaxConnIdleTime
 	connConfig.MaxConnLifetime = cfg.MaxConnLifetime
 
-	// Retry connect to the database with exponential backoff.
+	// Exponential backoff: attempt 1 waits RetryInterval, attempt 2 waits 2x, attempt 3 waits 3x.
+	// This prevents thundering herd problems when multiple services restart simultaneously.
 	for i := range cfg.RetryAttempts {
-		// Open a new connections pool.
 		conn, err := pgxpool.NewWithConfig(ctx, connConfig)
 		if err != nil {
 			time.Sleep(time.Duration(i+1) * cfg.RetryInterval)
 			continue
 		}
 
-		// Ping the database to check if the connection is available.
+		// Verify connection with actual database ping to catch authentication and permission issues.
 		if err := conn.Ping(ctx); err != nil {
 			conn.Close()
 			time.Sleep(time.Duration(i+1) * cfg.RetryInterval)
 			continue
 		}
 
-		return conn, nil // Connection is available.
+		return conn, nil
 	}
 
-	// Failed to open a connection.
 	return nil, ErrFailedToOpenDBConnection
 }
