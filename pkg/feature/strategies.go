@@ -7,27 +7,22 @@ import (
 	"slices"
 )
 
-// AlwaysStrategy is a strategy that always returns the same value.
 type AlwaysStrategy struct {
 	Value bool
 }
 
-// Evaluate returns the configured value for all contexts.
 func (s *AlwaysStrategy) Evaluate(ctx context.Context) (bool, error) {
 	return s.Value, nil
 }
 
-// NewAlwaysOnStrategy creates a strategy that enables the feature for all users.
 func NewAlwaysOnStrategy() Strategy {
 	return &AlwaysStrategy{Value: true}
 }
 
-// NewAlwaysOffStrategy creates a strategy that disables the feature for all users.
 func NewAlwaysOffStrategy() Strategy {
 	return &AlwaysStrategy{Value: false}
 }
 
-// TargetedStrategy enables features for specific users, groups, or percentages.
 type TargetedStrategy struct {
 	Criteria TargetCriteria
 
@@ -35,8 +30,12 @@ type TargetedStrategy struct {
 	userGroupsExtractor UserGroupsExtractor
 }
 
-// Evaluate determines if a feature should be enabled based on the context and criteria.
-// Evaluation order: deny list → allow list → user IDs → groups → percentage rollout
+// Evaluate determines feature enablement using a strict precedence hierarchy:
+// 1. DenyList (highest) - blocks access regardless of other criteria
+// 2. AllowList - grants access overriding user/group/percentage rules
+// 3. UserIDs - direct user targeting
+// 4. Groups - group membership targeting
+// 5. Percentage - consistent hash-based rollout (lowest precedence)
 func (s *TargetedStrategy) Evaluate(ctx context.Context) (bool, error) {
 	if s.isEmptyCriteria() {
 		return false, ErrInvalidStrategy
@@ -47,12 +46,10 @@ func (s *TargetedStrategy) Evaluate(ctx context.Context) (bool, error) {
 		userID = s.userIDExtractor(ctx)
 	}
 
-	// Deny list always takes precedence
 	if s.isInDenyList(userID) {
 		return false, nil
 	}
 
-	// Allow list overrides all other criteria except deny list
 	if s.isInAllowList(userID) {
 		return true, nil
 	}
@@ -83,7 +80,7 @@ func (s *TargetedStrategy) isInDenyList(userID string) bool {
 		return false
 	}
 
-	// Fail safe: if we can't determine user ID and there's a deny list, deny access
+	// Fail-safe: deny access when user identity is unknown but deny list exists
 	if userID == "" {
 		return true
 	}
@@ -120,7 +117,8 @@ func (s *TargetedStrategy) isInTargetedGroup(ctx context.Context) bool {
 	return false
 }
 
-// evaluatePercentage uses consistent hashing to determine rollout eligibility
+// evaluatePercentage uses FNV-1a hash for consistent user bucketing.
+// Same user always gets same result, ensuring stable feature rollouts.
 func (s *TargetedStrategy) evaluatePercentage(userID string) (bool, error) {
 	percentage := *s.Criteria.Percentage
 	if percentage < 0 || percentage > 100 {
@@ -140,31 +138,27 @@ func (s *TargetedStrategy) evaluatePercentage(userID string) (bool, error) {
 		return false, nil
 	}
 
-	// Use consistent hashing to determine if user falls within percentage
+	// Hash userID to get consistent 0-99 bucket assignment
 	hash := fnv.New32a()
 	hash.Write([]byte(userID))
 	hashValue := hash.Sum32() % 100
 	return int(hashValue) < percentage, nil
 }
 
-// TargetedStrategyOption is a function that configures a TargetedStrategy.
 type TargetedStrategyOption func(*TargetedStrategy)
 
-// WithUserIDExtractor sets the user ID extractor for the strategy.
 func WithUserIDExtractor(extractor UserIDExtractor) TargetedStrategyOption {
 	return func(s *TargetedStrategy) {
 		s.userIDExtractor = extractor
 	}
 }
 
-// WithUserGroupsExtractor sets the user groups extractor for the strategy.
 func WithUserGroupsExtractor(extractor UserGroupsExtractor) TargetedStrategyOption {
 	return func(s *TargetedStrategy) {
 		s.userGroupsExtractor = extractor
 	}
 }
 
-// NewTargetedStrategy creates a strategy based on targeting criteria.
 func NewTargetedStrategy(criteria TargetCriteria, opts ...TargetedStrategyOption) Strategy {
 	s := &TargetedStrategy{
 		Criteria: criteria,
@@ -177,13 +171,11 @@ func NewTargetedStrategy(criteria TargetCriteria, opts ...TargetedStrategyOption
 	return s
 }
 
-// EnvironmentStrategy enables features based on the environment.
 type EnvironmentStrategy struct {
 	EnabledEnvironments  []string
 	environmentExtractor EnvironmentExtractor
 }
 
-// Evaluate checks if the feature should be enabled for the current environment.
 func (s *EnvironmentStrategy) Evaluate(ctx context.Context) (bool, error) {
 	if len(s.EnabledEnvironments) == 0 {
 		return false, ErrInvalidStrategy
@@ -201,17 +193,14 @@ func (s *EnvironmentStrategy) Evaluate(ctx context.Context) (bool, error) {
 	return slices.Contains(s.EnabledEnvironments, env), nil
 }
 
-// EnvironmentStrategyOption is a function that configures an EnvironmentStrategy.
 type EnvironmentStrategyOption func(*EnvironmentStrategy)
 
-// WithEnvironmentExtractor sets the environment extractor for the strategy.
 func WithEnvironmentExtractor(extractor EnvironmentExtractor) EnvironmentStrategyOption {
 	return func(s *EnvironmentStrategy) {
 		s.environmentExtractor = extractor
 	}
 }
 
-// NewEnvironmentStrategy creates a strategy that enables features in specific environments.
 func NewEnvironmentStrategy(environments []string, opts ...EnvironmentStrategyOption) Strategy {
 	s := &EnvironmentStrategy{
 		EnabledEnvironments: environments,
@@ -224,13 +213,13 @@ func NewEnvironmentStrategy(environments []string, opts ...EnvironmentStrategyOp
 	return s
 }
 
-// CompositeStrategy combines multiple strategies with an operator.
 type CompositeStrategy struct {
 	Strategies []Strategy
 	Operator   string // "and" or "or"
 }
 
-// Evaluate combines the results of multiple strategies.
+// Evaluate combines multiple strategies with short-circuit evaluation.
+// "and": returns false on first false result, "or": returns true on first true result.
 func (s *CompositeStrategy) Evaluate(ctx context.Context) (bool, error) {
 	if len(s.Strategies) == 0 {
 		return false, ErrInvalidStrategy
@@ -267,7 +256,6 @@ func (s *CompositeStrategy) Evaluate(ctx context.Context) (bool, error) {
 	}
 }
 
-// NewAndStrategy creates a strategy that requires all child strategies to return true.
 func NewAndStrategy(strategies ...Strategy) Strategy {
 	return &CompositeStrategy{
 		Strategies: strategies,
@@ -275,7 +263,6 @@ func NewAndStrategy(strategies ...Strategy) Strategy {
 	}
 }
 
-// NewOrStrategy creates a strategy that requires at least one child strategy to return true.
 func NewOrStrategy(strategies ...Strategy) Strategy {
 	return &CompositeStrategy{
 		Strategies: strategies,

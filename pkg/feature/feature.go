@@ -28,9 +28,9 @@ type TargetCriteria struct {
 	UserIDs    []string `json:"user_ids,omitempty"`
 	Groups     []string `json:"groups,omitempty"`
 	Percentage *int     `json:"percentage,omitempty"`
-	// AllowList always takes precedence over other criteria except DenyList
+	// AllowList overrides all other criteria except DenyList
 	AllowList []string `json:"allow_list,omitempty"`
-	// DenyList always takes precedence over all other criteria
+	// DenyList overrides all other criteria (highest precedence)
 	DenyList []string `json:"deny_list,omitempty"`
 }
 
@@ -45,29 +45,16 @@ type (
 
 // Provider is the interface that all feature flag providers must implement.
 type Provider interface {
-	// IsEnabled checks if a feature flag is enabled for the given context.
-	// If the flag doesn't exist, it returns false and ErrFlagNotFound.
+	// Evaluation methods
 	IsEnabled(ctx context.Context, flagName string) (bool, error)
-
-	// GetFlag returns the full flag configuration.
-	// If the flag doesn't exist, it returns nil and ErrFlagNotFound.
 	GetFlag(ctx context.Context, flagName string) (*Flag, error)
 
-	// ListFlags returns all available flags, optionally filtered by tags.
+	// Management methods
 	ListFlags(ctx context.Context, tags ...string) ([]*Flag, error)
-
-	// CreateFlag creates a new feature flag.
-	// If a flag with the same name already exists, it returns an error.
 	CreateFlag(ctx context.Context, flag *Flag) error
-
-	// UpdateFlag updates an existing feature flag.
-	// If the flag doesn't exist, it returns ErrFlagNotFound.
 	UpdateFlag(ctx context.Context, flag *Flag) error
-
-	// DeleteFlag deletes a feature flag.
-	// If the flag doesn't exist, it returns ErrFlagNotFound.
 	DeleteFlag(ctx context.Context, flagName string) error
 
-	// Close releases any resources used by the provider.
+	// Lifecycle methods
 	Close() error
 }

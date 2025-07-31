@@ -9,13 +9,12 @@ import (
 )
 
 // MemoryProvider is an in-memory implementation of the Provider interface.
-// It's useful for testing and simple applications.
+// All operations create deep copies to prevent external modification of stored flags.
 type MemoryProvider struct {
 	flags map[string]*Flag
 	mu    sync.RWMutex
 }
 
-// NewMemoryProvider creates a new in-memory feature flag provider.
 func NewMemoryProvider(initialFlags ...*Flag) (*MemoryProvider, error) {
 	provider := &MemoryProvider{
 		flags: make(map[string]*Flag),
@@ -28,7 +27,6 @@ func NewMemoryProvider(initialFlags ...*Flag) (*MemoryProvider, error) {
 		if flag.Name == "" {
 			return nil, errors.Join(ErrInvalidFlag, errors.New("flag name cannot be empty"))
 		}
-		// Deep copy to prevent external modification of stored flags
 		flagCopy := *flag
 
 		if flagCopy.CreatedAt.IsZero() {
@@ -48,7 +46,6 @@ func NewMemoryProvider(initialFlags ...*Flag) (*MemoryProvider, error) {
 	return provider, nil
 }
 
-// IsEnabled checks if a flag is enabled for the given context.
 func (m *MemoryProvider) IsEnabled(ctx context.Context, flagName string) (bool, error) {
 	m.mu.RLock()
 	flag, exists := m.flags[flagName]
@@ -58,19 +55,17 @@ func (m *MemoryProvider) IsEnabled(ctx context.Context, flagName string) (bool, 
 		return false, ErrFlagNotFound
 	}
 
-	// Global flag disabled overrides all strategies
+	// Global disabled state overrides all strategies
 	if !flag.Enabled {
 		return false, nil
 	}
 
-	// No strategy means simple global enable/disable
 	if flag.Strategy == nil {
 		return flag.Enabled, nil
 	}
 	return flag.Strategy.Evaluate(ctx)
 }
 
-// GetFlag retrieves a flag by name.
 func (m *MemoryProvider) GetFlag(ctx context.Context, flagName string) (*Flag, error) {
 	m.mu.RLock()
 	flag, exists := m.flags[flagName]
@@ -80,7 +75,6 @@ func (m *MemoryProvider) GetFlag(ctx context.Context, flagName string) (*Flag, e
 		return nil, ErrFlagNotFound
 	}
 
-	// Return copy to prevent external modification
 	flagCopy := *flag
 	if flag.Tags != nil {
 		flagCopy.Tags = slices.Clone(flag.Tags)
@@ -88,7 +82,6 @@ func (m *MemoryProvider) GetFlag(ctx context.Context, flagName string) (*Flag, e
 	return &flagCopy, nil
 }
 
-// ListFlags returns all flags, optionally filtered by tags.
 func (m *MemoryProvider) ListFlags(ctx context.Context, tags ...string) ([]*Flag, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -108,7 +101,8 @@ func (m *MemoryProvider) ListFlags(ctx context.Context, tags ...string) ([]*Flag
 		return result, nil
 	}
 
-	result = make([]*Flag, 0)
+	// Filter by tags - flag matches if it has any of the requested tags
+	result = make([]*Flag, 0, len(m.flags))
 	for _, flag := range m.flags {
 		for _, tagToMatch := range tags {
 			if slices.Contains(flag.Tags, tagToMatch) {
@@ -126,7 +120,6 @@ func (m *MemoryProvider) ListFlags(ctx context.Context, tags ...string) ([]*Flag
 	return result, nil
 }
 
-// CreateFlag creates a new flag.
 func (m *MemoryProvider) CreateFlag(ctx context.Context, flag *Flag) error {
 	if flag == nil {
 		return errors.Join(ErrInvalidFlag, errors.New("flag cannot be nil"))
@@ -146,14 +139,12 @@ func (m *MemoryProvider) CreateFlag(ctx context.Context, flag *Flag) error {
 	flag.CreatedAt = now
 	flag.UpdatedAt = now
 
-	// Store copy to prevent external modification
 	flagCopy := *flag
 	m.flags[flag.Name] = &flagCopy
 
 	return nil
 }
 
-// UpdateFlag updates an existing flag.
 func (m *MemoryProvider) UpdateFlag(ctx context.Context, flag *Flag) error {
 	if flag == nil {
 		return errors.Join(ErrInvalidFlag, errors.New("flag cannot be nil"))
@@ -170,7 +161,6 @@ func (m *MemoryProvider) UpdateFlag(ctx context.Context, flag *Flag) error {
 		return ErrFlagNotFound
 	}
 
-	// Preserve original creation time
 	flag.CreatedAt = existing.CreatedAt
 	flag.UpdatedAt = time.Now()
 
@@ -180,7 +170,6 @@ func (m *MemoryProvider) UpdateFlag(ctx context.Context, flag *Flag) error {
 	return nil
 }
 
-// DeleteFlag removes a flag.
 func (m *MemoryProvider) DeleteFlag(ctx context.Context, flagName string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -194,7 +183,6 @@ func (m *MemoryProvider) DeleteFlag(ctx context.Context, flagName string) error 
 	return nil
 }
 
-// Close releases any resources. For the memory provider, this is a no-op.
 func (m *MemoryProvider) Close() error {
 	return nil
 }
