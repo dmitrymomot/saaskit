@@ -12,18 +12,20 @@ import (
 )
 
 // LocalStorage implements Storage interface for local filesystem.
-// It is safe for concurrent use.
+// All operations are confined to baseDir to prevent path traversal attacks.
+// Safe for concurrent use with proper file locking by the OS.
 type LocalStorage struct {
-	baseDir       string        // Base directory for all file operations
-	baseURL       string        // Base URL for generating public URLs
-	uploadTimeout time.Duration // Timeout for upload operations
+	baseDir       string        // Absolute path - all files stored within this directory
+	baseURL       string        // URL prefix for serving files (e.g., "/files/")
+	uploadTimeout time.Duration // Optional timeout to prevent hanging uploads
 }
 
 // LocalOption defines a function that configures LocalStorage.
 type LocalOption func(*LocalStorage)
 
 // WithLocalUploadTimeout sets the timeout for upload operations.
-// If not set, no timeout is applied (context deadline from caller is used).
+// Prevents hanging uploads from consuming resources indefinitely.
+// If not set, relies on context deadline from caller.
 func WithLocalUploadTimeout(timeout time.Duration) LocalOption {
 	return func(s *LocalStorage) {
 		s.uploadTimeout = timeout
@@ -31,21 +33,21 @@ func WithLocalUploadTimeout(timeout time.Duration) LocalOption {
 }
 
 // NewLocalStorage creates a new local filesystem storage.
-// baseDir is the root directory where all files will be stored.
-// baseURL is used for generating public URLs (e.g., "/files").
+// baseDir is resolved to absolute path and created if it doesn't exist.
+// baseURL is used for generating public URLs (e.g., "/files/").
 // All file operations are confined to baseDir to prevent path traversal attacks.
 func NewLocalStorage(baseDir, baseURL string, opts ...LocalOption) (*LocalStorage, error) {
 	if baseDir == "" {
 		return nil, ErrInvalidConfig
 	}
 
-	// Resolve base directory to absolute path
+	// Must resolve to absolute path for security - prevents relative path confusion
 	absBaseDir, err := filepath.Abs(baseDir)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to resolve base directory: %v", ErrFailedToGetAbsolutePath, err)
 	}
 
-	// Ensure base directory exists
+	// Create directory with restrictive permissions (755 = rwxr-xr-x)
 	if err := os.MkdirAll(absBaseDir, 0755); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrFailedToCreateDirectory, err)
 	}
@@ -59,7 +61,6 @@ func NewLocalStorage(baseDir, baseURL string, opts ...LocalOption) (*LocalStorag
 		baseURL: baseURL,
 	}
 
-	// Apply options
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -68,15 +69,15 @@ func NewLocalStorage(baseDir, baseURL string, opts ...LocalOption) (*LocalStorag
 }
 
 // Save stores a file to the local filesystem.
+// Uses buffered I/O with context cancellation support to handle large files efficiently
+// while allowing early termination. Cleans up partial files on errors.
 func (s *LocalStorage) Save(ctx context.Context, fh *multipart.FileHeader, path string) (*File, error) {
-	// Apply upload timeout if configured
 	if s.uploadTimeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, s.uploadTimeout)
 		defer cancel()
 	}
 
-	// Check context cancellation
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -89,15 +90,13 @@ func (s *LocalStorage) Save(ctx context.Context, fh *multipart.FileHeader, path 
 
 	filename := SanitizeFilename(fh.Filename)
 
-	// Use the filename from the path if it's provided, otherwise use the sanitized filename
+	// Handle both directory paths and full file paths
 	dir := filepath.Dir(path)
 	baseFilename := filepath.Base(path)
 	if baseFilename == "." || baseFilename == "" {
-		// If no filename in path, use sanitized filename from upload
 		path = filepath.Join(dir, filename)
 	}
 
-	// Validate and resolve the path within base directory
 	absPath, err := s.resolvePath(path)
 	if err != nil {
 		return nil, err
@@ -114,21 +113,21 @@ func (s *LocalStorage) Save(ctx context.Context, fh *multipart.FileHeader, path 
 	}
 	defer func() { _ = src.Close() }()
 
+	// Create with restrictive permissions (644 = rw-r--r--)
 	dst, err := os.OpenFile(absPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
 	}
 	defer func() { _ = dst.Close() }()
 
-	// Use io.CopyN with context checking for cancellation support
+	// Manual buffered copy with context checking - allows cancellation during large uploads
 	written := int64(0)
-	buf := make([]byte, 32*1024) // 32KB buffer
+	buf := make([]byte, 32*1024) // 32KB balances memory usage and syscall overhead
 	for {
-		// Check context cancellation
 		select {
 		case <-ctx.Done():
 			_ = dst.Close()
-			_ = os.Remove(absPath)
+			_ = os.Remove(absPath) // Clean up partial file
 			return nil, ctx.Err()
 		default:
 		}
@@ -155,18 +154,17 @@ func (s *LocalStorage) Save(ctx context.Context, fh *multipart.FileHeader, path 
 
 	mimeType, err := GetMIMEType(fh)
 	if err != nil {
-		mimeType = "application/octet-stream"
+		mimeType = "application/octet-stream" // Safe fallback for unknown types
 	}
 
-	// Calculate relative path from base directory
 	relPath, err := filepath.Rel(s.baseDir, absPath)
 	if err != nil {
-		relPath = path
+		relPath = path // Fallback to original path
 	}
 
 	return &File{
 		Filename:     filename,
-		Size:         written,
+		Size:         written, // Actual bytes written, not FileHeader.Size
 		MIMEType:     mimeType,
 		Extension:    GetExtension(fh),
 		AbsolutePath: absPath,
@@ -175,15 +173,14 @@ func (s *LocalStorage) Save(ctx context.Context, fh *multipart.FileHeader, path 
 }
 
 // Delete removes a single file.
+// Verifies the target is a file, not a directory, to prevent accidental data loss.
 func (s *LocalStorage) Delete(ctx context.Context, path string) error {
-	// Check context cancellation
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
 
-	// Validate and resolve the path within base directory
 	absPath, err := s.resolvePath(path)
 	if err != nil {
 		return err
@@ -197,6 +194,7 @@ func (s *LocalStorage) Delete(ctx context.Context, path string) error {
 		return fmt.Errorf("%w: %v", ErrFailedToStatPath, err)
 	}
 
+	// Safety check - prevent accidental directory deletion
 	if info.IsDir() {
 		return fmt.Errorf("%w: %s, use DeleteDir instead", ErrIsDirectory, path)
 	}
@@ -209,15 +207,14 @@ func (s *LocalStorage) Delete(ctx context.Context, path string) error {
 }
 
 // DeleteDir recursively removes a directory and all its contents.
+// Verifies the target is a directory to prevent accidental file deletion.
 func (s *LocalStorage) DeleteDir(ctx context.Context, path string) error {
-	// Check context cancellation
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
 
-	// Validate and resolve the path within base directory
 	absPath, err := s.resolvePath(path)
 	if err != nil {
 		return err
@@ -231,6 +228,7 @@ func (s *LocalStorage) DeleteDir(ctx context.Context, path string) error {
 		return fmt.Errorf("%w: %v", ErrFailedToStatPath, err)
 	}
 
+	// Safety check - ensure we're deleting a directory
 	if !info.IsDir() {
 		return fmt.Errorf("%w: %s", ErrNotDirectory, path)
 	}
@@ -243,15 +241,14 @@ func (s *LocalStorage) DeleteDir(ctx context.Context, path string) error {
 }
 
 // Exists checks if a file or directory exists.
+// Returns false for invalid paths or on context cancellation.
 func (s *LocalStorage) Exists(ctx context.Context, path string) bool {
-	// Check context cancellation
 	select {
 	case <-ctx.Done():
 		return false
 	default:
 	}
 
-	// Validate and resolve the path within base directory
 	absPath, err := s.resolvePath(path)
 	if err != nil {
 		return false
@@ -262,15 +259,14 @@ func (s *LocalStorage) Exists(ctx context.Context, path string) bool {
 }
 
 // List returns all entries in a directory (non-recursive).
+// Checks context cancellation periodically during iteration to handle large directories.
 func (s *LocalStorage) List(ctx context.Context, dir string) ([]Entry, error) {
-	// Check context cancellation
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	default:
 	}
 
-	// Validate and resolve the path within base directory
 	absPath, err := s.resolvePath(dir)
 	if err != nil {
 		return nil, err
@@ -295,14 +291,13 @@ func (s *LocalStorage) List(ctx context.Context, dir string) ([]Entry, error) {
 
 	entries := make([]Entry, 0, len(dirEntries))
 	for _, dirEntry := range dirEntries {
-		// Check context cancellation periodically
+		// Allow cancellation during large directory listings
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
 		}
 
-		// Calculate relative path from base directory
 		entryAbsPath := filepath.Join(absPath, dirEntry.Name())
 		entryRelPath, err := filepath.Rel(s.baseDir, entryAbsPath)
 		if err != nil {
@@ -311,7 +306,7 @@ func (s *LocalStorage) List(ctx context.Context, dir string) ([]Entry, error) {
 
 		info, err := dirEntry.Info()
 		if err != nil {
-			continue
+			continue // Skip entries we can't read
 		}
 
 		entry := Entry{
@@ -346,21 +341,18 @@ func (s *LocalStorage) URL(path string) string {
 }
 
 // resolvePath validates and resolves a path within the base directory.
-// It ensures the resolved path is within baseDir to prevent path traversal attacks.
+// Critical security function that prevents path traversal attacks by ensuring
+// all resolved paths stay within baseDir bounds using string prefix checking.
 func (s *LocalStorage) resolvePath(path string) (string, error) {
-	// Clean the path
 	path = filepath.Clean(path)
-
-	// Join with base directory
 	absPath := filepath.Join(s.baseDir, path)
 
-	// Resolve to absolute path
 	absPath, err := filepath.Abs(absPath)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrFailedToGetAbsolutePath, err)
 	}
 
-	// Ensure the resolved path is within base directory
+	// Security check: ensure path stays within baseDir (prevents ../ attacks)
 	if !strings.HasPrefix(absPath, s.baseDir+string(filepath.Separator)) && absPath != s.baseDir {
 		return "", fmt.Errorf("%w: %s", ErrInvalidPath, path)
 	}

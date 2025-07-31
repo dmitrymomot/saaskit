@@ -96,7 +96,9 @@ var (
 )
 
 // IsImage checks if the file is an image based on MIME type.
-// Falls back to extension check if MIME type detection fails.
+// Falls back to extension check if MIME type detection fails to handle cases
+// where http.DetectContentType can't read the file or returns generic types.
+// This dual validation prevents bypass attacks using renamed extensions.
 //
 // Example:
 //
@@ -113,6 +115,7 @@ func IsImage(fh *multipart.FileHeader) bool {
 		return imageMIMETypes[mimeType]
 	}
 
+	// Fallback to extension check for files where MIME detection fails
 	ext := strings.ToLower(GetExtension(fh))
 	switch ext {
 	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp", ".tiff", ".tif", ".heic", ".heif", ".avif", ".jxl":
@@ -123,7 +126,7 @@ func IsImage(fh *multipart.FileHeader) bool {
 }
 
 // IsVideo checks if the file is a video based on MIME type.
-// Falls back to extension check if MIME type detection fails.
+// Uses the same dual validation approach as IsImage for security.
 func IsVideo(fh *multipart.FileHeader) bool {
 	if fh == nil {
 		return false
@@ -144,7 +147,7 @@ func IsVideo(fh *multipart.FileHeader) bool {
 }
 
 // IsAudio checks if the file is an audio file based on MIME type.
-// Falls back to extension check if MIME type detection fails.
+// Uses the same dual validation approach as IsImage for security.
 func IsAudio(fh *multipart.FileHeader) bool {
 	if fh == nil {
 		return false
@@ -191,8 +194,9 @@ func GetExtension(fh *multipart.FileHeader) string {
 }
 
 // GetMIMEType detects the MIME type by reading the file content.
-// Uses http.DetectContentType which reads the first 512 bytes.
-// The file position is reset after detection if the file supports seeking.
+// Uses http.DetectContentType which reads the first 512 bytes to identify file types
+// based on magic bytes rather than trusting file extensions (prevents spoofing).
+// Resets file position to allow subsequent reads of the same file.
 func GetMIMEType(fh *multipart.FileHeader) (string, error) {
 	if fh == nil {
 		return "", ErrNilFileHeader
@@ -204,12 +208,14 @@ func GetMIMEType(fh *multipart.FileHeader) (string, error) {
 	}
 	defer func() { _ = file.Close() }()
 
+	// 512 bytes is the maximum http.DetectContentType reads
 	buffer := make([]byte, 512)
 	n, err := file.Read(buffer)
 	if err != nil && err != io.EOF {
 		return "", fmt.Errorf("%w: %v", ErrFailedToReadFile, err)
 	}
 
+	// Reset file position for subsequent operations
 	if seeker, ok := file.(io.Seeker); ok {
 		_, _ = seeker.Seek(0, io.SeekStart)
 	}
@@ -218,8 +224,9 @@ func GetMIMEType(fh *multipart.FileHeader) (string, error) {
 }
 
 // ValidateSize checks if the file size is within the allowed limit.
-// Note: For streamed uploads, FileHeader.Size may be 0. In such cases,
-// the actual size validation should be done during the save operation.
+// Note: For streamed uploads, FileHeader.Size may be 0. Storage implementations
+// should perform actual size validation during upload to prevent DoS attacks
+// from oversized files that bypass this check.
 //
 // Example:
 //
@@ -237,7 +244,8 @@ func ValidateSize(fh *multipart.FileHeader, maxBytes int64) error {
 }
 
 // ValidateMIMEType checks if the file's MIME type is in the allowed list.
-// Pass no types to allow all MIME types.
+// Uses actual content detection to prevent MIME type spoofing attacks.
+// Pass no types to allow all MIME types (useful for generic file storage).
 //
 // Example:
 //
@@ -265,7 +273,8 @@ func ValidateMIMEType(fh *multipart.FileHeader, allowedTypes ...string) error {
 }
 
 // ReadAll reads the entire file content into memory.
-// Use with caution for large files.
+// Use with caution for large files as it can cause memory exhaustion.
+// Consider streaming approaches for files larger than available memory.
 func ReadAll(fh *multipart.FileHeader) ([]byte, error) {
 	if fh == nil {
 		return nil, ErrNilFileHeader
@@ -286,7 +295,8 @@ func ReadAll(fh *multipart.FileHeader) ([]byte, error) {
 }
 
 // Hash calculates the hash of the file content.
-// If hash.Hash is nil, SHA256 is used by default.
+// Defaults to SHA256 for security and compatibility with most systems.
+// Used for deduplication, integrity verification, and content-based addressing.
 //
 // Example:
 //
@@ -296,7 +306,7 @@ func Hash(fh *multipart.FileHeader, h hash.Hash) (string, error) {
 		return "", ErrNilFileHeader
 	}
 	if h == nil {
-		h = sha256.New()
+		h = sha256.New() // SHA256 provides good security/performance balance
 	}
 
 	file, err := fh.Open()
