@@ -9,7 +9,7 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/statemachine"
 )
 
-func TestSimpleStateMachine(t *testing.T) {
+func TestStateMachine(t *testing.T) {
 	t.Parallel()
 	// Define states
 	const (
@@ -32,15 +32,10 @@ func TestSimpleStateMachine(t *testing.T) {
 	t.Run("Basic Transitions", func(t *testing.T) {
 		t.Parallel()
 		// Create a state machine
-		sm := statemachine.NewSimpleStateMachine(Draft)
-
-		// Add transitions
-		if err := sm.AddTransition(Draft, InReview, Submit, nil, nil); err != nil {
-			t.Fatalf("Failed to add transition: %v", err)
-		}
-		if err := sm.AddTransition(InReview, Approved, Approve, nil, nil); err != nil {
-			t.Fatalf("Failed to add transition: %v", err)
-		}
+		sm := statemachine.MustNew(Draft,
+			statemachine.WithTransition(Draft, InReview, Submit),
+			statemachine.WithTransition(InReview, Approved, Approve),
+		)
 
 		// Initial state should be Draft
 		if sm.Current() != Draft {
@@ -49,27 +44,29 @@ func TestSimpleStateMachine(t *testing.T) {
 
 		ctx := context.Background()
 
-		// Fire Submit event
+		// Test CanFire
+		if !sm.CanFire(ctx, Submit, nil) {
+			t.Fatal("Expected CanFire to return true for Submit event in Draft state")
+		}
+
 		if err := sm.Fire(ctx, Submit, nil); err != nil {
 			t.Fatalf("Failed to fire Submit event: %v", err)
 		}
 
-		// State should now be InReview
+		// State should be InReview
 		if sm.Current() != InReview {
 			t.Fatalf("Expected state to be %s, got %s", InReview, sm.Current())
 		}
 
-		// Fire Approve event
 		if err := sm.Fire(ctx, Approve, nil); err != nil {
 			t.Fatalf("Failed to fire Approve event: %v", err)
 		}
 
-		// State should now be Approved
+		// State should be Approved
 		if sm.Current() != Approved {
 			t.Fatalf("Expected state to be %s, got %s", Approved, sm.Current())
 		}
 
-		// Reset the state machine
 		if err := sm.Reset(); err != nil {
 			t.Fatalf("Failed to reset state machine: %v", err)
 		}
@@ -82,9 +79,6 @@ func TestSimpleStateMachine(t *testing.T) {
 
 	t.Run("Guards", func(t *testing.T) {
 		t.Parallel()
-		// Create a state machine
-		sm := statemachine.NewSimpleStateMachine(Draft)
-
 		// Define guards
 		isAuthorized := func(ctx context.Context, from statemachine.State, event statemachine.Event, data any) bool {
 			userData, ok := data.(map[string]any)
@@ -98,16 +92,12 @@ func TestSimpleStateMachine(t *testing.T) {
 			return isAuth
 		}
 
-		// Add transitions with guards
-		if err := sm.AddTransition(
-			Draft,
-			InReview,
-			Submit,
-			[]statemachine.Guard{isAuthorized},
-			nil,
-		); err != nil {
-			t.Fatalf("Failed to add transition with guard: %v", err)
-		}
+		// Create a state machine with guarded transition
+		sm := statemachine.MustNew(Draft,
+			statemachine.WithTransition(Draft, InReview, Submit,
+				statemachine.WithGuard(isAuthorized),
+			),
+		)
 
 		ctx := context.Background()
 
@@ -150,9 +140,6 @@ func TestSimpleStateMachine(t *testing.T) {
 
 	t.Run("Actions", func(t *testing.T) {
 		t.Parallel()
-		// Create a state machine
-		sm := statemachine.NewSimpleStateMachine(Draft)
-
 		// Track action execution
 		actionExecuted := false
 		actionData := ""
@@ -170,26 +157,15 @@ func TestSimpleStateMachine(t *testing.T) {
 			return errors.New("action error")
 		}
 
-		// Add transitions with actions
-		if err := sm.AddTransition(
-			Draft,
-			InReview,
-			Submit,
-			nil,
-			[]statemachine.Action{logAction},
-		); err != nil {
-			t.Fatalf("Failed to add transition with action: %v", err)
-		}
-
-		if err := sm.AddTransition(
-			InReview,
-			Rejected,
-			Reject,
-			nil,
-			[]statemachine.Action{errorAction},
-		); err != nil {
-			t.Fatalf("Failed to add transition with error action: %v", err)
-		}
+		// Create a state machine with actions
+		sm := statemachine.MustNew(Draft,
+			statemachine.WithTransition(Draft, InReview, Submit,
+				statemachine.WithAction(logAction),
+			),
+			statemachine.WithTransition(InReview, Rejected, Reject,
+				statemachine.WithAction(errorAction),
+			),
+		)
 
 		ctx := context.Background()
 		testData := "test-data"
@@ -209,25 +185,24 @@ func TestSimpleStateMachine(t *testing.T) {
 			t.Fatalf("Expected action data to be %s, got %s", testData, actionData)
 		}
 
-		// Fire Reject event which should trigger an error in the action
+		// Fire Reject event (should fail due to error action)
 		err := sm.Fire(ctx, Reject, nil)
 		if err == nil {
-			t.Fatal("Expected error from action, got nil")
+			t.Fatal("Expected error from action")
 		}
-		if !errors.Is(err, errors.New("action error")) && !strings.Contains(err.Error(), "action error") {
-			t.Fatalf("Expected error containing 'action error', got: %v", err)
+
+		// Check that error message contains "action failed"
+		if !strings.Contains(err.Error(), "action failed") {
+			t.Fatalf("Expected error to contain 'action failed', got: %v", err)
 		}
 	})
 
-	t.Run("Invalid Transitions", func(t *testing.T) {
+	t.Run("Error Handling", func(t *testing.T) {
 		t.Parallel()
-		// Create a state machine
-		sm := statemachine.NewSimpleStateMachine(Draft)
-
-		// Add only some transitions
-		if err := sm.AddTransition(Draft, InReview, Submit, nil, nil); err != nil {
-			t.Fatalf("Failed to add transition: %v", err)
-		}
+		// Create a state machine with limited transitions
+		sm := statemachine.MustNew(Draft,
+			statemachine.WithTransition(Draft, InReview, Submit),
+		)
 
 		ctx := context.Background()
 
@@ -237,10 +212,10 @@ func TestSimpleStateMachine(t *testing.T) {
 			t.Fatalf("Expected NoTransitionAvailableError, got: %v", err)
 		}
 
-		// Try to add invalid transition (nil values)
-		err = sm.AddTransition(nil, InReview, Submit, nil, nil)
-		if err != statemachine.ErrInvalidTransition {
-			t.Fatalf("Expected ErrInvalidTransition, got: %v", err)
+		// Test nil initial state
+		_, err = statemachine.New(nil)
+		if err == nil || !strings.Contains(err.Error(), "initial state cannot be nil") {
+			t.Fatalf("Expected error for nil initial state, got: %v", err)
 		}
 
 		// Try to fire nil event
@@ -249,9 +224,21 @@ func TestSimpleStateMachine(t *testing.T) {
 			t.Fatalf("Expected ErrInvalidEvent, got: %v", err)
 		}
 	})
+
+	t.Run("MustNew Panic", func(t *testing.T) {
+		t.Parallel()
+		// Test that MustNew panics on invalid configuration
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("Expected MustNew to panic with nil initial state")
+			}
+		}()
+
+		_ = statemachine.MustNew(nil)
+	})
 }
 
-func TestBuilder(t *testing.T) {
+func TestOptionsPattern(t *testing.T) {
 	t.Parallel()
 	// Define states
 	const (
@@ -268,62 +255,46 @@ func TestBuilder(t *testing.T) {
 		Publish = statemachine.StringEvent("publish")
 	)
 
-	t.Run("Basic Builder", func(t *testing.T) {
+	t.Run("Basic Options", func(t *testing.T) {
 		t.Parallel()
-		// Create a builder
-		builder := statemachine.NewBuilder(Draft)
-
-		// Define transitions
-		if _, err := builder.From(Draft).When(Submit).To(InReview).Add(); err != nil {
-			t.Fatalf("Failed to add transition: %v", err)
-		}
-
-		if _, err := builder.From(InReview).When(Approve).To(Approved).Add(); err != nil {
-			t.Fatalf("Failed to add transition: %v", err)
-		}
-
-		if _, err := builder.From(Approved).When(Publish).To(Published).Add(); err != nil {
-			t.Fatalf("Failed to add transition: %v", err)
-		}
-
-		// Build the state machine
-		machine := builder.Build()
+		// Create state machine with options
+		sm := statemachine.MustNew(Draft,
+			statemachine.WithTransition(Draft, InReview, Submit),
+			statemachine.WithTransition(InReview, Approved, Approve),
+			statemachine.WithTransition(Approved, Published, Publish),
+		)
 
 		// Check initial state
-		if machine.Current() != Draft {
-			t.Fatalf("Expected initial state to be %s, got %s", Draft, machine.Current())
+		if sm.Current() != Draft {
+			t.Fatalf("Expected initial state to be %s, got %s", Draft, sm.Current())
 		}
 
 		ctx := context.Background()
 
 		// Execute the full workflow
-		if err := machine.Fire(ctx, Submit, nil); err != nil {
+		if err := sm.Fire(ctx, Submit, nil); err != nil {
 			t.Fatalf("Failed to fire Submit event: %v", err)
 		}
 
-		if err := machine.Fire(ctx, Approve, nil); err != nil {
+		if err := sm.Fire(ctx, Approve, nil); err != nil {
 			t.Fatalf("Failed to fire Approve event: %v", err)
 		}
 
-		if err := machine.Fire(ctx, Publish, nil); err != nil {
+		if err := sm.Fire(ctx, Publish, nil); err != nil {
 			t.Fatalf("Failed to fire Publish event: %v", err)
 		}
 
-		// Check final state
-		if machine.Current() != Published {
-			t.Fatalf("Expected final state to be %s, got %s", Published, machine.Current())
+		// Final state should be Published
+		if sm.Current() != Published {
+			t.Fatalf("Expected final state to be %s, got %s", Published, sm.Current())
 		}
 	})
 
-	t.Run("Builder with Guards and Actions", func(t *testing.T) {
+	t.Run("Options with Guards and Actions", func(t *testing.T) {
 		t.Parallel()
-		// Create a builder
-		builder := statemachine.NewBuilder(Draft)
-
-		// Track action execution
+		// Track execution
 		actionExecuted := false
 
-		// Define guard and action
 		isAuthorized := func(ctx context.Context, from statemachine.State, event statemachine.Event, data any) bool {
 			return data.(bool)
 		}
@@ -333,32 +304,18 @@ func TestBuilder(t *testing.T) {
 			return nil
 		}
 
-		// Define transition with guard and action
-		if _, err := builder.From(Draft).When(Submit).To(InReview).
-			WithGuard(isAuthorized).
-			WithAction(logAction).
-			Add(); err != nil {
-			t.Fatalf("Failed to add transition: %v", err)
-		}
-
-		// Build the state machine
-		machine := builder.Build()
+		// Create state machine with guards and actions
+		sm := statemachine.MustNew(Draft,
+			statemachine.WithTransition(Draft, InReview, Submit,
+				statemachine.WithGuard(isAuthorized),
+				statemachine.WithAction(logAction),
+			),
+		)
 
 		ctx := context.Background()
 
-		// Try with unauthorized data
-		err := machine.Fire(ctx, Submit, false)
-		if !statemachine.IsTransitionRejectedError(err) {
-			t.Fatalf("Expected TransitionRejectedError, got: %v", err)
-		}
-
-		// Check that action was not executed
-		if actionExecuted {
-			t.Fatal("Expected action not to be executed")
-		}
-
-		// Try with authorized data
-		if err := machine.Fire(ctx, Submit, true); err != nil {
+		// Fire with valid data
+		if err := sm.Fire(ctx, Submit, true); err != nil {
 			t.Fatalf("Failed to fire Submit event: %v", err)
 		}
 
@@ -367,45 +324,377 @@ func TestBuilder(t *testing.T) {
 			t.Fatal("Expected action to be executed")
 		}
 
-		// Check state
-		if machine.Current() != InReview {
-			t.Fatalf("Expected state to be %s, got %s", InReview, machine.Current())
+		// Check state changed
+		if sm.Current() != InReview {
+			t.Fatalf("Expected state to be %s, got %s", InReview, sm.Current())
 		}
 	})
 
-	t.Run("WithTransition Shorthand", func(t *testing.T) {
+	t.Run("WithTransitions Bulk", func(t *testing.T) {
 		t.Parallel()
-		// Create a builder
-		builder := statemachine.NewBuilder(Draft)
-
-		// Use the shorthand method
-		if _, err := builder.WithTransition(
-			Draft,
-			InReview,
-			Submit,
-			func(ctx context.Context, from statemachine.State, event statemachine.Event, data any) bool {
-				return true
-			},
-			func(ctx context.Context, from, to statemachine.State, event statemachine.Event, data any) error {
-				return nil
-			},
-		); err != nil {
-			t.Fatalf("Failed to add transition: %v", err)
+		// Define transitions
+		transitions := []statemachine.TransitionDef{
+			{From: Draft, To: InReview, Event: Submit},
+			{From: InReview, To: Approved, Event: Approve},
+			{From: Approved, To: Published, Event: Publish},
 		}
 
-		// Build the state machine
-		machine := builder.Build()
+		// Create state machine with bulk transitions
+		sm := statemachine.MustNew(Draft,
+			statemachine.WithTransitions(transitions),
+		)
+
+		ctx := context.Background()
+
+		// Execute workflow
+		if err := sm.Fire(ctx, Submit, nil); err != nil {
+			t.Fatalf("Failed to fire Submit event: %v", err)
+		}
+
+		if sm.Current() != InReview {
+			t.Fatalf("Expected state to be %s, got %s", InReview, sm.Current())
+		}
+	})
+
+	t.Run("Multiple Guards", func(t *testing.T) {
+		t.Parallel()
+		// Define multiple guards
+		hasRole := func(ctx context.Context, from statemachine.State, event statemachine.Event, data any) bool {
+			userData, ok := data.(map[string]any)
+			if !ok {
+				return false
+			}
+			role, ok := userData["role"].(string)
+			return ok && role == "admin"
+		}
+
+		isEnabled := func(ctx context.Context, from statemachine.State, event statemachine.Event, data any) bool {
+			userData, ok := data.(map[string]any)
+			if !ok {
+				return false
+			}
+			enabled, ok := userData["enabled"].(bool)
+			return ok && enabled
+		}
+
+		// Create state machine with multiple guards
+		sm := statemachine.MustNew(Draft,
+			statemachine.WithTransition(Draft, InReview, Submit,
+				statemachine.WithGuards(hasRole, isEnabled),
+			),
+		)
+
+		ctx := context.Background()
+
+		// Test with partial data (should fail)
+		partialData := map[string]any{
+			"role": "admin",
+		}
+
+		if sm.CanFire(ctx, Submit, partialData) {
+			t.Fatal("Expected CanFire to return false with partial data")
+		}
+
+		// Test with complete valid data
+		validData := map[string]any{
+			"role":    "admin",
+			"enabled": true,
+		}
+
+		if !sm.CanFire(ctx, Submit, validData) {
+			t.Fatal("Expected CanFire to return true with valid data")
+		}
+
+		// Fire event
+		if err := sm.Fire(ctx, Submit, validData); err != nil {
+			t.Fatalf("Failed to fire Submit event: %v", err)
+		}
+	})
+
+	t.Run("Multiple Actions", func(t *testing.T) {
+		t.Parallel()
+		// Track action execution
+		var executionOrder []string
+
+		action1 := func(ctx context.Context, from, to statemachine.State, event statemachine.Event, data any) error {
+			executionOrder = append(executionOrder, "action1")
+			return nil
+		}
+
+		action2 := func(ctx context.Context, from, to statemachine.State, event statemachine.Event, data any) error {
+			executionOrder = append(executionOrder, "action2")
+			return nil
+		}
+
+		// Create state machine with multiple actions
+		sm := statemachine.MustNew(Draft,
+			statemachine.WithTransition(Draft, InReview, Submit,
+				statemachine.WithActions(action1, action2),
+			),
+		)
 
 		ctx := context.Background()
 
 		// Fire event
-		if err := machine.Fire(ctx, Submit, nil); err != nil {
+		if err := sm.Fire(ctx, Submit, nil); err != nil {
 			t.Fatalf("Failed to fire Submit event: %v", err)
 		}
 
-		// Check state
-		if machine.Current() != InReview {
-			t.Fatalf("Expected state to be %s, got %s", InReview, machine.Current())
+		// Check execution order
+		if len(executionOrder) != 2 {
+			t.Fatalf("Expected 2 actions to be executed, got %d", len(executionOrder))
+		}
+
+		if executionOrder[0] != "action1" || executionOrder[1] != "action2" {
+			t.Fatalf("Expected execution order [action1, action2], got %v", executionOrder)
+		}
+	})
+
+	t.Run("Invalid Transition in WithTransitions", func(t *testing.T) {
+		t.Parallel()
+		// Define transitions with nil state
+		transitions := []statemachine.TransitionDef{
+			{From: nil, To: InReview, Event: Submit},
+		}
+
+		// Should return error
+		_, err := statemachine.New(Draft,
+			statemachine.WithTransitions(transitions),
+		)
+
+		if err == nil {
+			t.Fatal("Expected error for invalid transition")
+		}
+
+		if !strings.Contains(err.Error(), "failed to add transition") {
+			t.Fatalf("Expected error to contain 'failed to add transition', got: %v", err)
+		}
+	})
+}
+
+// Custom state implementation for testing
+type OrderState struct {
+	status string
+	code   int
+}
+
+func (s OrderState) Name() string {
+	return s.status
+}
+
+// Custom event implementation for testing
+type OrderEvent struct {
+	action string
+	user   string
+}
+
+func (e OrderEvent) Name() string {
+	return e.action
+}
+
+func TestCustomStateAndEvent(t *testing.T) {
+	t.Parallel()
+
+	// Define states
+	pending := OrderState{status: "pending", code: 1}
+	processing := OrderState{status: "processing", code: 2}
+	completed := OrderState{status: "completed", code: 3}
+
+	// Define events
+	startProcessing := OrderEvent{action: "start_processing", user: "system"}
+	completeOrder := OrderEvent{action: "complete", user: "system"}
+
+	// Create state machine
+	sm := statemachine.MustNew(pending,
+		statemachine.WithTransition(pending, processing, startProcessing),
+		statemachine.WithTransition(processing, completed, completeOrder),
+	)
+
+	ctx := context.Background()
+
+	// Test transitions
+	if err := sm.Fire(ctx, startProcessing, nil); err != nil {
+		t.Fatalf("Failed to fire startProcessing event: %v", err)
+	}
+
+	currentState := sm.Current().(OrderState)
+	if currentState.status != "processing" || currentState.code != 2 {
+		t.Fatalf("Expected processing state, got %+v", currentState)
+	}
+
+	if err := sm.Fire(ctx, completeOrder, nil); err != nil {
+		t.Fatalf("Failed to fire completeOrder event: %v", err)
+	}
+
+	finalState := sm.Current().(OrderState)
+	if finalState.status != "completed" || finalState.code != 3 {
+		t.Fatalf("Expected completed state, got %+v", finalState)
+	}
+}
+
+func TestConcurrency(t *testing.T) {
+	t.Parallel()
+	// Define states
+	const (
+		State1 = statemachine.StringState("state1")
+		State2 = statemachine.StringState("state2")
+		State3 = statemachine.StringState("state3")
+	)
+
+	// Define events
+	const (
+		Event1 = statemachine.StringEvent("event1")
+		Event2 = statemachine.StringEvent("event2")
+		Event3 = statemachine.StringEvent("event3")
+	)
+
+	// Create state machine
+	sm := statemachine.MustNew(State1,
+		statemachine.WithTransition(State1, State2, Event1),
+		statemachine.WithTransition(State2, State3, Event2),
+		statemachine.WithTransition(State3, State1, Event3),
+	)
+
+	ctx := context.Background()
+
+	// Run concurrent operations
+	done := make(chan bool)
+
+	// Multiple readers
+	for range 5 {
+		go func() {
+			for range 100 {
+				_ = sm.Current()
+				_ = sm.CanFire(ctx, Event1, nil)
+			}
+			done <- true
+		}()
+	}
+
+	// Multiple writers
+	for range 2 {
+		go func() {
+			for range 50 {
+				_ = sm.Fire(ctx, Event1, nil)
+				_ = sm.Fire(ctx, Event2, nil)
+				_ = sm.Fire(ctx, Event3, nil)
+			}
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines
+	for range 7 {
+		<-done
+	}
+
+	// Verify state machine is still functional
+	if err := sm.Reset(); err != nil {
+		t.Fatalf("Failed to reset after concurrent operations: %v", err)
+	}
+
+	if sm.Current() != State1 {
+		t.Fatalf("Expected state to be %s after reset, got %s", State1, sm.Current())
+	}
+}
+
+func TestEdgeCases(t *testing.T) {
+	t.Parallel()
+	// Define states
+	const (
+		State1 = statemachine.StringState("state1")
+		State2 = statemachine.StringState("state2")
+	)
+
+	// Define events
+	const (
+		Event1 = statemachine.StringEvent("event1")
+	)
+
+	t.Run("Nil Guard Handling", func(t *testing.T) {
+		t.Parallel()
+		// Create a state machine with nil guard
+		sm := statemachine.MustNew(State1,
+			statemachine.WithTransition(State1, State2, Event1,
+				statemachine.WithGuard(nil),
+			),
+		)
+
+		ctx := context.Background()
+
+		// Should handle nil guard gracefully (treated as always passing)
+		if !sm.CanFire(ctx, Event1, nil) {
+			t.Fatal("Expected CanFire to return true with nil guard")
+		}
+
+		if err := sm.Fire(ctx, Event1, nil); err != nil {
+			t.Fatalf("Failed to fire event with nil guard: %v", err)
+		}
+
+		if sm.Current() != State2 {
+			t.Fatalf("Expected state to be %s, got %s", State2, sm.Current())
+		}
+	})
+
+	t.Run("Nil Action Handling", func(t *testing.T) {
+		t.Parallel()
+		// Create a state machine with nil action
+		sm := statemachine.MustNew(State1,
+			statemachine.WithTransition(State1, State2, Event1,
+				statemachine.WithAction(nil),
+			),
+		)
+
+		ctx := context.Background()
+
+		// Should handle nil action gracefully (no-op)
+		if err := sm.Fire(ctx, Event1, nil); err != nil {
+			t.Fatalf("Failed to fire event with nil action: %v", err)
+		}
+
+		if sm.Current() != State2 {
+			t.Fatalf("Expected state to be %s, got %s", State2, sm.Current())
+		}
+	})
+
+	t.Run("Empty Payload Handling", func(t *testing.T) {
+		t.Parallel()
+		// Create a state machine with guard and action that check payload
+		guardCalled := false
+		actionCalled := false
+
+		sm := statemachine.MustNew(State1,
+			statemachine.WithTransition(State1, State2, Event1,
+				statemachine.WithGuard(func(ctx context.Context, from statemachine.State, event statemachine.Event, data any) bool {
+					guardCalled = true
+					// Should handle nil payload gracefully
+					return true
+				}),
+				statemachine.WithAction(func(ctx context.Context, from, to statemachine.State, event statemachine.Event, data any) error {
+					actionCalled = true
+					// Should handle nil payload gracefully
+					return nil
+				}),
+			),
+		)
+
+		ctx := context.Background()
+
+		// Fire with nil payload
+		if err := sm.Fire(ctx, Event1, nil); err != nil {
+			t.Fatalf("Failed to fire event with nil payload: %v", err)
+		}
+
+		if !guardCalled {
+			t.Fatal("Guard was not called")
+		}
+
+		if !actionCalled {
+			t.Fatal("Action was not called")
+		}
+
+		if sm.Current() != State2 {
+			t.Fatalf("Expected state to be %s, got %s", State2, sm.Current())
 		}
 	})
 }
