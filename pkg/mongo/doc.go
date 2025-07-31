@@ -1,13 +1,16 @@
-// Package mongo provides utility functions and types that simplify working with
-// MongoDB in Go applications.
+// Package mongo provides MongoDB connection management optimized for SaaS applications
+// deployed by solo developers.
 //
-// It wraps the official MongoDB Go driver and offers:
+// This package emphasizes operational reliability through environment-based configuration,
+// aggressive retry logic, and proper connection pooling defaults that work well for
+// small-to-medium SaaS workloads without manual tuning.
 //
-//   - Config type for environment-driven connection parameters
-//   - New and NewWithDatabase helpers that establish a client with configurable
-//     retry logic and time-outs
-//   - Healthcheck helper that can be plugged into readiness / liveness probes
-//   - Pre-declared error variables describing common failure scenarios
+// Key features:
+//   - Environment-driven configuration eliminates deployment complexity
+//   - Built-in retry logic handles MongoDB Atlas transient failures gracefully
+//   - Connection pool defaults optimized for typical SaaS traffic patterns
+//   - Health check integration for Kubernetes/Docker orchestration
+//   - Error types compatible with errors.Is() for clean error handling
 //
 // # Usage
 //
@@ -38,14 +41,16 @@
 //
 // # Configuration
 //
-// The Config struct is annotated with github.com/caarlos0/env tags so it can be
-// populated from environment variables. Refer to the field-level comments in
-// Config for available variables and their defaults.
+// Configuration is entirely environment-driven to simplify deployment across
+// development, staging, and production environments. This eliminates the need
+// for config file management and enables secure credential handling through
+// environment variables or secret management systems.
 //
 // # Error Handling
 //
-// Errors returned by this package wrap the underlying driver errors and may be
-// compared against ErrFailedToConnectToMongo and ErrHealthcheckFailed.
+// Connection failures are wrapped in domain-specific errors to enable proper
+// error handling in application code. Use errors.Is() to check for specific
+// failure scenarios and implement appropriate retry or fallback logic.
 //
 // # See Also
 //

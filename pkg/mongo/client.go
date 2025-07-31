@@ -8,10 +8,13 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// New creates a new mongo client.
-// It returns an error if the client cannot be created.
+// New establishes a MongoDB connection with retry logic optimized for production SaaS deployments.
+//
+// The function implements application-level retry logic because MongoDB Atlas instances
+// can experience cold starts (5-8 seconds) and brief network hiccups that would otherwise
+// cause application startup failures. The Ping() verification ensures the connection is
+// actually usable before returning, preventing silent connection issues.
 func New(ctx context.Context, cfg Config) (*mongo.Client, error) {
-	// Retry to connect to the mongo server
 	for range cfg.RetryAttempts {
 		client, err := mongo.Connect(
 			options.Client().
@@ -24,20 +27,21 @@ func New(ctx context.Context, cfg Config) (*mongo.Client, error) {
 				SetRetryReads(cfg.RetryReads),
 		)
 		if err == nil {
+			// Ping verifies the connection is actually usable, not just established
 			if err := client.Ping(ctx, nil); err == nil {
 				return client, nil
 			}
 		}
 
-		// Wait for the next retry interval
 		time.Sleep(cfg.RetryInterval)
 	}
 
 	return nil, ErrFailedToConnectToMongo
 }
 
-// NewWithDatabase creates a new mongo client and returns a database object.
-// This function is useful when you want to connect to a specific database.
+// NewWithDatabase provides a convenience wrapper that returns a database instance directly.
+// This eliminates the common pattern of connecting and then selecting a database,
+// reducing boilerplate code in typical SaaS application initialization.
 func NewWithDatabase(ctx context.Context, cfg Config, database string) (*mongo.Database, error) {
 	client, err := New(ctx, cfg)
 	if err != nil {
