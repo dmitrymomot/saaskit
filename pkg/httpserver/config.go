@@ -3,11 +3,11 @@ package httpserver
 import "time"
 
 type Config struct {
-	Addr            string        `env:"HTTP_ADDR" envDefault:":8080"`          // Addr is the address the server listens on.
-	ReadTimeout     time.Duration `env:"HTTP_READ_TIMEOUT" envDefault:"30s"`    // ReadTimeout is the maximum duration for reading the entire request.
-	WriteTimeout    time.Duration `env:"HTTP_WRITE_TIMEOUT" envDefault:"30s"`   // WriteTimeout is the maximum duration before timing out writes of the response.
-	IdleTimeout     time.Duration `env:"HTTP_IDLE_TIMEOUT" envDefault:"120s"`   // IdleTimeout is the maximum amount of time to wait for the next request when keep-alives are enabled.
-	ShutdownTimeout time.Duration `env:"HTTP_SHUTDOWN_TIMEOUT" envDefault:"5s"` // ShutdownTimeout is the time allowed for graceful shutdown.
+	Addr            string        `env:"HTTP_ADDR" envDefault:":8080"`          // Default port 8080 for container deployment compatibility
+	ReadTimeout     time.Duration `env:"HTTP_READ_TIMEOUT" envDefault:"30s"`    // 30s prevents slow client DoS attacks while allowing reasonable upload times
+	WriteTimeout    time.Duration `env:"HTTP_WRITE_TIMEOUT" envDefault:"30s"`   // 30s balances large response delivery with resource protection
+	IdleTimeout     time.Duration `env:"HTTP_IDLE_TIMEOUT" envDefault:"120s"`   // 120s reduces connection churn for persistent clients
+	ShutdownTimeout time.Duration `env:"HTTP_SHUTDOWN_TIMEOUT" envDefault:"5s"` // 5s allows most requests to complete during graceful shutdown
 }
 
 // NewFromConfig creates a new Server from the provided Config.
