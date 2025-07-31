@@ -107,10 +107,10 @@ The framework handles binding errors automatically.
 Common errors include:
 
 - ErrUnsupportedMediaType: Wrong content type
-- ErrInvalidJSON: Malformed JSON data
-- ErrInvalidForm: Invalid form data
-- ErrInvalidQuery: Invalid query parameters
-- ErrInvalidPath: Invalid path parameters
+- ErrFailedToParseJSON: Failed to parse JSON request body
+- ErrFailedToParseForm: Failed to parse form data
+- ErrFailedToParseQuery: Failed to parse query parameters
+- ErrFailedToParsePath: Failed to parse path parameters
 - ErrMissingContentType: Missing content type header
 
 ## Best Practices
@@ -171,10 +171,10 @@ func Path(extractor func(r *http.Request, fieldName string) string) func(r *http
 
 ```go
 var ErrUnsupportedMediaType = errors.New("unsupported media type")
-var ErrInvalidJSON          = errors.New("invalid JSON")
-var ErrInvalidForm          = errors.New("invalid form data")
-var ErrInvalidQuery         = errors.New("invalid query parameter")
-var ErrInvalidPath          = errors.New("invalid path parameter")
+var ErrFailedToParseJSON    = errors.New("failed to parse JSON request body")
+var ErrFailedToParseForm    = errors.New("failed to parse form data")
+var ErrFailedToParseQuery   = errors.New("failed to parse query parameters")
+var ErrFailedToParsePath    = errors.New("failed to parse path parameters")
 var ErrMissingContentType   = errors.New("missing content type")
 ```
 
