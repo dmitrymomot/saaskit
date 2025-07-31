@@ -2,7 +2,6 @@ package async
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 )
@@ -30,7 +29,7 @@ func (f *Future[U]) AwaitWithTimeout(timeout time.Duration) (U, error) {
 		return f.result, f.err
 	case <-time.After(timeout):
 		var zero U
-		return zero, errors.New("future: timeout waiting for completion")
+		return zero, ErrTimeout
 	}
 }
 
@@ -93,10 +92,12 @@ func WaitAll[U any](futures ...*Future[U]) ([]U, error) {
 
 // WaitAny waits for any of the futures to complete and returns the index of the completed future,
 // its result, and any error it might have returned.
+// Note: This function spawns one goroutine per future. All goroutines will complete naturally
+// when their respective futures finish.
 func WaitAny[U any](futures ...*Future[U]) (int, U, error) {
 	if len(futures) == 0 {
 		var zero U
-		return -1, zero, errors.New("future: no futures provided to WaitAny")
+		return -1, zero, ErrNoFutures
 	}
 
 	done := make(chan struct {
@@ -115,7 +116,7 @@ func WaitAny[U any](futures ...*Future[U]) (int, U, error) {
 				err    error
 			}{index, result, err}:
 			default:
-				// Another future already completed
+				// Prevents race condition where multiple futures complete simultaneously
 			}
 		}(i, future)
 	}
