@@ -9,7 +9,7 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/async"
 )
 
-// BenchmarkAsyncOverhead measures the overhead of the Async helper with a large number of tasks.
+// BenchmarkAsyncOverhead measures async overhead with 1000 concurrent tasks.
 func BenchmarkAsyncOverhead(b *testing.B) {
 	ctx := context.Background()
 
@@ -41,7 +41,7 @@ func BenchmarkAsyncOverhead(b *testing.B) {
 	}
 }
 
-// BenchmarkAsyncWithoutSleep measures the overhead of the Async helper without any sleep in the tasks.
+// BenchmarkAsyncWithoutSleep measures async overhead with CPU-bound tasks.
 func BenchmarkAsyncWithoutSleep(b *testing.B) {
 	ctx := context.Background()
 
@@ -72,7 +72,7 @@ func BenchmarkAsyncWithoutSleep(b *testing.B) {
 	}
 }
 
-// BenchmarkAsyncWithContention measures performance when tasks contend for a shared resource.
+// BenchmarkAsyncWithContention measures performance under mutex contention.
 func BenchmarkAsyncWithContention(b *testing.B) {
 	ctx := context.Background()
 

@@ -11,7 +11,6 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/async"
 )
 
-// TestAsyncFunctionality tests the basic functionality of the Async helper.
 func TestAsyncFunctionality(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -52,7 +51,6 @@ func TestAsyncFunctionality(t *testing.T) {
 	}
 }
 
-// TestAsyncContextCancellation tests that the Async helper handles context cancellation properly.
 func TestAsyncContextCancellation(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
@@ -78,7 +76,6 @@ func TestAsyncContextCancellation(t *testing.T) {
 	}
 }
 
-// TestAsyncErrorPropagation tests that errors from the asynchronous function are propagated correctly.
 func TestAsyncErrorPropagation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -101,7 +98,6 @@ func TestAsyncErrorPropagation(t *testing.T) {
 	}
 }
 
-// TestAsyncConcurrency tests that multiple Async calls execute concurrently.
 func TestAsyncConcurrency(t *testing.T) {
 	t.Parallel()
 	// Note: This test has timing assertions that might be sensitive to system load when run in parallel
@@ -142,8 +138,8 @@ func TestAsyncConcurrency(t *testing.T) {
 	duration := time.Since(startTime)
 
 	// Duration should be slightly longer than the longest sleep (100ms) since futures run concurrently
-	if duration > 150*time.Millisecond {
-		t.Errorf("Expected duration around 100ms, got %v", duration)
+	if duration > 150*time.Millisecond || duration < 100*time.Millisecond {
+		t.Errorf("Expected duration between 100-150ms, got %v", duration)
 	}
 
 	expectedOrder := []string{"second", "third", "first"}
@@ -155,7 +151,6 @@ func TestAsyncConcurrency(t *testing.T) {
 	}
 }
 
-// TestAsyncWithCustomStruct tests using custom structures as parameters and return types.
 func TestAsyncWithCustomStruct(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -226,7 +221,6 @@ func TestAsyncConcurrentIncrement(t *testing.T) {
 	}
 }
 
-// TestIsComplete tests the IsComplete method of Future.
 func TestIsComplete(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -250,7 +244,6 @@ func TestIsComplete(t *testing.T) {
 	}
 }
 
-// TestAwaitWithTimeout tests the AwaitWithTimeout method of Future.
 func TestAwaitWithTimeout(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -282,7 +275,6 @@ func TestAwaitWithTimeout(t *testing.T) {
 	}
 }
 
-// TestWaitAll tests the WaitAll function.
 func TestWaitAll(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -327,7 +319,6 @@ func TestWaitAll(t *testing.T) {
 	}
 }
 
-// TestWaitAny tests the WaitAny function.
 func TestWaitAny(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
