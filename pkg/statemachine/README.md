@@ -10,17 +10,18 @@ go get github.com/dmitrymomot/saaskit/pkg/statemachine
 
 ## Overview 
 
-The `statemachine` package provides a clean, flexible implementation of the state machine pattern for Go applications. It offers a fluent builder API and type-safety through interfaces, making it ideal for modeling complex workflows, business processes, and application states. This package is thread-safe and suitable for concurrent use in production environments.
+The `statemachine` package provides a clean, flexible implementation of the state machine pattern for Go applications. It uses the functional options pattern for configuration and type-safety through interfaces, making it ideal for modeling complex workflows, business processes, and application states. This package is thread-safe and suitable for concurrent use in production environments.
 
 ## Features
 
-- Fluent builder pattern for intuitive state machine construction
+- Functional options pattern for clean, idiomatic Go API
 - Type-safe implementation using Go interfaces
 - Support for guards (transition conditions) and actions (side effects)
 - Thread-safe operation for concurrent access
 - String-based or custom state/event implementations
 - Comprehensive error handling with specific error types
 - Simple API with minimal boilerplate
+- Bulk transition configuration support
 
 ## Usage
 
@@ -50,16 +51,15 @@ const (
 	Withdraw = statemachine.StringEvent("withdraw")
 )
 
-// Create and configure the state machine using the fluent builder API
-builder := statemachine.NewBuilder(Draft)
-builder.From(Draft).When(Submit).To(InReview).Add()
-builder.From(InReview).When(Approve).To(Approved).Add()
-builder.From(InReview).When(Reject).To(Rejected).Add()
-builder.From(Approved).When(Publish).To(Published).Add()
-builder.From(Approved).When(Withdraw).To(Draft).Add()
-builder.From(Rejected).When(Submit).To(InReview).Add()
-
-machine := builder.Build()
+// Create and configure the state machine using options
+machine := statemachine.MustNew(Draft,
+	statemachine.WithTransition(Draft, InReview, Submit),
+	statemachine.WithTransition(InReview, Approved, Approve),
+	statemachine.WithTransition(InReview, Rejected, Reject),
+	statemachine.WithTransition(Approved, Published, Publish),
+	statemachine.WithTransition(Approved, Draft, Withdraw),
+	statemachine.WithTransition(Rejected, InReview, Submit),
+)
 
 // Use the state machine
 ctx := context.Background()
@@ -71,6 +71,22 @@ machine.Fire(ctx, Submit, nil)
 
 machine.Fire(ctx, Approve, nil)
 // Current state: "approved"
+```
+
+### Bulk Transitions
+
+```go
+// Define transitions using TransitionDef for bulk configuration
+transitions := []statemachine.TransitionDef{
+	{From: Draft, To: InReview, Event: Submit},
+	{From: InReview, To: Approved, Event: Approve},
+	{From: InReview, To: Rejected, Event: Reject},
+	{From: Approved, To: Published, Event: Publish},
+}
+
+machine := statemachine.MustNew(Draft,
+	statemachine.WithTransitions(transitions),
+)
 ```
 
 ### Guards and Actions
@@ -93,18 +109,16 @@ logTransition := func(ctx context.Context, from, to statemachine.State, event st
 	return nil
 }
 
-// Create builder
-builder := statemachine.NewBuilder(statemachine.StringState("idle"))
-
-// Add a transition with guard and action
-builder.From(statemachine.StringState("idle")).
-	When(statemachine.StringEvent("start")).
-	To(statemachine.StringState("running")).
-	WithGuard(isAuthorized).
-	WithAction(logTransition).
-	Add()
-
-machine := builder.Build()
+// Create state machine with guard and action
+machine := statemachine.MustNew(statemachine.StringState("idle"),
+	statemachine.WithTransition(
+		statemachine.StringState("idle"),
+		statemachine.StringState("running"),
+		statemachine.StringEvent("start"),
+		statemachine.WithGuard(isAuthorized),
+		statemachine.WithAction(logTransition),
+	),
+)
 
 // Fire event with context data
 userData := map[string]any{"is_authorized": true, "user_id": 123}
@@ -153,10 +167,11 @@ shipped := OrderState{code: "shipped", description: "Shipped"}
 process := OrderEvent{code: "process"}
 ship := OrderEvent{code: "ship"}
 
-// Configure state machine using standard API
-machine := statemachine.NewSimpleStateMachine(new)
-machine.AddTransition(new, processing, process, nil, nil)
-machine.AddTransition(processing, shipped, ship, nil, nil)
+// Configure state machine
+machine := statemachine.MustNew(new,
+	statemachine.WithTransition(new, processing, process),
+	statemachine.WithTransition(processing, shipped, ship),
+)
 
 // Use the state machine
 // Current state: "new"
@@ -180,8 +195,8 @@ const (
 	InvalidEvent = statemachine.StringEvent("invalid")
 )
 
-builder := statemachine.NewBuilder(Initial)
-machine := builder.Build()
+// Create a state machine with no transitions
+machine := statemachine.MustNew(Initial)
 
 // Try an invalid event (no transition defined)
 err := machine.Fire(context.Background(), InvalidEvent, nil)
@@ -192,13 +207,16 @@ if err != nil {
 	}
 }
 
-// Add a transition with a guard that always rejects
+// Create a state machine with a guard that always rejects
 alwaysFalse := func(ctx context.Context, from statemachine.State, event statemachine.Event, data any) bool {
 	return false
 }
 
-builder.From(Initial).When(Event).To(Final).WithGuard(alwaysFalse).Add()
-machine = builder.Build()
+machine = statemachine.MustNew(Initial,
+	statemachine.WithTransition(Initial, Final, Event,
+		statemachine.WithGuard(alwaysFalse),
+	),
+)
 
 // Try a transition that will be rejected by the guard
 err = machine.Fire(context.Background(), Event, nil)
@@ -277,6 +295,18 @@ type Transition struct {
 Structure representing a possible state change in the state machine.
 
 ```go
+type TransitionDef struct {
+	From    State
+	To      State
+	Event   Event
+	Guards  []Guard
+	Actions []Action
+}
+```
+
+Structure for defining transitions when using WithTransitions for bulk configuration.
+
+```go
 type StateMachine interface {
 	Current() State
 	AddTransition(from, to State, event Event, guards []Guard, actions []Action) error
@@ -288,19 +318,57 @@ type StateMachine interface {
 
 Core interface for state machine implementations.
 
+### Option Functions
+
+```go
+func WithTransition(from, to State, event Event, opts ...TransitionOption) Option
+```
+
+Adds a single transition to the state machine.
+
+```go
+func WithTransitions(transitions []TransitionDef) Option
+```
+
+Adds multiple transitions to the state machine at once.
+
+```go
+func WithGuard(guard Guard) TransitionOption
+```
+
+Adds a guard to a transition.
+
+```go
+func WithGuards(guards ...Guard) TransitionOption
+```
+
+Adds multiple guards to a transition.
+
+```go
+func WithAction(action Action) TransitionOption
+```
+
+Adds an action to a transition.
+
+```go
+func WithActions(actions ...Action) TransitionOption
+```
+
+Adds multiple actions to a transition.
+
 ### Functions
 
 ```go
-func NewBuilder(initialState State) *Builder
+func New(initialState State, opts ...Option) (StateMachine, error)
 ```
 
-Creates a new state machine builder with the specified initial state.
+Creates a new state machine with the specified initial state and options.
 
 ```go
-func NewSimpleStateMachine(initialState State) StateMachine
+func MustNew(initialState State, opts ...Option) StateMachine
 ```
 
-Creates a new simple state machine with the specified initial state.
+Creates a new state machine with the specified initial state and options. Panics on error.
 
 ```go
 func StringState(name string) State
