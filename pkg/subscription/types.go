@@ -14,8 +14,8 @@ const (
 	ResourceEnvironments Resource = "environments"
 	ResourceReferrals    Resource = "referrals"
 	ResourceCampaigns    Resource = "campaigns"
-	ResourceStorage      Resource = "storage"   // Measured in GB
-	ResourceBandwidth    Resource = "bandwidth" // Measured in GB
+	ResourceStorage      Resource = "storage"   // in GB
+	ResourceBandwidth    Resource = "bandwidth" // in GB
 	ResourceDomains      Resource = "domains"
 )
 
@@ -51,7 +51,7 @@ type UsageInfo struct {
 // Money represents a monetary amount in the smallest currency unit.
 // For example, $10.99 USD would be Amount: 1099, Currency: "USD".
 type Money struct {
-	Amount   int64  // Amount in smallest currency unit (cents for USD)
+	Amount   int64  // in smallest currency unit (cents for USD)
 	Currency string // ISO 4217 currency code
 }
 
@@ -59,7 +59,7 @@ type Money struct {
 type BillingInterval string
 
 const (
-	BillingIntervalNone    BillingInterval = "none" // Free plans with no billing
+	BillingIntervalNone    BillingInterval = "none" // for free plans
 	BillingIntervalMonthly BillingInterval = "monthly"
 	BillingIntervalAnnual  BillingInterval = "annual"
 )
@@ -77,7 +77,7 @@ const (
 
 // CheckoutOptions contains options for creating a checkout session.
 type CheckoutOptions struct {
-	Email      string // Pre-fill billing email if known
-	SuccessURL string // Redirect after successful payment
-	CancelURL  string // Redirect if customer cancels
+	Email      string // pre-fill billing email
+	SuccessURL string // redirect after successful payment
+	CancelURL  string // redirect if customer cancels
 }

@@ -9,12 +9,12 @@ import (
 // The ID field should be set to the payment provider's price ID for paid plans
 // to enable direct mapping during checkout and webhook processing.
 type Plan struct {
-	ID          string // Provider's price ID (e.g., price_starter_monthly)
+	ID          string // provider's price ID (e.g., price_starter_monthly)
 	Name        string
 	Description string
 	Limits      map[Resource]int64 // -1 represents unlimited
 	Features    []Feature
-	Public      bool // Whether plan is available for self-service signup
+	Public      bool // available for self-service signup
 	TrialDays   int
 	Price       Money
 	Interval    BillingInterval
@@ -98,8 +98,7 @@ func ComparePlans(current, target *Plan) *PlanComparison {
 		if targetLimit != currentLimit {
 			change := ResourceChange{From: currentLimit, To: targetLimit}
 
-			// Unlimited (-1) to any limited value is always considered a decrease
-			// to prevent users from accidentally losing unlimited access
+			// Treat unlimited-to-limited as decrease to prevent accidental loss of unlimited access
 			if currentLimit == Unlimited {
 				comparison.DecreasedLimits[resource] = change
 			} else if targetLimit == Unlimited {

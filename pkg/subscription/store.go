@@ -14,6 +14,6 @@ type SubscriptionStore interface {
 	Get(ctx context.Context, tenantID uuid.UUID) (*Subscription, error)
 
 	// Save creates or updates a subscription.
-	// The implementation should use TenantID to determine if it's an update.
+	// Implementation should use TenantID to determine if it's an update.
 	Save(ctx context.Context, subscription *Subscription) error
 }

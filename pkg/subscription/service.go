@@ -12,7 +12,7 @@ import (
 
 // Service defines the public interface for subscription management.
 type Service interface {
-	// Limits and features
+	// Resource limits and feature checks
 	CanCreate(ctx context.Context, tenantID uuid.UUID, res Resource) error
 	GetUsage(ctx context.Context, tenantID uuid.UUID, res Resource) (used, limit int64, err error)
 	GetUsageSafe(ctx context.Context, tenantID uuid.UUID, res Resource) (used, limit int64)
@@ -92,7 +92,6 @@ func NewService(ctx context.Context, src PlansListSource, provider BillingProvid
 	return s, nil
 }
 
-// CanCreate checks if a tenant can create a new resource instance.
 func (s *service) CanCreate(ctx context.Context, tenantID uuid.UUID, res Resource) error {
 	planID, err := s.planIDResolver(ctx, tenantID)
 	if err != nil {
@@ -130,7 +129,6 @@ func (s *service) CanCreate(ctx context.Context, tenantID uuid.UUID, res Resourc
 	return nil
 }
 
-// GetUsage returns the current usage and limit for a resource in a tenant.
 func (s *service) GetUsage(ctx context.Context, tenantID uuid.UUID, res Resource) (used, limit int64, err error) {
 	planID, err := s.planIDResolver(ctx, tenantID)
 	if err != nil {
@@ -160,15 +158,15 @@ func (s *service) GetUsage(ctx context.Context, tenantID uuid.UUID, res Resource
 	return current, resourceLimit, nil
 }
 
-// GetUsageSafe is a convenience wrapper for UI dashboards that need to display usage
-// without error handling. Returns zero values on any error to prevent UI crashes.
+// GetUsageSafe returns usage without error handling for UI dashboards.
+// Returns zero values on any error to prevent UI crashes.
 func (s *service) GetUsageSafe(ctx context.Context, tenantID uuid.UUID, res Resource) (used, limit int64) {
 	used, limit, _ = s.GetUsage(ctx, tenantID, res)
 	return used, limit
 }
 
 // HasFeature checks if a feature is available for the tenant's current plan.
-// Returns false on any error to fail closed for security-sensitive features.
+// Returns false on any error for fail-closed security on sensitive features.
 func (s *service) HasFeature(ctx context.Context, tenantID uuid.UUID, feature Feature) bool {
 	planID, err := s.planIDResolver(ctx, tenantID)
 	if err != nil {
@@ -183,7 +181,6 @@ func (s *service) HasFeature(ctx context.Context, tenantID uuid.UUID, feature Fe
 	return slices.Contains(plan.Features, feature)
 }
 
-// CheckTrial determines if a tenant's trial period is active for a specific plan.
 func (s *service) CheckTrial(ctx context.Context, tenantID uuid.UUID, startedAt time.Time) error {
 	planID, err := s.planIDResolver(ctx, tenantID)
 	if err != nil {
@@ -206,7 +203,6 @@ func (s *service) CheckTrial(ctx context.Context, tenantID uuid.UUID, startedAt 
 	return nil
 }
 
-// VerifyPlan checks if a plan ID is valid.
 func (s *service) VerifyPlan(ctx context.Context, planID string) error {
 	if _, exists := s.plans[planID]; !exists {
 		return ErrPlanNotFound
@@ -215,7 +211,7 @@ func (s *service) VerifyPlan(ctx context.Context, planID string) error {
 }
 
 // GetUsagePercentage returns usage as percentage (0-100, or -1 for unlimited).
-// Caps at 100% to prevent UI display issues. Returns 0 on errors.
+// Capped at 100% to prevent UI issues. Returns 0 on errors.
 func (s *service) GetUsagePercentage(ctx context.Context, tenantID uuid.UUID, res Resource) int {
 	used, limit, err := s.GetUsage(ctx, tenantID, res)
 	if err != nil {
@@ -233,7 +229,6 @@ func (s *service) GetUsagePercentage(ctx context.Context, tenantID uuid.UUID, re
 	return min(int((used*100)/limit), 100)
 }
 
-// CanDowngrade checks if downgrade is possible given current usage.
 func (s *service) CanDowngrade(ctx context.Context, tenantID uuid.UUID, targetPlanID string) error {
 	targetPlan, exists := s.plans[targetPlanID]
 	if !exists {
@@ -260,8 +255,7 @@ func (s *service) CanDowngrade(ctx context.Context, tenantID uuid.UUID, targetPl
 			continue
 		}
 
-		// Only verify current usage when limit is being reduced
-		// to prevent data loss scenarios
+		// Verify usage only when reducing limits to prevent data loss
 		if currentLimit != targetLimit && (currentLimit == Unlimited || currentLimit > targetLimit) {
 			counter, exists := s.counters[resource]
 			if !exists {
@@ -282,7 +276,6 @@ func (s *service) CanDowngrade(ctx context.Context, tenantID uuid.UUID, targetPl
 	return nil
 }
 
-// GetAllUsage returns all resource usage for a tenant.
 func (s *service) GetAllUsage(ctx context.Context, tenantID uuid.UUID) (map[Resource]UsageInfo, error) {
 	planID, err := s.planIDResolver(ctx, tenantID)
 	if err != nil {
@@ -314,21 +307,20 @@ func (s *service) GetAllUsage(ctx context.Context, tenantID uuid.UUID) (map[Reso
 	return result, nil
 }
 
-// CreateCheckoutLink generates a checkout link for a tenant to subscribe to a plan.
 func (s *service) CreateCheckoutLink(ctx context.Context, tenantID uuid.UUID, planID string, opts CheckoutOptions) (*CheckoutLink, error) {
 	plan, exists := s.plans[planID]
 	if !exists {
 		return nil, ErrPlanNotFound
 	}
 
-	// Prevent duplicate subscriptions for the same tenant
+	// Prevent duplicate subscriptions
 	if _, err := s.store.Get(ctx, tenantID); err == nil {
 		return nil, ErrSubscriptionAlreadyExists
 	} else if !errors.Is(err, ErrSubscriptionNotFound) {
 		return nil, err
 	}
 
-	// Free plans bypass payment provider entirely for instant activation
+	// Free plans bypass payment provider for instant activation
 	if plan.Interval == BillingIntervalNone {
 		now := time.Now().UTC()
 		subscription := &Subscription{
@@ -344,7 +336,7 @@ func (s *service) CreateCheckoutLink(ctx context.Context, tenantID uuid.UUID, pl
 			return nil, fmt.Errorf("failed to save free plan subscription: %w", err)
 		}
 
-		// Redirect to success URL immediately since no payment needed
+		// Redirect to success URL immediately (no payment needed)
 		return &CheckoutLink{
 			URL:       opts.SuccessURL,
 			SessionID: "",
@@ -354,7 +346,7 @@ func (s *service) CreateCheckoutLink(ctx context.Context, tenantID uuid.UUID, pl
 
 	// Delegate to payment provider for paid plans
 	return s.provider.CreateCheckoutLink(ctx, CheckoutRequest{
-		PriceID:    plan.ID, // Plan.ID must match provider's price ID
+		PriceID:    plan.ID, // must match provider's price ID
 		CustomerID: tenantID.String(),
 		Email:      opts.Email,
 		SuccessURL: opts.SuccessURL,
@@ -362,12 +354,10 @@ func (s *service) CreateCheckoutLink(ctx context.Context, tenantID uuid.UUID, pl
 	})
 }
 
-// GetSubscription retrieves a tenant's subscription.
 func (s *service) GetSubscription(ctx context.Context, tenantID uuid.UUID) (*Subscription, error) {
 	return s.store.Get(ctx, tenantID)
 }
 
-// GetCustomerPortalLink returns a link to the customer portal where users can manage their subscription.
 func (s *service) GetCustomerPortalLink(ctx context.Context, tenantID uuid.UUID) (*PortalLink, error) {
 	subscription, err := s.store.Get(ctx, tenantID)
 	if err != nil {
@@ -384,7 +374,6 @@ func (s *service) GetCustomerPortalLink(ctx context.Context, tenantID uuid.UUID)
 	return s.provider.GetCustomerPortalLink(ctx, subscription)
 }
 
-// HandleWebhook processes incoming webhook events from the billing provider.
 func (s *service) HandleWebhook(ctx context.Context, payload []byte, signature string) error {
 	event, err := s.provider.ParseWebhook(ctx, payload, signature)
 	if err != nil {

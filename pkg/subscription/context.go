@@ -9,12 +9,10 @@ import (
 
 type planIDCtxKey struct{}
 
-// SetPlanIDToContext stores the plan ID in the context for downstream access.
 func SetPlanIDToContext(ctx context.Context, planID string) context.Context {
 	return context.WithValue(ctx, planIDCtxKey{}, planID)
 }
 
-// GetPlanIDFromContext retrieves the plan ID from the context, if present.
 func GetPlanIDFromContext(ctx context.Context) (string, bool) {
 	planID, ok := ctx.Value(planIDCtxKey{}).(string)
 	return planID, ok

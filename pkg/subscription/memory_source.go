@@ -14,7 +14,7 @@ type inMemSource struct {
 
 // NewInMemSource returns an in-memory Source with a deep copy of the given plans.
 // Panics if no plans are provided to ensure the service always has at least one valid plan.
-// The deep copy prevents external modifications from affecting the source's state.
+// Deep copying prevents external modifications from affecting the source's state.
 func NewInMemSource(plans ...Plan) PlansListSource {
 	plansLen := len(plans)
 	if plansLen < 1 {
@@ -41,8 +41,7 @@ func NewInMemSource(plans ...Plan) PlansListSource {
 }
 
 // Load returns a copy of all available plans from memory.
-// Returns a deep copy to prevent callers from modifying the source's internal state.
-// The copy operation is performed under read lock for thread safety.
+// Deep copying prevents callers from modifying the source's internal state.
 func (s *inMemSource) Load(ctx context.Context) (map[string]Plan, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

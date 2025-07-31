@@ -29,35 +29,35 @@ type BillingProvider interface {
 
 // CheckoutRequest contains data needed to create a checkout session.
 type CheckoutRequest struct {
-	PriceID    string // Provider's price/plan identifier
-	CustomerID string // Your internal user/tenant ID
-	Email      string // Optional billing email
-	SuccessURL string // Redirect after successful payment
-	CancelURL  string // Redirect if customer cancels
+	PriceID    string // provider's price/plan identifier
+	CustomerID string // your internal user/tenant ID
+	Email      string // optional billing email
+	SuccessURL string // redirect after successful payment
+	CancelURL  string // redirect if customer cancels
 }
 
 // CheckoutLink represents a hosted checkout session.
 type CheckoutLink struct {
-	URL       string    // Hosted checkout URL
-	SessionID string    // Provider's session identifier
-	ExpiresAt time.Time // Link expiration
+	URL       string    // hosted checkout URL
+	SessionID string    // provider's session identifier
+	ExpiresAt time.Time // link expiration
 }
 
 // PortalLink represents a customer portal session.
 type PortalLink struct {
-	URL       string    // Pre-authenticated customer portal URL
-	ExpiresAt time.Time // Link expiration (usually 24 hours)
+	URL       string    // pre-authenticated customer portal URL
+	ExpiresAt time.Time // link expiration (usually 24 hours)
 }
 
 // WebhookEvent represents a normalized webhook event from the billing provider.
 type WebhookEvent struct {
-	Type           EventType      // Normalized event type
-	ProviderEvent  string         // Original provider event name
-	SubscriptionID string         // Provider's subscription ID
-	CustomerID     string         // Your user ID from metadata
-	Status         string         // Subscription status
-	PlanID         string         // The plan/price they subscribed to
-	Raw            map[string]any // Full webhook data
+	Type           EventType      // normalized event type
+	ProviderEvent  string         // original provider event name
+	SubscriptionID string         // provider's subscription ID
+	CustomerID     string         // your user ID from metadata
+	Status         string         // subscription status
+	PlanID         string         // the plan/price they subscribed to
+	Raw            map[string]any // full webhook data
 }
 
 // EventType represents the normalized billing event type.

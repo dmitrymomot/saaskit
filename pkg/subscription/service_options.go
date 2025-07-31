@@ -4,7 +4,7 @@ package subscription
 type ServiceOption func(*service)
 
 // WithPlanIDResolver sets a custom plan ID resolver.
-// The default resolver (PlanIDContextResolver) expects plan ID in context.
+// Default resolver (PlanIDContextResolver) expects plan ID in context.
 // Use this to implement database-backed plan resolution or other strategies.
 func WithPlanIDResolver(resolver PlanIDResolver) ServiceOption {
 	return func(s *service) {
