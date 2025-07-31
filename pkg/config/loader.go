@@ -97,16 +97,8 @@ func Load[T any](v *T) error {
 		return err
 	}
 
-	// Ensure the value is loaded from cache for concurrent requests
-	globalCache.mu.RLock()
-	if cached, ok := globalCache.values[typeName]; ok {
-		*v = cached.(T)
-		globalCache.mu.RUnlock()
-		return nil
-	}
-	globalCache.mu.RUnlock()
-
-	return ErrConfigNotLoaded
+	// sync.Once guarantees the value is set if no error occurred
+	return nil
 }
 
 // MustLoad works like Load but panics if configuration loading fails.
