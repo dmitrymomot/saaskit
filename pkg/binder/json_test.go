@@ -91,7 +91,7 @@ func TestJSON(t *testing.T) {
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, binder.ErrInvalidJSON))
+		assert.True(t, errors.Is(err, binder.ErrFailedToParseJSON))
 		assert.Contains(t, err.Error(), "empty body")
 	})
 
@@ -106,7 +106,7 @@ func TestJSON(t *testing.T) {
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, binder.ErrInvalidJSON))
+		assert.True(t, errors.Is(err, binder.ErrFailedToParseJSON))
 		assert.Contains(t, err.Error(), "unexpected EOF")
 	})
 
@@ -121,7 +121,7 @@ func TestJSON(t *testing.T) {
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, binder.ErrInvalidJSON))
+		assert.True(t, errors.Is(err, binder.ErrFailedToParseJSON))
 		assert.Contains(t, err.Error(), "invalid character")
 	})
 
@@ -136,7 +136,7 @@ func TestJSON(t *testing.T) {
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, binder.ErrInvalidJSON))
+		assert.True(t, errors.Is(err, binder.ErrFailedToParseJSON))
 		assert.Contains(t, err.Error(), "cannot unmarshal")
 	})
 
@@ -151,7 +151,7 @@ func TestJSON(t *testing.T) {
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, binder.ErrInvalidJSON))
+		assert.True(t, errors.Is(err, binder.ErrFailedToParseJSON))
 		assert.Contains(t, err.Error(), "unknown")
 	})
 
@@ -166,7 +166,7 @@ func TestJSON(t *testing.T) {
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, binder.ErrInvalidJSON))
+		assert.True(t, errors.Is(err, binder.ErrFailedToParseJSON))
 		assert.Contains(t, err.Error(), "unexpected data after JSON object")
 	})
 

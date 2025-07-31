@@ -652,7 +652,7 @@ func TestForm(t *testing.T) {
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, binder.ErrInvalidForm))
+		assert.True(t, errors.Is(err, binder.ErrFailedToParseForm))
 	})
 
 	t.Run("empty values in form", func(t *testing.T) {

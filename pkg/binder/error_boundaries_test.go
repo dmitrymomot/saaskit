@@ -251,8 +251,8 @@ func testParserLimits(t *testing.T) {
 				err := binder.JSON()(req, &target)
 				if err != nil {
 					assert.Error(t, err)
-					assert.Contains(t, strings.ToLower(err.Error()), "invalid",
-						"Error should indicate invalid format")
+					assert.Contains(t, strings.ToLower(err.Error()), "failed to parse",
+						"Error should indicate parsing failure")
 				}
 			})
 		}
