@@ -8,9 +8,11 @@ import (
 )
 
 const (
-	Header      = "X-Request-ID"
+	Header = "X-Request-ID"
+	// Prevents DoS attacks via oversized IDs
 	maxIDLength = 128
-	idPattern   = "^[a-zA-Z0-9_-]+$"
+	// Alphanumeric chars prevent XSS/path traversal
+	idPattern = "^[a-zA-Z0-9_-]+$"
 )
 
 var validIDRegex = regexp.MustCompile(idPattern)
@@ -29,8 +31,5 @@ func Middleware(next http.Handler) http.Handler {
 }
 
 func isValidRequestID(id string) bool {
-	if len(id) == 0 || len(id) > maxIDLength {
-		return false
-	}
-	return validIDRegex.MatchString(id)
+	return len(id) <= maxIDLength && validIDRegex.MatchString(id)
 }
