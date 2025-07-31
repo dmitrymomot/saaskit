@@ -53,7 +53,7 @@ type weeklySchedule struct {
 }
 
 func (s weeklySchedule) Next(from time.Time) time.Time {
-	// Calculate days until target weekday
+	// Calculate days until target weekday (handles week wraparound with modulo)
 	daysUntil := (int(s.weekday) - int(from.Weekday()) + 7) % 7
 
 	next := from.AddDate(0, 0, daysUntil)
@@ -102,7 +102,7 @@ func (s hourlySchedule) String() string {
 func (s monthlySchedule) Next(from time.Time) time.Time {
 	year, month := from.Year(), from.Month()
 
-	// Handle day overflow (e.g., 31st in February)
+	// Handle month-end overflow (e.g., requesting 31st of February becomes 28th/29th)
 	day := min(s.day, daysInMonth(year, month))
 	next := time.Date(year, month, day, s.hour, s.minute, 0, 0, from.Location())
 

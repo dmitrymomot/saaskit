@@ -56,7 +56,8 @@ func WithPriority(priority Priority) EnqueueOption {
 	}
 }
 
-// WithMaxRetries sets the maximum number of retries
+// WithMaxRetries sets the maximum number of retries (0-10)
+// Capped at 10 to prevent infinite retry loops on persistent failures
 func WithMaxRetries(maxRetries int8) EnqueueOption {
 	return func(o *enqueueOptions) {
 		if maxRetries >= 0 && maxRetries <= 10 {
