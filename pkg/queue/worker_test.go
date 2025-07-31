@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,160 +14,43 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dmitrymomot/saaskit/pkg/queue"
 )
 
-// Mock repository for worker tests
-type mockWorkerRepo struct {
-	mu         sync.Mutex
-	tasks      map[uuid.UUID]*queue.Task
-	dlq        map[uuid.UUID]*queue.Task
-	claimFunc  func(ctx context.Context, workerID uuid.UUID, queues []string, lockDuration time.Duration) (*queue.Task, error)
-	claimCount atomic.Int32
+// MockWorkerRepository is a mock implementation of WorkerRepository
+type MockWorkerRepository struct {
+	mock.Mock
 }
 
-func newMockWorkerRepo() *mockWorkerRepo {
-	return &mockWorkerRepo{
-		tasks: make(map[uuid.UUID]*queue.Task),
-		dlq:   make(map[uuid.UUID]*queue.Task),
+func (m *MockWorkerRepository) ClaimTask(ctx context.Context, workerID uuid.UUID, queues []string, lockDuration time.Duration) (*queue.Task, error) {
+	args := m.Called(ctx, workerID, queues, lockDuration)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
 	}
+	return args.Get(0).(*queue.Task), args.Error(1)
 }
 
-func (m *mockWorkerRepo) ClaimTask(ctx context.Context, workerID uuid.UUID, queues []string, lockDuration time.Duration) (*queue.Task, error) {
-	m.claimCount.Add(1)
-
-	if m.claimFunc != nil {
-		return m.claimFunc(ctx, workerID, queues, lockDuration)
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	for _, task := range m.tasks {
-		// Check queue
-		queueMatch := false
-		for _, q := range queues {
-			if task.Queue == q {
-				queueMatch = true
-				break
-			}
-		}
-		if !queueMatch {
-			continue
-		}
-
-		// Check if available
-		if task.Status == queue.TaskStatusPending && task.ScheduledAt.Before(time.Now()) {
-			// Claim it
-			task.Status = queue.TaskStatusProcessing
-			lockedUntil := time.Now().Add(lockDuration)
-			task.LockedUntil = &lockedUntil
-			task.LockedBy = &workerID
-			return &queue.Task{
-				ID:          task.ID,
-				Queue:       task.Queue,
-				TaskType:    task.TaskType,
-				TaskName:    task.TaskName,
-				Payload:     task.Payload,
-				Status:      task.Status,
-				Priority:    task.Priority,
-				RetryCount:  task.RetryCount,
-				MaxRetries:  task.MaxRetries,
-				ScheduledAt: task.ScheduledAt,
-				LockedUntil: task.LockedUntil,
-				LockedBy:    task.LockedBy,
-				CreatedAt:   task.CreatedAt,
-			}, nil
-		}
-	}
-
-	return nil, queue.ErrNoTaskToClaim
+func (m *MockWorkerRepository) CompleteTask(ctx context.Context, taskID uuid.UUID) error {
+	args := m.Called(ctx, taskID)
+	return args.Error(0)
 }
 
-func (m *mockWorkerRepo) CompleteTask(ctx context.Context, taskID uuid.UUID) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	task, exists := m.tasks[taskID]
-	if !exists {
-		return fmt.Errorf("task %s not found", taskID)
-	}
-
-	if task.Status != queue.TaskStatusProcessing {
-		return fmt.Errorf("task %s not in processing state", taskID)
-	}
-
-	task.Status = queue.TaskStatusCompleted
-	now := time.Now()
-	task.ProcessedAt = &now
-	return nil
+func (m *MockWorkerRepository) FailTask(ctx context.Context, taskID uuid.UUID, errorMsg string) error {
+	args := m.Called(ctx, taskID, errorMsg)
+	return args.Error(0)
 }
 
-func (m *mockWorkerRepo) FailTask(ctx context.Context, taskID uuid.UUID, errorMsg string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	task, exists := m.tasks[taskID]
-	if !exists {
-		return fmt.Errorf("task %s not found", taskID)
-	}
-
-	task.Status = queue.TaskStatusFailed
-	task.Error = &errorMsg
-	task.RetryCount++
-
-	// Reset to pending if retries remain
-	if task.RetryCount < task.MaxRetries {
-		task.Status = queue.TaskStatusPending
-		// Add backoff
-		task.ScheduledAt = time.Now().Add(time.Duration(task.RetryCount) * time.Second)
-		task.LockedUntil = nil
-		task.LockedBy = nil
-	}
-
-	return nil
+func (m *MockWorkerRepository) MoveToDLQ(ctx context.Context, taskID uuid.UUID) error {
+	args := m.Called(ctx, taskID)
+	return args.Error(0)
 }
 
-func (m *mockWorkerRepo) MoveToDLQ(ctx context.Context, taskID uuid.UUID) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	task, exists := m.tasks[taskID]
-	if !exists {
-		return fmt.Errorf("task %s not found", taskID)
-	}
-
-	// Move to DLQ
-	m.dlq[taskID] = task
-	delete(m.tasks, taskID)
-
-	return nil
-}
-
-func (m *mockWorkerRepo) ExtendLock(ctx context.Context, taskID uuid.UUID, duration time.Duration) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	task, exists := m.tasks[taskID]
-	if !exists {
-		return fmt.Errorf("task %s not found", taskID)
-	}
-
-	if task.Status != queue.TaskStatusProcessing {
-		return fmt.Errorf("task %s not in processing state", taskID)
-	}
-
-	lockedUntil := time.Now().Add(duration)
-	task.LockedUntil = &lockedUntil
-	return nil
-}
-
-func (m *mockWorkerRepo) addTask(task *queue.Task) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.tasks[task.ID] = task
+func (m *MockWorkerRepository) ExtendLock(ctx context.Context, taskID uuid.UUID, duration time.Duration) error {
+	args := m.Called(ctx, taskID, duration)
+	return args.Error(0)
 }
 
 // Test payload types
@@ -182,8 +65,10 @@ func TestWorker_NewWorker(t *testing.T) {
 	t.Run("successful creation", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
+
+		worker, err := queue.NewWorker(mockRepo)
 		require.NoError(t, err)
 		require.NotNil(t, worker)
 	})
@@ -199,8 +84,10 @@ func TestWorker_NewWorker(t *testing.T) {
 	t.Run("with options", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo,
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
+
+		worker, err := queue.NewWorker(mockRepo,
 			queue.WithQueues("queue1", "queue2"),
 			queue.WithPullInterval(1*time.Second),
 			queue.WithLockTimeout(10*time.Minute),
@@ -217,8 +104,10 @@ func TestWorker_RegisterHandler(t *testing.T) {
 	t.Run("register single handler", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
+
+		worker, err := queue.NewWorker(mockRepo)
 		require.NoError(t, err)
 
 		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
@@ -232,8 +121,10 @@ func TestWorker_RegisterHandler(t *testing.T) {
 	t.Run("register multiple handlers", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
+
+		worker, err := queue.NewWorker(mockRepo)
 		require.NoError(t, err)
 
 		handler1 := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
@@ -250,8 +141,10 @@ func TestWorker_RegisterHandler(t *testing.T) {
 	t.Run("register nil handler", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
+
+		worker, err := queue.NewWorker(mockRepo)
 		require.NoError(t, err)
 
 		err = worker.RegisterHandler(nil)
@@ -265,8 +158,14 @@ func TestWorker_StartStop(t *testing.T) {
 	t.Run("start and stop successfully", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo, queue.WithPullInterval(50*time.Millisecond))
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
+
+		// Expect ClaimTask to be called multiple times and return no tasks
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(nil, queue.ErrNoTaskToClaim).Maybe()
+
+		worker, err := queue.NewWorker(mockRepo, queue.WithPullInterval(50*time.Millisecond))
 		require.NoError(t, err)
 
 		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
@@ -291,8 +190,10 @@ func TestWorker_StartStop(t *testing.T) {
 	t.Run("start without handlers", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
+
+		worker, err := queue.NewWorker(mockRepo)
 		require.NoError(t, err)
 
 		err = worker.Start(context.Background())
@@ -302,8 +203,14 @@ func TestWorker_StartStop(t *testing.T) {
 	t.Run("double start error", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
+
+		// Expect ClaimTask to be called multiple times
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(nil, queue.ErrNoTaskToClaim).Maybe()
+
+		worker, err := queue.NewWorker(mockRepo)
 		require.NoError(t, err)
 
 		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
@@ -328,8 +235,10 @@ func TestWorker_StartStop(t *testing.T) {
 	t.Run("stop without start", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
+
+		worker, err := queue.NewWorker(mockRepo)
 		require.NoError(t, err)
 
 		err = worker.Stop()
@@ -344,19 +253,10 @@ func TestWorker_ProcessTask(t *testing.T) {
 	t.Run("successful task processing", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo, queue.WithPullInterval(50*time.Millisecond))
-		require.NoError(t, err)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
 
-		processed := make(chan testPayload, 1)
-		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
-			processed <- payload
-			return nil
-		})
-		err = worker.RegisterHandler(handler)
-		require.NoError(t, err)
-
-		// Add a task
+		// Create task
 		payload := testPayload{Message: "test", Value: 42}
 		payloadBytes, _ := json.Marshal(payload)
 		task := &queue.Task{
@@ -371,7 +271,25 @@ func TestWorker_ProcessTask(t *testing.T) {
 			ScheduledAt: time.Now().Add(-time.Minute),
 			CreatedAt:   time.Now(),
 		}
-		repo.addTask(task)
+
+		// Set up expectations
+		// First call returns the task, subsequent calls return no task
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(task, nil).Once()
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(nil, queue.ErrNoTaskToClaim).Maybe()
+		mockRepo.On("CompleteTask", mock.Anything, task.ID).Return(nil).Once()
+
+		worker, err := queue.NewWorker(mockRepo, queue.WithPullInterval(50*time.Millisecond))
+		require.NoError(t, err)
+
+		processed := make(chan testPayload, 1)
+		handler := queue.NewTaskHandler(func(ctx context.Context, p testPayload) error {
+			processed <- p
+			return nil
+		})
+		err = worker.RegisterHandler(handler)
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -388,30 +306,16 @@ func TestWorker_ProcessTask(t *testing.T) {
 			t.Fatal("task not processed in time")
 		}
 
-		// Verify task completed
-		repo.mu.Lock()
-		assert.Equal(t, queue.TaskStatusCompleted, repo.tasks[task.ID].Status)
-		repo.mu.Unlock()
-
 		_ = worker.Stop()
 	})
 
 	t.Run("task failure with retry", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo, queue.WithPullInterval(50*time.Millisecond))
-		require.NoError(t, err)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
 
-		attempts := atomic.Int32{}
-		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
-			attempts.Add(1)
-			return errors.New("processing failed")
-		})
-		err = worker.RegisterHandler(handler)
-		require.NoError(t, err)
-
-		// Add a task
+		// Create task
 		payload := testPayload{Message: "fail", Value: 0}
 		payloadBytes, _ := json.Marshal(payload)
 		task := &queue.Task{
@@ -427,7 +331,24 @@ func TestWorker_ProcessTask(t *testing.T) {
 			ScheduledAt: time.Now().Add(-time.Minute),
 			CreatedAt:   time.Now(),
 		}
-		repo.addTask(task)
+
+		// Set up expectations
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(task, nil).Once()
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(nil, queue.ErrNoTaskToClaim).Maybe()
+		mockRepo.On("FailTask", mock.Anything, task.ID, "processing failed").Return(nil).Once()
+
+		worker, err := queue.NewWorker(mockRepo, queue.WithPullInterval(50*time.Millisecond))
+		require.NoError(t, err)
+
+		attempts := atomic.Int32{}
+		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
+			attempts.Add(1)
+			return errors.New("processing failed")
+		})
+		err = worker.RegisterHandler(handler)
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -438,12 +359,7 @@ func TestWorker_ProcessTask(t *testing.T) {
 		// Wait for first attempt
 		time.Sleep(200 * time.Millisecond)
 
-		// Verify task failed but can retry
-		repo.mu.Lock()
-		assert.Equal(t, queue.TaskStatusPending, repo.tasks[task.ID].Status)
-		assert.Equal(t, int8(1), repo.tasks[task.ID].RetryCount)
-		assert.NotNil(t, repo.tasks[task.ID].Error)
-		repo.mu.Unlock()
+		assert.Equal(t, int32(1), attempts.Load())
 
 		_ = worker.Stop()
 	})
@@ -451,19 +367,10 @@ func TestWorker_ProcessTask(t *testing.T) {
 	t.Run("task failure to DLQ after max retries", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo, queue.WithPullInterval(50*time.Millisecond))
-		require.NoError(t, err)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
 
-		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
-			return errors.New("permanent failure")
-		})
-		err = worker.RegisterHandler(handler)
-		require.NoError(t, err)
-
-		// Add a task already at max retries minus 1
-		// When it fails, FailTask will increment to MaxRetries
-		// Worker checks pre-increment value, so we need RetryCount = MaxRetries - 1
+		// Create task already at max retries
 		payload := testPayload{Message: "dlq", Value: 0}
 		payloadBytes, _ := json.Marshal(payload)
 		task := &queue.Task{
@@ -479,7 +386,23 @@ func TestWorker_ProcessTask(t *testing.T) {
 			ScheduledAt: time.Now().Add(-time.Minute),
 			CreatedAt:   time.Now(),
 		}
-		repo.addTask(task)
+
+		// Set up expectations
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(task, nil).Once()
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(nil, queue.ErrNoTaskToClaim).Maybe()
+		mockRepo.On("FailTask", mock.Anything, task.ID, "permanent failure").Return(nil).Once()
+		mockRepo.On("MoveToDLQ", mock.Anything, task.ID).Return(nil).Once()
+
+		worker, err := queue.NewWorker(mockRepo, queue.WithPullInterval(50*time.Millisecond))
+		require.NoError(t, err)
+
+		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
+			return errors.New("permanent failure")
+		})
+		err = worker.RegisterHandler(handler)
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -490,33 +413,16 @@ func TestWorker_ProcessTask(t *testing.T) {
 		// Wait for processing
 		time.Sleep(200 * time.Millisecond)
 
-		// Verify task moved to DLQ
-		repo.mu.Lock()
-		_, inTasks := repo.tasks[task.ID]
-		_, inDLQ := repo.dlq[task.ID]
-		repo.mu.Unlock()
-
-		assert.False(t, inTasks, "task should not be in regular tasks")
-		assert.True(t, inDLQ, "task should be in DLQ")
-
 		_ = worker.Stop()
 	})
 
 	t.Run("missing handler moves to DLQ", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo, queue.WithPullInterval(50*time.Millisecond))
-		require.NoError(t, err)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
 
-		// Register handler for different task type
-		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
-			return nil
-		})
-		err = worker.RegisterHandler(handler)
-		require.NoError(t, err)
-
-		// Add a task with unregistered handler
+		// Create task with unregistered handler
 		task := &queue.Task{
 			ID:          uuid.New(),
 			Queue:       queue.DefaultQueueName,
@@ -529,7 +435,24 @@ func TestWorker_ProcessTask(t *testing.T) {
 			ScheduledAt: time.Now().Add(-time.Minute),
 			CreatedAt:   time.Now(),
 		}
-		repo.addTask(task)
+
+		// Set up expectations
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(task, nil).Once()
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(nil, queue.ErrNoTaskToClaim).Maybe()
+		mockRepo.On("FailTask", mock.Anything, task.ID, "no handler registered for task type: unregistered.Handler").Return(nil).Once()
+		mockRepo.On("MoveToDLQ", mock.Anything, task.ID).Return(nil).Once()
+
+		worker, err := queue.NewWorker(mockRepo, queue.WithPullInterval(50*time.Millisecond))
+		require.NoError(t, err)
+
+		// Register handler for different task type
+		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
+			return nil
+		})
+		err = worker.RegisterHandler(handler)
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -540,32 +463,16 @@ func TestWorker_ProcessTask(t *testing.T) {
 		// Wait for processing
 		time.Sleep(200 * time.Millisecond)
 
-		// Verify task moved to DLQ
-		repo.mu.Lock()
-		_, inTasks := repo.tasks[task.ID]
-		_, inDLQ := repo.dlq[task.ID]
-		repo.mu.Unlock()
-
-		assert.False(t, inTasks, "task should not be in regular tasks")
-		assert.True(t, inDLQ, "task should be in DLQ")
-
 		_ = worker.Stop()
 	})
 
 	t.Run("handler panic recovery", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo, queue.WithPullInterval(50*time.Millisecond))
-		require.NoError(t, err)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
 
-		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
-			panic("handler panic!")
-		})
-		err = worker.RegisterHandler(handler)
-		require.NoError(t, err)
-
-		// Add a task
+		// Create task
 		payload := testPayload{Message: "panic", Value: 0}
 		payloadBytes, _ := json.Marshal(payload)
 		task := &queue.Task{
@@ -581,7 +488,24 @@ func TestWorker_ProcessTask(t *testing.T) {
 			ScheduledAt: time.Now().Add(-time.Minute),
 			CreatedAt:   time.Now(),
 		}
-		repo.addTask(task)
+
+		// Set up expectations
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(task, nil).Once()
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(nil, queue.ErrNoTaskToClaim).Maybe()
+		mockRepo.On("FailTask", mock.Anything, task.ID, mock.MatchedBy(func(msg string) bool {
+			return strings.Contains(msg, "panic")
+		})).Return(nil).Once()
+
+		worker, err := queue.NewWorker(mockRepo, queue.WithPullInterval(50*time.Millisecond))
+		require.NoError(t, err)
+
+		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
+			panic("handler panic!")
+		})
+		err = worker.RegisterHandler(handler)
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -591,14 +515,6 @@ func TestWorker_ProcessTask(t *testing.T) {
 
 		// Wait for processing
 		time.Sleep(200 * time.Millisecond)
-
-		// Verify task failed but didn't crash worker
-		repo.mu.Lock()
-		assert.Equal(t, queue.TaskStatusPending, repo.tasks[task.ID].Status) // Should retry
-		assert.Equal(t, int8(1), repo.tasks[task.ID].RetryCount)
-		assert.NotNil(t, repo.tasks[task.ID].Error)
-		assert.Contains(t, *repo.tasks[task.ID].Error, "panic")
-		repo.mu.Unlock()
 
 		// Worker should still be running
 		err = worker.Stop()
@@ -612,8 +528,44 @@ func TestWorker_ConcurrentProcessing(t *testing.T) {
 	t.Run("processes multiple tasks concurrently", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo,
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
+
+		// Create multiple tasks
+		tasks := make([]*queue.Task, 6)
+		for i := range 6 {
+			payload := testPayload{Message: "concurrent", Value: i}
+			payloadBytes, _ := json.Marshal(payload)
+			tasks[i] = &queue.Task{
+				ID:          uuid.New(),
+				Queue:       queue.DefaultQueueName,
+				TaskType:    queue.TaskTypeOneTime,
+				TaskName:    "queue_test.testPayload",
+				Payload:     payloadBytes,
+				Status:      queue.TaskStatusPending,
+				Priority:    queue.PriorityMedium,
+				MaxRetries:  3,
+				ScheduledAt: time.Now().Add(-time.Minute),
+				CreatedAt:   time.Now(),
+			}
+		}
+
+		// Set up expectations - tasks will be claimed and completed
+		// Set up claim expectations sequentially
+		for _, task := range tasks {
+			mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+				Return(task, nil).Once()
+		}
+		// After all tasks are claimed, return no task
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(nil, queue.ErrNoTaskToClaim).Maybe()
+
+		// Expect CompleteTask for each task
+		for _, task := range tasks {
+			mockRepo.On("CompleteTask", mock.Anything, task.ID).Return(nil).Once()
+		}
+
+		worker, err := queue.NewWorker(mockRepo,
 			queue.WithPullInterval(10*time.Millisecond),
 			queue.WithMaxConcurrentTasks(3),
 		)
@@ -644,25 +596,6 @@ func TestWorker_ConcurrentProcessing(t *testing.T) {
 		err = worker.RegisterHandler(handler)
 		require.NoError(t, err)
 
-		// Add multiple tasks
-		for i := range 6 {
-			payload := testPayload{Message: "concurrent", Value: i}
-			payloadBytes, _ := json.Marshal(payload)
-			task := &queue.Task{
-				ID:          uuid.New(),
-				Queue:       queue.DefaultQueueName,
-				TaskType:    queue.TaskTypeOneTime,
-				TaskName:    "queue_test.testPayload",
-				Payload:     payloadBytes,
-				Status:      queue.TaskStatusPending,
-				Priority:    queue.PriorityMedium,
-				MaxRetries:  3,
-				ScheduledAt: time.Now().Add(-time.Minute),
-				CreatedAt:   time.Now(),
-			}
-			repo.addTask(task)
-		}
-
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -688,23 +621,10 @@ func TestWorker_GracefulShutdown(t *testing.T) {
 	t.Run("waits for active tasks to complete", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo, queue.WithPullInterval(10*time.Millisecond))
-		require.NoError(t, err)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
 
-		taskStarted := make(chan struct{})
-		taskCompleted := atomic.Bool{}
-
-		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
-			close(taskStarted)
-			time.Sleep(200 * time.Millisecond)
-			taskCompleted.Store(true)
-			return nil
-		})
-		err = worker.RegisterHandler(handler)
-		require.NoError(t, err)
-
-		// Add a task
+		// Create task
 		payload := testPayload{Message: "shutdown", Value: 1}
 		payloadBytes, _ := json.Marshal(payload)
 		task := &queue.Task{
@@ -719,7 +639,28 @@ func TestWorker_GracefulShutdown(t *testing.T) {
 			ScheduledAt: time.Now().Add(-time.Minute),
 			CreatedAt:   time.Now(),
 		}
-		repo.addTask(task)
+
+		// Set up expectations
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(task, nil).Once()
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(nil, queue.ErrNoTaskToClaim).Maybe()
+		mockRepo.On("CompleteTask", mock.Anything, task.ID).Return(nil).Once()
+
+		worker, err := queue.NewWorker(mockRepo, queue.WithPullInterval(10*time.Millisecond))
+		require.NoError(t, err)
+
+		taskStarted := make(chan struct{})
+		taskCompleted := atomic.Bool{}
+
+		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
+			close(taskStarted)
+			time.Sleep(200 * time.Millisecond)
+			taskCompleted.Store(true)
+			return nil
+		})
+		err = worker.RegisterHandler(handler)
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -753,8 +694,14 @@ func TestWorker_RunFunction(t *testing.T) {
 	t.Run("run function for errgroup", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo, queue.WithPullInterval(50*time.Millisecond))
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
+
+		// Expect ClaimTask to be called and return no tasks
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{queue.DefaultQueueName}, mock.Anything).
+			Return(nil, queue.ErrNoTaskToClaim).Maybe()
+
+		worker, err := queue.NewWorker(mockRepo, queue.WithPullInterval(50*time.Millisecond))
 		require.NoError(t, err)
 
 		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
@@ -778,26 +725,19 @@ func TestWorker_ExtendLockForTask(t *testing.T) {
 	t.Run("extends lock successfully", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo)
-		require.NoError(t, err)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
 
 		taskID := uuid.New()
-		task := &queue.Task{
-			ID:          taskID,
-			Status:      queue.TaskStatusProcessing,
-			LockedUntil: ptrTime(time.Now().Add(time.Minute)),
-		}
-		repo.addTask(task)
+
+		// Set up expectation
+		mockRepo.On("ExtendLock", mock.Anything, taskID, 5*time.Minute).Return(nil).Once()
+
+		worker, err := queue.NewWorker(mockRepo)
+		require.NoError(t, err)
 
 		err = worker.ExtendLockForTask(context.Background(), taskID, 5*time.Minute)
 		assert.NoError(t, err)
-
-		// Verify lock was extended
-		repo.mu.Lock()
-		assert.NotNil(t, repo.tasks[taskID].LockedUntil)
-		assert.True(t, repo.tasks[taskID].LockedUntil.After(time.Now().Add(4*time.Minute)))
-		repo.mu.Unlock()
 	})
 }
 
@@ -807,8 +747,10 @@ func TestWorker_WorkerInfo(t *testing.T) {
 	t.Run("returns worker information", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
+
+		worker, err := queue.NewWorker(mockRepo)
 		require.NoError(t, err)
 
 		id, hostname, pid := worker.WorkerInfo()
@@ -824,26 +766,11 @@ func TestWorker_QueueFiltering(t *testing.T) {
 	t.Run("processes only specified queues", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newMockWorkerRepo()
-		worker, err := queue.NewWorker(repo,
-			queue.WithQueues("priority", "batch"),
-			queue.WithPullInterval(50*time.Millisecond),
-		)
-		require.NoError(t, err)
+		mockRepo := new(MockWorkerRepository)
+		defer mockRepo.AssertExpectations(t)
 
-		processed := make(map[string]int)
-		mu := sync.Mutex{}
-
-		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
-			mu.Lock()
-			processed[payload.Message]++
-			mu.Unlock()
-			return nil
-		})
-		err = worker.RegisterHandler(handler)
-		require.NoError(t, err)
-
-		// Add tasks to different queues
+		// Create tasks for different queues
+		tasks := make(map[string]*queue.Task)
 		queues := map[string]string{
 			"priority": "should-process-1",
 			"batch":    "should-process-2",
@@ -865,8 +792,41 @@ func TestWorker_QueueFiltering(t *testing.T) {
 				ScheduledAt: time.Now().Add(-time.Minute),
 				CreatedAt:   time.Now(),
 			}
-			repo.addTask(task)
+			tasks[queueName] = task
 		}
+
+		// Set up expectations - only tasks from priority and batch queues should be claimed
+		// First claim returns priority task
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{"priority", "batch"}, mock.Anything).
+			Return(tasks["priority"], nil).Once()
+		// Second claim returns batch task
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{"priority", "batch"}, mock.Anything).
+			Return(tasks["batch"], nil).Once()
+		// All subsequent claims return no task
+		mockRepo.On("ClaimTask", mock.Anything, mock.Anything, []string{"priority", "batch"}, mock.Anything).
+			Return(nil, queue.ErrNoTaskToClaim).Maybe()
+
+		// Expect CompleteTask for the two tasks that should be processed
+		mockRepo.On("CompleteTask", mock.Anything, tasks["priority"].ID).Return(nil).Once()
+		mockRepo.On("CompleteTask", mock.Anything, tasks["batch"].ID).Return(nil).Once()
+
+		worker, err := queue.NewWorker(mockRepo,
+			queue.WithQueues("priority", "batch"),
+			queue.WithPullInterval(50*time.Millisecond),
+		)
+		require.NoError(t, err)
+
+		processed := make(map[string]int)
+		mu := sync.Mutex{}
+
+		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
+			mu.Lock()
+			processed[payload.Message]++
+			mu.Unlock()
+			return nil
+		})
+		err = worker.RegisterHandler(handler)
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
