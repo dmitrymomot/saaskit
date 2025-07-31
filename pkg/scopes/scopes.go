@@ -19,8 +19,7 @@ const (
 
 // ParseScopes converts a space-separated string of scopes into a string slice.
 //
-// It handles trimming of extra spaces and removes empty entries. Returns nil if the input is empty.
-// Efficiently processes the input string to minimize allocations.
+// Trims spaces, removes empty entries, and minimizes allocations. Returns nil for empty input.
 //
 // Example:
 //
@@ -104,7 +103,6 @@ func HasScope(scopes []string, scope string) bool {
 }
 
 // hasWildcard checks if any scope in the collection is the global wildcard.
-// Extracted as a helper function to reduce code duplication.
 func hasWildcard(scopes []string) bool {
 	return slices.Contains(scopes, ScopeWildcard)
 }
@@ -181,8 +179,7 @@ func HasAnyScopes(scopes, required []string) bool {
 
 // EqualScopes checks if two scope collections are identical (same scopes, regardless of order).
 //
-// It sorts both collections before comparison to handle different ordering.
-// This implementation minimizes memory allocations when possible.
+// Uses optimized comparison strategies based on slice size to minimize allocations.
 //
 // Example:
 //
@@ -196,7 +193,7 @@ func EqualScopes(scopes1, scopes2 []string) bool {
 		return false
 	}
 
-	// For small slice sizes, sorting in-place is more efficient
+	// For small slices, sorting is more efficient than maps
 	if len(scopes1) <= 4 {
 		// Create copies to avoid modifying originals
 		s1 := make([]string, len(scopes1))
@@ -212,7 +209,7 @@ func EqualScopes(scopes1, scopes2 []string) bool {
 		return slices.Equal(s1, s2)
 	}
 
-	// For larger slices, use maps for O(n) comparison
+	// For larger slices, use maps for O(n) performance
 	scopeMap := make(map[string]int, len(scopes1))
 	for _, s := range scopes1 {
 		scopeMap[s]++
@@ -231,9 +228,8 @@ func EqualScopes(scopes1, scopes2 []string) bool {
 
 // ValidateScopes checks if all scopes are valid according to the provided valid scopes.
 //
-// A scope is considered valid if it matches any of the validScopes (including wildcards).
-// Empty scopes are always considered valid, but empty validScopes will cause validation to fail.
-// Uses optimized validation strategy based on the size of the input collections.
+// Supports wildcards and uses optimized strategies based on collection size.
+// Empty scopes are valid, but empty validScopes causes validation to fail.
 //
 // Example:
 //
@@ -255,7 +251,7 @@ func ValidateScopes(scopes, validScopes []string) bool {
 		return true
 	}
 
-	// For larger valid scopes collections, use map-based approach for better performance
+	// Use map-based validation for large collections (better performance)
 	if len(validScopes) > 10 && len(scopes) > 5 {
 		return validateScopesWithMap(scopes, validScopes)
 	}
@@ -276,10 +272,9 @@ func ValidateScopes(scopes, validScopes []string) bool {
 	return true
 }
 
-// validateScopesWithMap is an optimized validation approach for large collections
-// that preprocesses valid scopes for faster lookup.
+// validateScopesWithMap optimizes validation for large collections by preprocessing valid scopes.
 func validateScopesWithMap(scopes, validScopes []string) bool {
-	// Build a map of exact matches for faster lookup
+	// Separate exact matches from wildcard patterns for O(1) lookup
 	exactMatches := make(map[string]struct{}, len(validScopes))
 	wildcardPatterns := make([]string, 0, len(validScopes)/2)
 
@@ -293,12 +288,12 @@ func validateScopesWithMap(scopes, validScopes []string) bool {
 
 	// Validate each scope
 	for _, scope := range scopes {
-		// First check for exact match (O(1) operation)
+		// Check exact match first (O(1))
 		if _, ok := exactMatches[scope]; ok {
 			continue
 		}
 
-		// Then check for wildcard patterns (more expensive)
+		// Then check wildcard patterns
 		isValid := false
 		for _, pattern := range wildcardPatterns {
 			if ScopeMatches(scope, pattern) {
@@ -317,9 +312,8 @@ func validateScopesWithMap(scopes, validScopes []string) bool {
 
 // NormalizeScopes removes duplicate scopes and sorts them alphabetically.
 //
-// This is useful for consistent scope handling and storage.
-// Returns nil if the input slice is nil or empty.
-// Optimized for different input sizes to balance performance.
+// Uses size-optimized strategies for consistent performance.
+// Returns nil for empty input.
 //
 // Example:
 //
@@ -330,7 +324,7 @@ func NormalizeScopes(scopes []string) []string {
 		return nil
 	}
 
-	// For very small inputs, use a simpler approach to avoid map overhead
+	// Use simpler approach for small inputs to avoid map overhead
 	if len(scopes) <= 3 {
 		switch len(scopes) {
 		case 1:
@@ -344,17 +338,17 @@ func NormalizeScopes(scopes []string) []string {
 			}
 			return []string{scopes[1], scopes[0]}
 		case 3:
-			// For 3 items, we can still optimize without using maps
+			// Optimize 3-item case without maps
 			uniqueScopes := make([]string, 0, 3)
 
-			// Simple deduplication
+			// Deduplicate manually
 			for i := range scopes {
 				if !slices.Contains(uniqueScopes, scopes[i]) {
 					uniqueScopes = append(uniqueScopes, scopes[i])
 				}
 			}
 
-			// Simple sort for up to 3 items
+			// Sort manually for small collections
 			if len(uniqueScopes) > 1 {
 				sort.Strings(uniqueScopes)
 			}
@@ -363,19 +357,19 @@ func NormalizeScopes(scopes []string) []string {
 		}
 	}
 
-	// For larger inputs, use map-based approach
+	// Use map-based deduplication for larger inputs
 	uniqueMap := make(map[string]struct{}, len(scopes))
 	for i := range scopes {
 		uniqueMap[scopes[i]] = struct{}{}
 	}
 
-	// Create a new slice with unique scopes
+	// Extract unique scopes into slice
 	normalizedScopes := make([]string, 0, len(uniqueMap))
 	for scope := range uniqueMap {
 		normalizedScopes = append(normalizedScopes, scope)
 	}
 
-	// Sort the slice for consistent output
+	// Sort for consistent output
 	sort.Strings(normalizedScopes)
 
 	return normalizedScopes
