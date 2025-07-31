@@ -14,47 +14,46 @@ import (
 type Format string
 
 const (
-	// FormatJSON outputs logs as JSON.
+	// FormatJSON outputs structured logs for production log aggregation systems.
 	FormatJSON Format = "json"
-	// FormatText outputs human readable text.
+	// FormatText outputs human-readable logs for development debugging.
 	FormatText Format = "text"
 )
 
 // Option configures logger creation.
 type Option func(*config)
 
-// WithLevel sets logger level.
 func WithLevel(l slog.Level) Option {
 	return func(c *config) { c.level = l }
 }
 
 // WithFormat sets output format.
+// Panics for invalid formats to enforce fail-fast initialization - framework
+// misconfiguration should prevent startup rather than cause runtime errors.
 func WithFormat(f Format) Option {
 	return func(c *config) {
 		switch f {
 		case FormatJSON, FormatText:
 			c.format = f
 		default:
-			panic(fmt.Errorf("invalid log format: %s", f))
+			panic(fmt.Errorf("invalid log format %q: must be %q or %q", f, FormatJSON, FormatText))
 		}
 	}
 }
 
-// WithTextFormatter sets the output format to text.
 func WithTextFormatter() Option {
 	return func(c *config) {
 		c.format = FormatText
 	}
 }
 
-// WithJSONFormatter sets the output format to JSON.
 func WithJSONFormatter() Option {
 	return func(c *config) {
 		c.format = FormatJSON
 	}
 }
 
-// WithOutput sets the writer for log output.
+// WithOutput sets custom output destination, ignoring nil writers for safety.
 func WithOutput(w io.Writer) Option {
 	return func(c *config) {
 		if w != nil {
@@ -63,7 +62,8 @@ func WithOutput(w io.Writer) Option {
 	}
 }
 
-// WithHandlerOptions sets slog.HandlerOptions.
+// WithHandlerOptions allows fine-grained control over slog behavior.
+// Nil options are ignored to prevent accidental misconfiguration.
 func WithHandlerOptions(opts *slog.HandlerOptions) Option {
 	return func(c *config) {
 		if opts != nil {
@@ -72,7 +72,8 @@ func WithHandlerOptions(opts *slog.HandlerOptions) Option {
 	}
 }
 
-// WithAttr adds default attributes to every log entry.
+// WithAttr adds static attributes to every log record.
+// Empty attribute lists are ignored to avoid allocation overhead.
 func WithAttr(attrs ...slog.Attr) Option {
 	return func(c *config) {
 		if len(attrs) > 0 {
@@ -81,7 +82,8 @@ func WithAttr(attrs ...slog.Attr) Option {
 	}
 }
 
-// WithContextExtractors registers extractors injecting attributes from context.
+// WithContextExtractors registers functions that inject dynamic attributes from context.
+// Nil extractors are filtered out defensively to prevent runtime panics.
 func WithContextExtractors(extractors ...ContextExtractor) Option {
 	return func(c *config) {
 		for _, ex := range extractors {
@@ -93,6 +95,8 @@ func WithContextExtractors(extractors ...ContextExtractor) Option {
 }
 
 // WithContextValue is a convenience wrapper adding a context value extractor.
+// Creates a closure that extracts values from context during logging, enabling
+// automatic injection of request-scoped data like request IDs.
 func WithContextValue(name string, key any) Option {
 	return func(c *config) {
 		if name == "" || key == nil {
@@ -108,6 +112,7 @@ func WithContextValue(name string, key any) Option {
 }
 
 // WithDevelopment configures development defaults.
+// Uses text format for readability and debug level for detailed diagnostics.
 func WithDevelopment(service string) Option {
 	return func(c *config) {
 		if service == "" {
@@ -126,6 +131,7 @@ func WithDevelopment(service string) Option {
 }
 
 // WithProduction configures production defaults.
+// Uses JSON format for structured logging and info level to reduce noise.
 func WithProduction(service string) Option {
 	return func(c *config) {
 		if service == "" {
@@ -143,7 +149,6 @@ func WithProduction(service string) Option {
 	}
 }
 
-// WithStaging configures staging defaults.
 func WithStaging(service string) Option {
 	return func(c *config) {
 		if service == "" {
@@ -161,7 +166,6 @@ func WithStaging(service string) Option {
 	}
 }
 
-// WithEnvironment configures logger based on environment.
 func WithEnvironment(env string, service string) Option {
 	return func(c *config) {
 		switch env {
@@ -175,7 +179,6 @@ func WithEnvironment(env string, service string) Option {
 	}
 }
 
-// SetAsDefault sets logger as the default slog logger.
 func SetAsDefault(l *slog.Logger) {
 	slog.SetDefault(l)
 }
@@ -189,6 +192,8 @@ type config struct {
 	extractors     []ContextExtractor
 }
 
+// defaultConfig provides production-safe defaults: JSON format with INFO level.
+// JSON ensures compatibility with log aggregation systems, INFO reduces noise.
 func defaultConfig() *config {
 	return &config{
 		level:  slog.LevelInfo,
@@ -197,7 +202,9 @@ func defaultConfig() *config {
 	}
 }
 
-// New creates a slog.Logger configured by the provided options.
+// New creates a configured slog.Logger with context injection capabilities.
+// Applies options, creates appropriate handler, and wraps with decorator for
+// automatic context attribute extraction in the logging hot path.
 func New(opts ...Option) *slog.Logger {
 	cfg := defaultConfig()
 	for _, opt := range opts {
