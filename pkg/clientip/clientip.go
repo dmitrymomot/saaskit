@@ -7,12 +7,7 @@ import (
 )
 
 // GetIP returns the client's IP address from HTTP request.
-// Priority order optimized for DigitalOcean App Platform:
-// 1. CF-Connecting-IP (Cloudflare → DigitalOcean Apps)
-// 2. DO-Connecting-IP (DigitalOcean App Platform primary header)
-// 3. X-Forwarded-For (Standard proxy header, parse first IP)
-// 4. X-Real-IP (Nginx reverse proxy)
-// 5. RemoteAddr (Direct connection fallback)
+// See package documentation for header priority details.
 func GetIP(r *http.Request) string {
 	if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
 		if parsed := parseIP(ip); parsed != "" {
@@ -27,7 +22,7 @@ func GetIP(r *http.Request) string {
 	}
 
 	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		// X-Forwarded-For can contain multiple IPs, find the first valid one
+		// X-Forwarded-For contains comma-separated IPs; use the leftmost (client origin)
 		for ip := range strings.SplitSeq(forwarded, ",") {
 			if parsed := parseIP(strings.TrimSpace(ip)); parsed != "" {
 				return parsed
@@ -43,7 +38,7 @@ func GetIP(r *http.Request) string {
 
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		// If SplitHostPort fails, assume it's already just an IP
+		// RemoteAddr might be just IP without port in some environments
 		if parsed := parseIP(r.RemoteAddr); parsed != "" {
 			return parsed
 		}
@@ -56,7 +51,6 @@ func GetIP(r *http.Request) string {
 }
 
 // parseIP validates and normalizes an IP address string.
-// Returns empty string if the IP is invalid.
 func parseIP(ipStr string) string {
 	ipStr = strings.TrimSpace(ipStr)
 	if ipStr == "" {
@@ -68,7 +62,7 @@ func parseIP(ipStr string) string {
 		return ""
 	}
 
-	// Reject 0.0.0.0 as it's the unspecified address
+	// Reject 0.0.0.0 which indicates no valid client IP was provided
 	if ip.Equal(net.IPv4zero) {
 		return ""
 	}
