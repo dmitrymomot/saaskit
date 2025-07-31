@@ -876,16 +876,6 @@ func LenMap[K comparable, V any](field string, value map[K]V, exact int) Rule
 func RequiredComparable[T comparable](field string, value T) Rule
 ```
 
-### Error Types
-
-```go
-var ErrValidationFailed = errors.New("validation failed")
-var ErrFieldRequired = errors.New("field is required")
-var ErrInvalidLength = errors.New("invalid length")
-var ErrInvalidValue = errors.New("invalid value")
-var ErrOutOfRange = errors.New("value out of range")
-var ErrInvalidFormat = errors.New("invalid format")
-```
 
 ## Benefits of Generic Approach
 
