@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// FilterEmpty removes empty strings from a slice.
+// FilterEmpty removes whitespace-only entries to prevent empty form fields from polluting data.
 func FilterEmpty(slice []string) []string {
 	result := make([]string, 0)
 	for _, item := range slice {
@@ -17,7 +17,7 @@ func FilterEmpty(slice []string) []string {
 	return result
 }
 
-// Deduplicate removes duplicate items from a slice while preserving order.
+// Deduplicate preserves first occurrence order to maintain user intent in form submissions.
 func Deduplicate[T comparable](slice []T) []T {
 	seen := make(map[T]bool)
 	result := make([]T, 0)
@@ -32,12 +32,11 @@ func Deduplicate[T comparable](slice []T) []T {
 	return result
 }
 
-// DeduplicateStrings removes duplicate strings (case-sensitive).
 func DeduplicateStrings(slice []string) []string {
 	return Deduplicate(slice)
 }
 
-// DeduplicateStringsIgnoreCase removes duplicate strings (case-insensitive).
+// DeduplicateStringsIgnoreCase preserves original casing of first occurrence.
 func DeduplicateStringsIgnoreCase(slice []string) []string {
 	seen := make(map[string]bool)
 	result := make([]string, 0)
@@ -53,7 +52,7 @@ func DeduplicateStringsIgnoreCase(slice []string) []string {
 	return result
 }
 
-// LimitSliceLength truncates a slice to the specified maximum length.
+// LimitSliceLength prevents memory exhaustion from malicious input arrays.
 func LimitSliceLength[T any](slice []T, maxLength int) []T {
 	if maxLength <= 0 {
 		return []T{}
@@ -66,7 +65,7 @@ func LimitSliceLength[T any](slice []T, maxLength int) []T {
 	return slice[:maxLength]
 }
 
-// SortStrings sorts a string slice in ascending order.
+// SortStrings creates sorted copy to avoid mutating input slice.
 func SortStrings(slice []string) []string {
 	result := make([]string, len(slice))
 	copy(result, slice)
@@ -74,7 +73,7 @@ func SortStrings(slice []string) []string {
 	return result
 }
 
-// SortStringsIgnoreCase sorts a string slice in ascending order (case-insensitive).
+// SortStringsIgnoreCase preserves original casing while sorting by lowercase comparison.
 func SortStringsIgnoreCase(slice []string) []string {
 	result := make([]string, len(slice))
 	copy(result, slice)
@@ -86,7 +85,7 @@ func SortStringsIgnoreCase(slice []string) []string {
 	return result
 }
 
-// FilterSliceByPattern removes strings that match the given pattern.
+// FilterSliceByPattern uses case-insensitive substring matching for user-friendly filtering.
 func FilterSliceByPattern(slice []string, pattern string) []string {
 	result := make([]string, 0)
 	for _, item := range slice {
@@ -97,7 +96,6 @@ func FilterSliceByPattern(slice []string, pattern string) []string {
 	return result
 }
 
-// TrimStringSlice trims whitespace from all strings in a slice.
 func TrimStringSlice(slice []string) []string {
 	result := make([]string, len(slice))
 	for i, item := range slice {
@@ -106,7 +104,6 @@ func TrimStringSlice(slice []string) []string {
 	return result
 }
 
-// ToLowerStringSlice converts all strings in a slice to lowercase.
 func ToLowerStringSlice(slice []string) []string {
 	result := make([]string, len(slice))
 	for i, item := range slice {
@@ -115,7 +112,7 @@ func ToLowerStringSlice(slice []string) []string {
 	return result
 }
 
-// CleanStringSlice applies comprehensive cleaning to a string slice.
+// CleanStringSlice applies standard form data cleanup pipeline.
 func CleanStringSlice(slice []string) []string {
 	return Apply(slice,
 		TrimStringSlice,
@@ -124,7 +121,7 @@ func CleanStringSlice(slice []string) []string {
 	)
 }
 
-// SanitizeMapKeys applies a sanitization function to all keys in a map.
+// SanitizeMapKeys drops entries with empty keys after sanitization to prevent key collisions.
 func SanitizeMapKeys[V any](m map[string]V, sanitizer func(string) string) map[string]V {
 	result := make(map[string]V)
 	for k, v := range m {
@@ -136,7 +133,6 @@ func SanitizeMapKeys[V any](m map[string]V, sanitizer func(string) string) map[s
 	return result
 }
 
-// SanitizeMapValues applies a sanitization function to all values in a map.
 func SanitizeMapValues[K comparable](m map[K]string, sanitizer func(string) string) map[K]string {
 	result := make(map[K]string)
 	for k, v := range m {
@@ -145,7 +141,7 @@ func SanitizeMapValues[K comparable](m map[K]string, sanitizer func(string) stri
 	return result
 }
 
-// FilterMapByKeys removes map entries where keys match the filter pattern.
+// FilterMapByKeys uses case-insensitive substring matching for consistent behavior.
 func FilterMapByKeys[V any](m map[string]V, pattern string) map[string]V {
 	result := make(map[string]V)
 	lowerPattern := strings.ToLower(pattern)
@@ -159,7 +155,6 @@ func FilterMapByKeys[V any](m map[string]V, pattern string) map[string]V {
 	return result
 }
 
-// FilterMapByValues removes map entries where string values match the filter pattern.
 func FilterMapByValues[K comparable](m map[K]string, pattern string) map[K]string {
 	result := make(map[K]string)
 	lowerPattern := strings.ToLower(pattern)
@@ -173,7 +168,7 @@ func FilterMapByValues[K comparable](m map[K]string, pattern string) map[K]strin
 	return result
 }
 
-// FilterEmptyMapValues removes map entries with empty string values.
+// FilterEmptyMapValues removes whitespace-only values to prevent empty data storage.
 func FilterEmptyMapValues[K comparable](m map[K]string) map[K]string {
 	result := make(map[K]string)
 	for k, v := range m {
@@ -184,25 +179,22 @@ func FilterEmptyMapValues[K comparable](m map[K]string) map[K]string {
 	return result
 }
 
-// CleanStringMap applies comprehensive cleaning to a string map.
+// CleanStringMap applies standard form data cleanup: lowercase keys, trim values, remove empties.
 func CleanStringMap(m map[string]string) map[string]string {
-	// Clean keys
 	cleaned := SanitizeMapKeys(m, func(s string) string {
 		return Apply(s, Trim, ToLower)
 	})
 
-	// Clean values
 	cleaned = SanitizeMapValues(cleaned, func(s string) string {
 		return Apply(s, Trim)
 	})
 
-	// Remove empty values
 	cleaned = FilterEmptyMapValues(cleaned)
 
 	return cleaned
 }
 
-// LimitMapSize limits the number of entries in a map.
+// LimitMapSize prevents memory exhaustion from malicious input; iteration order is random.
 func LimitMapSize[K comparable, V any](m map[K]V, maxSize int) map[K]V {
 	if maxSize <= 0 {
 		return make(map[K]V)
@@ -226,7 +218,6 @@ func LimitMapSize[K comparable, V any](m map[K]V, maxSize int) map[K]V {
 	return result
 }
 
-// ExtractMapKeys returns a slice of all keys from a map.
 func ExtractMapKeys[K comparable, V any](m map[K]V) []K {
 	keys := make([]K, 0, len(m))
 	for k := range m {
@@ -235,7 +226,6 @@ func ExtractMapKeys[K comparable, V any](m map[K]V) []K {
 	return keys
 }
 
-// ExtractMapValues returns a slice of all values from a map.
 func ExtractMapValues[K comparable, V any](m map[K]V) []V {
 	values := make([]V, 0, len(m))
 	for _, v := range m {
@@ -244,7 +234,7 @@ func ExtractMapValues[K comparable, V any](m map[K]V) []V {
 	return values
 }
 
-// MergeStringMaps merges multiple string maps, with later maps overriding earlier ones.
+// MergeStringMaps applies last-writer-wins semantics for duplicate keys.
 func MergeStringMaps(ms ...map[string]string) map[string]string {
 	result := make(map[string]string)
 
@@ -255,7 +245,6 @@ func MergeStringMaps(ms ...map[string]string) map[string]string {
 	return result
 }
 
-// SliceToMap converts a slice to a map with indices as keys.
 func SliceToMap[T any](slice []T) map[int]T {
 	result := make(map[int]T)
 	for i, item := range slice {
@@ -264,12 +253,11 @@ func SliceToMap[T any](slice []T) map[int]T {
 	return result
 }
 
-// MapToSlice converts map values to a slice (order not guaranteed).
+// MapToSlice order is non-deterministic due to Go's map iteration randomization.
 func MapToSlice[K comparable, V any](m map[K]V) []V {
 	return ExtractMapValues(m)
 }
 
-// FilterSlice filters slice elements using a predicate function.
 func FilterSlice[T any](slice []T, predicate func(T) bool) []T {
 	result := make([]T, 0)
 	for _, item := range slice {
@@ -280,7 +268,6 @@ func FilterSlice[T any](slice []T, predicate func(T) bool) []T {
 	return result
 }
 
-// TransformSlice applies a transformation function to each element in a slice.
 func TransformSlice[T any, R any](slice []T, transform func(T) R) []R {
 	result := make([]R, len(slice))
 	for i, item := range slice {
@@ -289,7 +276,6 @@ func TransformSlice[T any, R any](slice []T, transform func(T) R) []R {
 	return result
 }
 
-// ReverseSlice reverses the order of elements in a slice.
 func ReverseSlice[T any](slice []T) []T {
 	result := make([]T, len(slice))
 	for i, item := range slice {
