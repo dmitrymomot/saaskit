@@ -43,7 +43,6 @@ func TestMiddleware(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create a test handler that checks if environment is in context
 			testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				envFromContext := environment.FromContext(r.Context())
 				assert.Equal(t, tt.env, envFromContext)
@@ -51,17 +50,13 @@ func TestMiddleware(t *testing.T) {
 				w.Write([]byte("OK"))
 			})
 
-			// Wrap with environment middleware
 			handler := environment.Middleware(tt.env)(testHandler)
 
-			// Create test request
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			rr := httptest.NewRecorder()
 
-			// Execute request
 			handler.ServeHTTP(rr, req)
 
-			// Verify response
 			assert.Equal(t, http.StatusOK, rr.Code)
 			assert.Equal(t, "OK", rr.Body.String())
 		})
@@ -71,11 +66,9 @@ func TestMiddleware(t *testing.T) {
 func TestMiddleware_ChainOrder(t *testing.T) {
 	t.Parallel()
 
-	// Create multiple middleware instances
 	devMiddleware := environment.Middleware(environment.Development)
 	prodMiddleware := environment.Middleware(environment.Production)
 
-	// Create a test handler that records the environment it sees
 	var receivedEnv environment.Environment
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedEnv = environment.FromContext(r.Context())
@@ -83,7 +76,8 @@ func TestMiddleware_ChainOrder(t *testing.T) {
 	})
 
 	t.Run("dev then prod - last one wins", func(t *testing.T) {
-		// Chain: dev -> prod -> handler
+		// When chaining multiple environment middlewares, the innermost (last applied) wins
+		// because it overwrites the context value set by outer middlewares
 		handler := devMiddleware(prodMiddleware(testHandler))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -91,13 +85,11 @@ func TestMiddleware_ChainOrder(t *testing.T) {
 
 		handler.ServeHTTP(rr, req)
 
-		// Should receive production environment (last middleware wins)
 		assert.Equal(t, environment.Production, receivedEnv)
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 
 	t.Run("prod then dev - last one wins", func(t *testing.T) {
-		// Chain: prod -> dev -> handler
 		handler := prodMiddleware(devMiddleware(testHandler))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -105,7 +97,6 @@ func TestMiddleware_ChainOrder(t *testing.T) {
 
 		handler.ServeHTTP(rr, req)
 
-		// Should receive development environment (last middleware wins)
 		assert.Equal(t, environment.Development, receivedEnv)
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})

@@ -44,16 +44,10 @@ func TestLoggerExtractor(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create context with environment
 			ctx := environment.WithContext(context.Background(), tt.env)
-
-			// Create logger extractor
 			extractor := environment.LoggerExtractor()
-
-			// Extract attribute
 			attr, ok := extractor(ctx)
 
-			// Should extract environment attribute
 			assert.True(t, ok)
 			assert.Equal(t, "env", attr.Key)
 			assert.Equal(t, tt.expected, attr.Value.String())
@@ -64,16 +58,10 @@ func TestLoggerExtractor(t *testing.T) {
 func TestLoggerExtractor_NoEnvironmentInContext(t *testing.T) {
 	t.Parallel()
 
-	// Create context without environment
 	ctx := context.Background()
-
-	// Create logger extractor
 	extractor := environment.LoggerExtractor()
-
-	// Extract attribute
 	attr, ok := extractor(ctx)
 
-	// Should not extract attribute when no environment is set
 	assert.False(t, ok)
 	assert.Equal(t, slog.Attr{}, attr)
 }
@@ -81,16 +69,10 @@ func TestLoggerExtractor_NoEnvironmentInContext(t *testing.T) {
 func TestLoggerExtractor_EmptyEnvironment(t *testing.T) {
 	t.Parallel()
 
-	// Create context with empty environment
 	ctx := environment.WithContext(context.Background(), environment.Environment(""))
-
-	// Create logger extractor
 	extractor := environment.LoggerExtractor()
-
-	// Extract attribute
 	attr, ok := extractor(ctx)
 
-	// Should not extract attribute when environment is empty
 	assert.False(t, ok)
 	assert.Equal(t, slog.Attr{}, attr)
 }

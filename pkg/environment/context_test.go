@@ -48,7 +48,6 @@ func TestWithContext(t *testing.T) {
 			assert.NotNil(t, ctxWithEnv)
 			assert.NotEqual(t, ctx, ctxWithEnv)
 
-			// Verify we can retrieve the environment
 			retrievedEnv := environment.FromContext(ctxWithEnv)
 			assert.Equal(t, tt.env, retrievedEnv)
 		})
@@ -75,7 +74,6 @@ func TestFromContext(t *testing.T) {
 		ctx := context.Background()
 		retrievedEnv := environment.FromContext(ctx)
 
-		// Should return empty environment when not set
 		assert.Equal(t, environment.Environment(""), retrievedEnv)
 	})
 
@@ -84,7 +82,6 @@ func TestFromContext(t *testing.T) {
 
 		retrievedEnv := environment.FromContext(context.TODO())
 
-		// Should return empty environment for context without environment
 		assert.Equal(t, environment.Environment(""), retrievedEnv)
 	})
 }
@@ -116,6 +113,11 @@ func TestIsProduction(t *testing.T) {
 			name:     "empty environment",
 			env:      environment.Environment(""),
 			expected: false,
+		},
+		{
+			name:     "prod alias",
+			env:      environment.Environment("prod"),
+			expected: true,
 		},
 	}
 
@@ -158,6 +160,11 @@ func TestIsDevelopment(t *testing.T) {
 			env:      environment.Environment(""),
 			expected: false,
 		},
+		{
+			name:     "dev alias",
+			env:      environment.Environment("dev"),
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -198,6 +205,11 @@ func TestIsStaging(t *testing.T) {
 			name:     "empty environment",
 			env:      environment.Environment(""),
 			expected: false,
+		},
+		{
+			name:     "stage alias",
+			env:      environment.Environment("stage"),
+			expected: true,
 		},
 	}
 
