@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-// Browser represents browser information
 type Browser struct {
 	Name    string
 	Version string
@@ -20,12 +19,11 @@ type BrowserPattern struct {
 	OrderHint int
 }
 
-// Extract version from a user agent string using a regex
 func extractVersion(ua string, regex *regexp.Regexp) string {
 	matches := regex.FindStringSubmatch(ua)
 	if len(matches) > 1 {
 		version := matches[1]
-		// Limit version length to avoid excessively long versions
+		// Prevent memory issues from pathological version strings
 		if len(version) > 20 {
 			version = version[:20]
 		}
@@ -34,11 +32,9 @@ func extractVersion(ua string, regex *regexp.Regexp) string {
 	return ""
 }
 
-// matchPattern checks if the UA string matches a browser pattern
 func matchPattern(ua string, pattern BrowserPattern) bool {
-	// Special case for Edge which appears as "Chrome/... Edg/"
+	// Edge masquerades as Chrome in its UA string, requiring special handling
 	if pattern.Name == BrowserEdge {
-		// Check if this is a Chromium-based Edge browser
 		for _, keyword := range pattern.Keywords {
 			if strings.Contains(ua, keyword) {
 				return true
@@ -47,13 +43,13 @@ func matchPattern(ua string, pattern BrowserPattern) bool {
 		return false
 	}
 
-	// First check for required keywords
+	// All required keywords must be present
 	for _, keyword := range pattern.Keywords {
 		if !strings.Contains(ua, keyword) {
 			return false
 		}
 	}
-	// Then check for excluded keywords
+	// Any excluded keyword disqualifies the match
 	for _, exclude := range pattern.Excludes {
 		if strings.Contains(ua, exclude) {
 			return false
@@ -62,7 +58,8 @@ func matchPattern(ua string, pattern BrowserPattern) bool {
 	return true
 }
 
-// Browser detection patterns in order of checking priority
+// Browser detection patterns ordered by specificity to avoid false positives.
+// More specific browsers (Edge, Samsung) must be checked before generic ones (Chrome).
 var browserPatterns = []BrowserPattern{
 	{
 		Name:      BrowserEdge,
@@ -186,9 +183,8 @@ var browserPatterns = []BrowserPattern{
 	},
 }
 
-// ParseBrowser parses the browser information from a user agent string
 func ParseBrowser(lowerUA string) Browser {
-	// Special case for IE 11 with Trident
+	// IE 11 doesn't include 'MSIE' in its UA string, only 'Trident'
 	if strings.Contains(lowerUA, "trident/") && !strings.Contains(lowerUA, "msie") {
 		return Browser{
 			Name:    BrowserIE,
@@ -196,7 +192,6 @@ func ParseBrowser(lowerUA string) Browser {
 		}
 	}
 
-	// Check each pattern in order
 	for _, pattern := range browserPatterns {
 		if matchPattern(lowerUA, pattern) {
 			version := extractVersion(lowerUA, pattern.Regex)
@@ -207,7 +202,6 @@ func ParseBrowser(lowerUA string) Browser {
 		}
 	}
 
-	// If no pattern matched, return unknown
 	return Browser{
 		Name:    BrowserUnknown,
 		Version: "",
