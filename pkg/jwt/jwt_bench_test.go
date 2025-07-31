@@ -94,7 +94,6 @@ func BenchmarkParse(b *testing.B) {
 	require.NotNil(b, service)
 
 	b.Run("StandardClaims", func(b *testing.B) {
-		// Generate a token once for parsing benchmark
 		standardClaims := jwt.StandardClaims{
 			Subject:   "user123",
 			Issuer:    "saaskit-benchmark",
@@ -115,7 +114,6 @@ func BenchmarkParse(b *testing.B) {
 			if err != nil {
 				b.Fatal(err)
 			}
-			// Quick sanity check
 			if parsedClaims.Subject != standardClaims.Subject {
 				b.Fatal("subject mismatch")
 			}
@@ -123,7 +121,6 @@ func BenchmarkParse(b *testing.B) {
 	})
 
 	b.Run("CustomClaims", func(b *testing.B) {
-		// Define a complex custom claims type
 		type BenchClaims struct {
 			jwt.StandardClaims
 			UserID    string         `json:"user_id"`
@@ -134,7 +131,6 @@ func BenchmarkParse(b *testing.B) {
 			Metadata  map[string]any `json:"metadata"`
 		}
 
-		// Generate a token once for parsing benchmark
 		originalClaims := BenchClaims{
 			StandardClaims: jwt.StandardClaims{
 				Subject:   "user456",
@@ -171,7 +167,6 @@ func BenchmarkParse(b *testing.B) {
 			if err != nil {
 				b.Fatal(err)
 			}
-			// Quick sanity check
 			if parsedClaims.UserID != originalClaims.UserID {
 				b.Fatal("user ID mismatch")
 			}
@@ -188,7 +183,7 @@ func BenchmarkEnd2End(b *testing.B) {
 	b.Run("StandardClaims", func(b *testing.B) {
 		b.ResetTimer()
 		for b.Loop() {
-			// Generate claims with unique ID to prevent caching
+			// Use unique ID to prevent caching effects
 			claims := jwt.StandardClaims{
 				Subject:   "user123",
 				Issuer:    "saaskit-benchmark",
@@ -197,13 +192,11 @@ func BenchmarkEnd2End(b *testing.B) {
 				ID:        fmt.Sprintf("token-id-%d", time.Now().UnixNano()),
 			}
 
-			// Generate token
 			token, err := service.Generate(claims)
 			if err != nil {
 				b.Fatal(err)
 			}
 
-			// Parse token
 			var parsedClaims jwt.StandardClaims
 			err = service.Parse(token, &parsedClaims)
 			if err != nil {
@@ -222,7 +215,7 @@ func BenchmarkEnd2End(b *testing.B) {
 
 		b.ResetTimer()
 		for b.Loop() {
-			// Generate claims with unique ID to prevent caching
+			// Use unique ID to prevent caching effects
 			claims := BenchClaims{
 				StandardClaims: jwt.StandardClaims{
 					Subject:   "user456",
@@ -236,13 +229,11 @@ func BenchmarkEnd2End(b *testing.B) {
 				Roles:  []string{"admin", "user"},
 			}
 
-			// Generate token
 			token, err := service.Generate(claims)
 			if err != nil {
 				b.Fatal(err)
 			}
 
-			// Parse token
 			var parsedClaims BenchClaims
 			err = service.Parse(token, &parsedClaims)
 			if err != nil {

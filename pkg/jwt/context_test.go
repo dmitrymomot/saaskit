@@ -12,18 +12,14 @@ import (
 
 func TestSetToken(t *testing.T) {
 	t.Parallel()
-	// Arrange
 	ctx := context.Background()
 	token := "test.jwt.token"
 
-	// Act
 	newCtx := jwt.SetToken(ctx, token)
 
-	// Assert
 	require.NotNil(t, newCtx, "Context should not be nil")
 	assert.NotEqual(t, ctx, newCtx, "New context should be different from original")
 
-	// Verify token can be retrieved
 	retrievedToken, ok := jwt.GetToken(newCtx)
 	assert.True(t, ok, "Should be able to retrieve token")
 	assert.Equal(t, token, retrievedToken, "Retrieved token should match original")
@@ -31,30 +27,22 @@ func TestSetToken(t *testing.T) {
 
 func TestGetToken(t *testing.T) {
 	t.Parallel()
-	// Test successful retrieval
 	t.Run("TokenExists", func(t *testing.T) {
-		// Arrange
 		ctx := context.Background()
 		token := "test.jwt.token"
 		ctx = jwt.SetToken(ctx, token)
 
-		// Act
 		retrievedToken, ok := jwt.GetToken(ctx)
 
-		// Assert
 		assert.True(t, ok, "Should return true when token exists")
 		assert.Equal(t, token, retrievedToken, "Retrieved token should match original")
 	})
 
-	// Test token not found
 	t.Run("TokenNotFound", func(t *testing.T) {
-		// Arrange
 		ctx := context.Background()
 
-		// Act
 		retrievedToken, ok := jwt.GetToken(ctx)
 
-		// Assert
 		assert.False(t, ok, "Should return false when token doesn't exist")
 		assert.Empty(t, retrievedToken, "Retrieved token should be empty")
 	})
@@ -62,9 +50,7 @@ func TestGetToken(t *testing.T) {
 
 func TestSetClaims(t *testing.T) {
 	t.Parallel()
-	// Test with map claims
 	t.Run("MapClaims", func(t *testing.T) {
-		// Arrange
 		ctx := context.Background()
 		claims := map[string]any{
 			"sub":   "1234567890",
@@ -72,22 +58,17 @@ func TestSetClaims(t *testing.T) {
 			"admin": true,
 		}
 
-		// Act
 		newCtx := jwt.SetClaims(ctx, claims)
 
-		// Assert
 		require.NotNil(t, newCtx, "Context should not be nil")
 		assert.NotEqual(t, ctx, newCtx, "New context should be different from original")
 
-		// Verify claims can be retrieved
 		retrievedClaims, ok := jwt.GetClaims[map[string]any](newCtx)
 		assert.True(t, ok, "Should be able to retrieve claims")
 		assert.Equal(t, claims, retrievedClaims, "Retrieved claims should match original")
 	})
 
-	// Test with struct claims
 	t.Run("StructClaims", func(t *testing.T) {
-		// Arrange
 		ctx := context.Background()
 		claims := CtxTestClaims{
 			Sub:   "1234567890",
@@ -95,14 +76,11 @@ func TestSetClaims(t *testing.T) {
 			Admin: true,
 		}
 
-		// Act
 		newCtx := jwt.SetClaims(ctx, claims)
 
-		// Assert
 		require.NotNil(t, newCtx, "Context should not be nil")
 		assert.NotEqual(t, ctx, newCtx, "New context should be different from original")
 
-		// Verify claims can be retrieved directly as struct
 		retrievedClaims, ok := jwt.GetClaims[CtxTestClaims](newCtx)
 		assert.True(t, ok, "Should be able to retrieve claims as struct")
 		assert.Equal(t, claims, retrievedClaims, "Retrieved claims should match original")
@@ -111,9 +89,7 @@ func TestSetClaims(t *testing.T) {
 
 func TestGetClaims(t *testing.T) {
 	t.Parallel()
-	// Test successful retrieval with map
 	t.Run("MapClaimsExist", func(t *testing.T) {
-		// Arrange
 		ctx := context.Background()
 		claims := map[string]any{
 			"sub":   "1234567890",
@@ -122,17 +98,13 @@ func TestGetClaims(t *testing.T) {
 		}
 		ctx = jwt.SetClaims(ctx, claims)
 
-		// Act
 		retrievedClaims, ok := jwt.GetClaims[map[string]any](ctx)
 
-		// Assert
 		assert.True(t, ok, "Should return true when claims exist")
 		assert.Equal(t, claims, retrievedClaims, "Retrieved claims should match original")
 	})
 
-	// Test successful retrieval with struct
 	t.Run("StructClaimsExist", func(t *testing.T) {
-		// Arrange
 		ctx := context.Background()
 		claims := CtxTestClaims{
 			Sub:   "1234567890",
@@ -141,10 +113,8 @@ func TestGetClaims(t *testing.T) {
 		}
 		ctx = jwt.SetClaims(ctx, claims)
 
-		// Act
 		retrievedClaims, ok := jwt.GetClaims[CtxTestClaims](ctx)
 
-		// Assert
 		assert.True(t, ok, "Should return true when claims exist")
 		assert.Equal(t, claims, retrievedClaims, "Retrieved claims should match original")
 	})

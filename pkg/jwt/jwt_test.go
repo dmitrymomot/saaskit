@@ -102,7 +102,6 @@ func TestParse(t *testing.T) {
 	require.NotNil(t, service)
 
 	t.Run("with standard claims", func(t *testing.T) {
-		// Generate a token
 		originalClaims := jwt.StandardClaims{
 			Subject:   "user123",
 			Issuer:    "saaskit",
@@ -125,7 +124,6 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("with custom claims", func(t *testing.T) {
-		// Generate a token
 		originalClaims := TestClaims{
 			StandardClaims: jwt.StandardClaims{
 				Subject:   "user123",
@@ -161,7 +159,6 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("with invalid signature", func(t *testing.T) {
-		// Generate a token
 		originalClaims := jwt.StandardClaims{
 			Subject:   "user123",
 			Issuer:    "saaskit",
@@ -182,7 +179,6 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("with expired token", func(t *testing.T) {
-		// Generate a token that's already expired
 		expiredClaims := jwt.StandardClaims{
 			Subject:   "user123",
 			Issuer:    "saaskit",
@@ -201,7 +197,6 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("with future token", func(t *testing.T) {
-		// Generate a token that's not valid yet
 		futureClaims := jwt.StandardClaims{
 			Subject:   "user123",
 			Issuer:    "saaskit",
@@ -230,7 +225,6 @@ func TestSigningKeyDifference(t *testing.T) {
 	service2, err := jwt.New([]byte("secret2"))
 	require.NoError(t, err)
 
-	// Generate a token with service1
 	claims := jwt.StandardClaims{
 		Subject:   "user123",
 		Issuer:    "saaskit",
