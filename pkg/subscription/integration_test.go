@@ -204,7 +204,7 @@ func TestWorkflow_UpgradePath(t *testing.T) {
 	// Step 3: Upgrades to Pro plan via checkout
 	// Current implementation prevents checkout if subscription exists
 	store.On("Get", mock.Anything, tenantID).Return(basicSub, nil).Once()
-	
+
 	_, err = svc.CreateCheckoutLink(ctx, tenantID, "pro", subscription.CheckoutOptions{
 		SuccessURL: "https://app.example.com/success",
 		CancelURL:  "https://app.example.com/cancel",
@@ -281,9 +281,9 @@ func TestWorkflow_BlockedDowngrade(t *testing.T) {
 	assert.ErrorIs(t, err, subscription.ErrDowngradeNotPossible)
 
 	// Step 3: User reduces resources to fit Basic plan
-	ctx = context.WithValue(ctx, "projectCount", int64(9))        // Under 10
-	ctx = context.WithValue(ctx, "teamMemberCount", int64(3))     // Under 5
-	ctx = context.WithValue(ctx, "apiKeyCount", int64(2))         // Under 2
+	ctx = context.WithValue(ctx, "projectCount", int64(9))    // Under 10
+	ctx = context.WithValue(ctx, "teamMemberCount", int64(3)) // Under 5
+	ctx = context.WithValue(ctx, "apiKeyCount", int64(2))     // Under 2
 	// Webhooks not in basic plan, so no need to check
 
 	// Step 4: Downgrade succeeds
@@ -469,7 +469,7 @@ func TestWorkflow_TeamGrowthScenario(t *testing.T) {
 	// Update subscription in store first
 	store.On("Get", mock.Anything, tenantID).Unset()
 	store.On("Get", mock.Anything, tenantID).Return(proSub, nil).Times(2)
-	
+
 	ctx = context.WithValue(ctx, "teamMemberCount", int64(25))
 	err = svc.CanCreate(ctx, tenantID, subscription.ResourceTeamMembers)
 	assert.NoError(t, err)
@@ -488,7 +488,7 @@ func TestWorkflow_FreemiumToPaidConversion(t *testing.T) {
 	svc, _, store, ctx, tenantID := setupIntegrationTest(t)
 
 	// Step 1: User starts on Free plan (no credit card)
-	// No subscription exists initially  
+	// No subscription exists initially
 	store.On("Get", mock.Anything, tenantID).Return(nil, subscription.ErrSubscriptionNotFound).Times(6) // Multiple calls for limits and features
 
 	ctx = context.WithValue(ctx, "projectCount", int64(0))
