@@ -12,6 +12,7 @@ A flexible session management package for Go web applications with pluggable sto
 - **Zero Dependencies**: Works out-of-box with memory store
 - **Type Safe**: No reflection, compile-time safety
 - **High Performance**: Zero allocations in hot paths
+- **Security First**: SameSite protection, configurable Secure cookies, constant-time comparisons
 
 ## Installation 
 
@@ -62,6 +63,7 @@ SESSION_AUTH_IDLE_TIMEOUT=2h              # Authenticated session idle timeout
 SESSION_AUTH_MAX_LIFETIME=720h            # Authenticated session max lifetime (30 days)
 SESSION_ACTIVITY_UPDATE_THRESHOLD=5m      # Min time between activity updates
 SESSION_CLEANUP_INTERVAL=5m               # Cleanup interval (0 to disable)
+SESSION_SECURE_COOKIES=false              # Enable Secure flag on cookies (recommended for production)
 ```
 
 Example using environment config:
@@ -248,6 +250,38 @@ err := manager.Destroy(ctx, w, r)
 // Extend session expiry
 err := manager.Refresh(ctx, w, r)
 ```
+
+## Security
+
+The session package implements industry-standard security practices:
+
+### Cookie Security
+
+- **HttpOnly**: Always enabled to prevent XSS attacks
+- **SameSite**: Set to `Lax` by default to prevent CSRF attacks
+- **Secure**: Configurable via `SESSION_SECURE_COOKIES` environment variable (enable in production)
+- **Encrypted**: Session tokens are encrypted using the cookie manager
+
+### Production Configuration
+
+```go
+// Load from environment
+os.Setenv("SESSION_SECURE_COOKIES", "true") // Enable for HTTPS
+
+var cfg session.Config
+config.Load(&cfg)
+
+manager := session.NewFromConfig(cfg,
+    session.WithCookieManager(cookieMgr),
+)
+```
+
+### Additional Security Features
+
+- **Constant-time comparisons**: Prevents timing attacks on fingerprint validation
+- **Token rotation**: New token on authentication prevents session fixation
+- **Automatic expiry**: Separate timeouts for anonymous/authenticated sessions
+- **Device fingerprinting**: Optional additional validation layer
 
 ## Examples
 
