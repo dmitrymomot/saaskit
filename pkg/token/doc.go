@@ -1,21 +1,14 @@
-// Package token provides small, dependency-free helpers for creating and
-// verifying signed tokens that embed an arbitrary JSON-encoded payload.
+// Package token provides compact, signed tokens for embedding JSON payloads.
 //
-// A token has the following shape:
+// Tokens use HMAC-SHA256 with truncated 8-byte signatures for balance between
+// security and compactness. Suitable for email confirmations, password resets,
+// and invite links. Not recommended for high-value or long-lived tokens.
 //
-//	base64url(payload).base64url(signature)
+// Token format: base64url(payload).base64url(signature)
 //
-// where
-//
-//   - payload  – raw JSON-encoded bytes of the generic payload value
-//   - signature – first 8 bytes of a HMAC-SHA256 digest calculated over
-//     the payload bytes with the supplied secret.
-//
-// The shortened 8-byte signature keeps the token compact while still
-// providing a sufficient collision resistance for typical application
-// usage such as e-mail confirmations, password resets, invite links, etc.
-// Do not use it for high-value or long-lived tokens where a full MAC
-// would be more appropriate.
+// The 8-byte signature provides ~2^32 collision resistance, sufficient for
+// typical short-lived application tokens but not cryptographically strong
+// enough for sensitive operations.
 //
 // # Usage
 //
@@ -28,28 +21,17 @@
 //
 //	const secret = "my-very-strong-secret"
 //
-//	// generate
 //	tok, err := token.GenerateToken(Payload{"42", time.Now().Add(time.Hour).Unix()}, secret)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
 //
-//	// parse & verify
 //	var p Payload
 //	if p, err = token.ParseToken[Payload](tok, secret); err != nil {
 //	    log.Fatal(err)
 //	}
 //
-// # Error Handling
-//
-// The package returns ErrInvalidToken when the token is malformed and
-// ErrSignatureInvalid when the embedded signature does not match.
-//
-// # Performance
-//
-// The implementation relies only on the Go standard library and performs
-// a single SHA-256 hash per call, which is usually negligible compared
-// with network round-trips.
-//
-// Example usage can be found in the package tests.
+// Returns ErrInvalidToken for malformed tokens and ErrSignatureInvalid
+// for signature mismatches. Uses only standard library with single SHA-256
+// hash per operation.
 package token
