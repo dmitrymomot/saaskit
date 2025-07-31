@@ -33,7 +33,7 @@ func JSON() func(r *http.Request, v any) error {
 		if ctx != nil {
 			select {
 			case <-ctx.Done():
-				return fmt.Errorf("%w: context timeout", ErrInvalidJSON)
+				return fmt.Errorf("%w: context timeout", ErrFailedToParseJSON)
 			default:
 			}
 		}
@@ -57,12 +57,12 @@ func JSON() func(r *http.Request, v any) error {
 		limitedReader := io.LimitReader(r.Body, DefaultMaxJSONSize+1)
 		body, err := io.ReadAll(limitedReader)
 		if err != nil {
-			return fmt.Errorf("%w: failed to read request body: %v", ErrInvalidJSON, err)
+			return fmt.Errorf("%w: failed to read request body: %v", ErrFailedToParseJSON, err)
 		}
 
 		// Check if body exceeded size limit
 		if len(body) > DefaultMaxJSONSize {
-			return fmt.Errorf("%w: request body too large (max %d bytes)", ErrInvalidJSON, DefaultMaxJSONSize)
+			return fmt.Errorf("%w: request body too large (max %d bytes)", ErrFailedToParseJSON, DefaultMaxJSONSize)
 		}
 
 		decoder := json.NewDecoder(strings.NewReader(string(body)))
@@ -71,27 +71,27 @@ func JSON() func(r *http.Request, v any) error {
 		if err := decoder.Decode(v); err != nil {
 			switch {
 			case strings.Contains(err.Error(), "cannot unmarshal"):
-				return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
+				return fmt.Errorf("%w: %v", ErrFailedToParseJSON, err)
 			case strings.Contains(err.Error(), "unexpected end of JSON"):
-				return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
+				return fmt.Errorf("%w: %v", ErrFailedToParseJSON, err)
 			case strings.Contains(err.Error(), "invalid character"):
-				return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
+				return fmt.Errorf("%w: %v", ErrFailedToParseJSON, err)
 			case err == io.EOF:
-				return fmt.Errorf("%w: empty body", ErrInvalidJSON)
+				return fmt.Errorf("%w: empty body", ErrFailedToParseJSON)
 			default:
-				return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
+				return fmt.Errorf("%w: %v", ErrFailedToParseJSON, err)
 			}
 		}
 
 		// Ensure entire body was consumed
 		var extra json.RawMessage
 		if err := decoder.Decode(&extra); err != io.EOF {
-			return fmt.Errorf("%w: unexpected data after JSON object", ErrInvalidJSON)
+			return fmt.Errorf("%w: unexpected data after JSON object", ErrFailedToParseJSON)
 		}
 
 		// Sanitize all string fields in the decoded struct
 		if err := sanitizeJSONStruct(v); err != nil {
-			return fmt.Errorf("%w: failed to sanitize input: %v", ErrInvalidJSON, err)
+			return fmt.Errorf("%w: failed to sanitize input: %v", ErrFailedToParseJSON, err)
 		}
 
 		return nil

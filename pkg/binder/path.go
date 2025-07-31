@@ -60,17 +60,17 @@ import (
 func Path(extractor func(r *http.Request, fieldName string) string) func(r *http.Request, v any) error {
 	return func(r *http.Request, v any) error {
 		if extractor == nil {
-			return fmt.Errorf("%w: extractor function is nil", ErrInvalidPath)
+			return fmt.Errorf("%w: extractor function is nil", ErrFailedToParsePath)
 		}
 
 		rv := reflect.ValueOf(v)
 		if rv.Kind() != reflect.Ptr || rv.IsNil() {
-			return fmt.Errorf("%w: target must be a non-nil pointer", ErrInvalidPath)
+			return fmt.Errorf("%w: target must be a non-nil pointer", ErrFailedToParsePath)
 		}
 
 		rv = rv.Elem()
 		if rv.Kind() != reflect.Struct {
-			return fmt.Errorf("%w: target must be a pointer to struct", ErrInvalidPath)
+			return fmt.Errorf("%w: target must be a pointer to struct", ErrFailedToParsePath)
 		}
 
 		rt := rv.Type()
@@ -95,7 +95,7 @@ func Path(extractor func(r *http.Request, fieldName string) string) func(r *http
 			}
 
 			if err := setFieldValue(field, fieldType.Type, []string{value}); err != nil {
-				return fmt.Errorf("%w: field %s: %v", ErrInvalidPath, fieldType.Name, err)
+				return fmt.Errorf("%w: field %s: %v", ErrFailedToParsePath, fieldType.Name, err)
 			}
 		}
 

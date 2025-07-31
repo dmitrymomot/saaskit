@@ -78,7 +78,7 @@ func Form() func(r *http.Request, v any) error {
 		switch {
 		case mediaType == "application/x-www-form-urlencoded":
 			if err := r.ParseForm(); err != nil {
-				return fmt.Errorf("%w: %v", ErrInvalidForm, err)
+				return fmt.Errorf("%w: %v", ErrFailedToParseForm, err)
 			}
 			values = r.Form
 
@@ -86,21 +86,21 @@ func Form() func(r *http.Request, v any) error {
 			// Validate multipart content type and boundary for security
 			_, params, err := mime.ParseMediaType(contentType)
 			if err != nil {
-				return fmt.Errorf("%w: malformed content type with boundary", ErrInvalidForm)
+				return fmt.Errorf("%w: malformed content type with boundary", ErrFailedToParseForm)
 			}
 
 			boundary, ok := params["boundary"]
 			if !ok || boundary == "" {
-				return fmt.Errorf("%w: missing boundary in content type", ErrInvalidForm)
+				return fmt.Errorf("%w: missing boundary in content type", ErrFailedToParseForm)
 			}
 
 			if !validateBoundary(boundary) {
-				return fmt.Errorf("%w: invalid boundary parameter", ErrInvalidForm)
+				return fmt.Errorf("%w: invalid boundary parameter", ErrFailedToParseForm)
 			}
 
 			// Note: Request size limits should be handled at server/middleware level
 			if err := r.ParseMultipartForm(DefaultMaxMemory); err != nil {
-				return fmt.Errorf("%w: %v", ErrInvalidForm, err)
+				return fmt.Errorf("%w: %v", ErrFailedToParseForm, err)
 			}
 
 			if r.MultipartForm != nil {
@@ -116,7 +116,7 @@ func Form() func(r *http.Request, v any) error {
 
 		// Note: Multipart form cleanup should be handled at server/middleware level
 		// to maintain standard Go behavior and allow access to r.MultipartForm after binding
-		return bindFormAndFiles(v, values, files, ErrInvalidForm)
+		return bindFormAndFiles(v, values, files, ErrFailedToParseForm)
 	}
 }
 
