@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-// Type constraints for generic validators
 type Numeric interface {
 	~int | ~int8 | ~int16 | ~int32 | ~int64 |
 		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 |
@@ -24,7 +23,6 @@ type ValidationError struct {
 // ValidationErrors represents a collection of validation errors.
 type ValidationErrors []ValidationError
 
-// Error implements the error interface.
 func (ve ValidationErrors) Error() string {
 	if len(ve) == 0 {
 		return "validation failed"
@@ -37,12 +35,10 @@ func (ve ValidationErrors) Error() string {
 	return "validation failed: " + strings.Join(parts, "; ")
 }
 
-// Add adds a validation error to the collection.
 func (ve *ValidationErrors) Add(err ValidationError) {
 	*ve = append(*ve, err)
 }
 
-// Has checks if the specified field has any errors.
 func (ve ValidationErrors) Has(field string) bool {
 	for _, err := range ve {
 		if err.Field == field {
@@ -52,7 +48,6 @@ func (ve ValidationErrors) Has(field string) bool {
 	return false
 }
 
-// Get returns all error messages for the specified field.
 func (ve ValidationErrors) Get(field string) []string {
 	var messages []string
 	for _, err := range ve {
@@ -63,7 +58,6 @@ func (ve ValidationErrors) Get(field string) []string {
 	return messages
 }
 
-// GetErrors returns all ValidationError objects for the specified field.
 func (ve ValidationErrors) GetErrors(field string) []ValidationError {
 	var errors []ValidationError
 	for _, err := range ve {
@@ -74,7 +68,6 @@ func (ve ValidationErrors) GetErrors(field string) []ValidationError {
 	return errors
 }
 
-// Fields returns all fields that have validation errors.
 func (ve ValidationErrors) Fields() []string {
 	var fields []string
 	seen := make(map[string]bool)
@@ -87,12 +80,10 @@ func (ve ValidationErrors) Fields() []string {
 	return fields
 }
 
-// IsEmpty returns true if there are no validation errors.
 func (ve ValidationErrors) IsEmpty() bool {
 	return len(ve) == 0
 }
 
-// GetTranslatableErrors returns all errors with their translation data.
 func (ve ValidationErrors) GetTranslatableErrors() []ValidationError {
 	return ve
 }
@@ -104,7 +95,6 @@ type Rule struct {
 }
 
 // Apply executes multiple validation rules and returns any validation errors.
-// If no errors occur, it returns nil.
 func Apply(rules ...Rule) error {
 	var errors ValidationErrors
 
@@ -122,7 +112,6 @@ func Apply(rules ...Rule) error {
 }
 
 // ExtractValidationErrors extracts ValidationErrors from an error.
-// Returns nil if the error is not a ValidationErrors type.
 func ExtractValidationErrors(err error) ValidationErrors {
 	if err == nil {
 		return nil
@@ -136,7 +125,6 @@ func ExtractValidationErrors(err error) ValidationErrors {
 	return nil
 }
 
-// IsValidationError checks if an error is a ValidationErrors type.
 func IsValidationError(err error) bool {
 	if err == nil {
 		return false

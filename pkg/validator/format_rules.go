@@ -11,20 +11,16 @@ import (
 )
 
 var (
-	// Phone number regex - international format with optional country code
+	// E.164 international phone format: optional +, non-zero first digit, 7-15 total digits
 	phoneRegex = regexp.MustCompile(`^\+?[1-9]\d{1,14}$`)
 
-	// Alphanumeric regex
-	alphanumericRegex = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
-
-	// Alpha regex
-	alphaRegex = regexp.MustCompile(`^[a-zA-Z]+$`)
-
-	// Numeric string regex
+	alphanumericRegex  = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
+	alphaRegex         = regexp.MustCompile(`^[a-zA-Z]+$`)
 	numericStringRegex = regexp.MustCompile(`^[0-9]+$`)
 )
 
-// ValidEmail validates that a string is a valid email address using RFC 5322.
+// ValidEmail validates email addresses using RFC 5322 with additional web-friendly constraints.
+// Rejects edge cases like quoted local parts and comments that are valid per RFC but problematic for web apps.
 func ValidEmail(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -32,13 +28,12 @@ func ValidEmail(field, value string) Rule {
 				return false
 			}
 
-			// Parse with Go's mail parser first
 			addr, err := mail.ParseAddress(value)
 			if err != nil {
 				return false
 			}
 
-			// Additional validation for typical web use
+			// Validates domain structure and local part requirements for web applications
 			email := addr.Address
 			parts := strings.Split(email, "@")
 			if len(parts) != 2 {
@@ -48,17 +43,16 @@ func ValidEmail(field, value string) Rule {
 			localPart := parts[0]
 			domain := parts[1]
 
-			// Local part cannot be empty
 			if localPart == "" {
 				return false
 			}
 
-			// Domain must contain at least one dot and cannot start/end with dot
+			// Reject domains without dots or starting/ending with dots
 			if !strings.Contains(domain, ".") || strings.HasPrefix(domain, ".") || strings.HasSuffix(domain, ".") {
 				return false
 			}
 
-			// Domain parts cannot be empty
+			// Reject empty domain parts (consecutive dots)
 			for part := range strings.SplitSeq(domain, ".") {
 				if part == "" {
 					return false
@@ -78,7 +72,6 @@ func ValidEmail(field, value string) Rule {
 	}
 }
 
-// ValidURL validates that a string is a valid URL.
 func ValidURL(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -109,7 +102,6 @@ func ValidURL(field, value string) Rule {
 	}
 }
 
-// ValidURLWithScheme validates that a string is a valid URL with a specific scheme.
 func ValidURLWithScheme(field, value string, schemes []string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -134,18 +126,16 @@ func ValidURLWithScheme(field, value string, schemes []string) Rule {
 	}
 }
 
-// ValidPhone validates that a string is a valid international phone number.
-// Accepts formats like +1234567890, +123456789012345 (E.164 format).
+// ValidPhone validates international phone numbers in E.164 format.
+// Allows common formatting chars (spaces, dashes) but requires 7-15 digits total.
 func ValidPhone(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
 			if strings.TrimSpace(value) == "" {
 				return false
 			}
-			// Remove spaces and dashes for validation
 			cleaned := strings.ReplaceAll(strings.ReplaceAll(value, " ", ""), "-", "")
 
-			// Must be at least 7 digits (minimum valid phone number)
 			if len(cleaned) < 7 {
 				return false
 			}
@@ -163,7 +153,6 @@ func ValidPhone(field, value string) Rule {
 	}
 }
 
-// ValidIPv4 validates that a string is a valid IPv4 address.
 func ValidIPv4(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -184,7 +173,6 @@ func ValidIPv4(field, value string) Rule {
 	}
 }
 
-// ValidIPv6 validates that a string is a valid IPv6 address.
 func ValidIPv6(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -195,7 +183,7 @@ func ValidIPv6(field, value string) Rule {
 			if ip == nil {
 				return false
 			}
-			// IPv6 addresses can include IPv4-mapped addresses
+			// Accept IPv4-mapped IPv6 addresses (::ffff:192.0.2.1)
 			return ip.To4() == nil || strings.Contains(value, ":")
 		},
 		Error: ValidationError{
@@ -209,7 +197,6 @@ func ValidIPv6(field, value string) Rule {
 	}
 }
 
-// ValidIP validates that a string is a valid IP address (IPv4 or IPv6).
 func ValidIP(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -229,8 +216,6 @@ func ValidIP(field, value string) Rule {
 	}
 }
 
-// ValidMAC validates that a string is a valid MAC address.
-// Supports formats: AA:BB:CC:DD:EE:FF, AA-BB-CC-DD-EE-FF.
 func ValidMAC(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -251,7 +236,6 @@ func ValidMAC(field, value string) Rule {
 	}
 }
 
-// ValidAlphanumeric validates that a string contains only letters and numbers.
 func ValidAlphanumeric(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -271,7 +255,6 @@ func ValidAlphanumeric(field, value string) Rule {
 	}
 }
 
-// ValidAlpha validates that a string contains only letters.
 func ValidAlpha(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -291,7 +274,6 @@ func ValidAlpha(field, value string) Rule {
 	}
 }
 
-// ValidNumericString validates that a string contains only digits.
 func ValidNumericString(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
