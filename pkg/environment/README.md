@@ -27,7 +27,7 @@ This package is internal to the project and provides environment context propaga
 import "github.com/dmitrymomot/saaskit/pkg/environment"
 
 // Store environment in context
-ctx := environment.WithContext(context.Background(), "production")
+ctx := environment.WithContext(context.Background(), environment.Production)
 
 // Retrieve environment from context
 env := environment.FromContext(ctx) // "production"
@@ -45,7 +45,7 @@ if environment.IsProduction(ctx) {
 router := chi.NewRouter()
 
 // Add environment middleware
-router.Use(environment.Middleware("production"))
+router.Use(environment.Middleware(environment.Production))
 
 // All subsequent handlers will have environment in context
 router.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +63,7 @@ logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 
 // Use with context-aware logger
 extractor := environment.LoggerExtractor()
-ctx := environment.WithContext(context.Background(), "staging")
+ctx := environment.WithContext(context.Background(), environment.Staging)
 
 // When logging with context, environment will be included
 attr, ok := extractor(ctx) // Returns slog.String("environment", "staging"), true
@@ -88,10 +88,12 @@ attr, ok := extractor(ctx) // Returns slog.String("environment", "staging"), tru
 ### Functions
 
 ```go
-func WithContext(ctx context.Context, env string) context.Context
-func FromContext(ctx context.Context) string
+func WithContext(ctx context.Context, env Environment) context.Context
+func FromContext(ctx context.Context) Environment
 func IsProduction(ctx context.Context) bool
-func Middleware(env string) func(http.Handler) http.Handler
+func IsDevelopment(ctx context.Context) bool
+func IsStaging(ctx context.Context) bool
+func Middleware(env Environment) func(http.Handler) http.Handler
 func LoggerExtractor() func(ctx context.Context) (slog.Attr, bool)
 ```
 
