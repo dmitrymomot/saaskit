@@ -8,24 +8,16 @@ import (
 	"strings"
 )
 
-// Validation constants
 const (
-	// MaxTenantIDLength defines the maximum allowed length for tenant identifiers.
-	// This prevents DoS attacks via very long tenant IDs and ensures DNS compatibility.
+	// MaxTenantIDLength prevents DoS attacks via very long tenant IDs and ensures DNS compatibility
 	MaxTenantIDLength = 63
-
-	// MinTenantIDLength defines the minimum allowed length for tenant identifiers.
 	MinTenantIDLength = 1
 )
 
-// Common validation patterns
 var (
-	// pathPattern allows alphanumeric characters and hyphens only.
-	// Must start with alphanumeric character.
+	// pathPattern ensures safe URL path segments: alphanumeric start, allows hyphens
 	pathPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]*$`)
-
-	// subdomainPattern allows alphanumeric characters and hyphens only.
-	// Must start with alphanumeric character. No dots allowed.
+	// subdomainPattern ensures DNS-safe subdomains: alphanumeric start, allows hyphens, no dots
 	subdomainPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]*$`)
 )
 
@@ -33,34 +25,21 @@ var (
 // Returns empty string if no tenant found, error if extraction failed.
 type Resolver func(r *http.Request) (string, error)
 
-// isValidPath validates path segment format.
 func isValidPath(id string) bool {
-	if id == "" {
+	if id == "" || len(id) < MinTenantIDLength || len(id) > MaxTenantIDLength {
 		return false
 	}
-
-	if len(id) < MinTenantIDLength || len(id) > MaxTenantIDLength {
-		return false
-	}
-
 	return pathPattern.MatchString(id)
 }
 
-// isValidSubdomain validates subdomain format.
 func isValidSubdomain(id string) bool {
-	if id == "" {
+	if id == "" || len(id) < MinTenantIDLength || len(id) > MaxTenantIDLength {
 		return false
 	}
-
-	if len(id) < MinTenantIDLength || len(id) > MaxTenantIDLength {
-		return false
-	}
-
 	return subdomainPattern.MatchString(id)
 }
 
-// NewSubdomainResolver creates a resolver that extracts tenant from subdomain.
-// Suffix parameter allows stripping domain suffix (e.g., ".saas.com").
+// NewSubdomainResolver extracts tenant from subdomain, optionally stripping suffix.
 // Returns empty string for base domain (no subdomain).
 func NewSubdomainResolver(suffix string) Resolver {
 	return func(req *http.Request) (string, error) {
@@ -83,6 +62,7 @@ func NewSubdomainResolver(suffix string) Resolver {
 		}
 
 		subdomain := parts[0]
+		// Skip www prefix, use next subdomain if available
 		if subdomain == "www" {
 			if len(parts) > 1 {
 				subdomain = parts[1]
@@ -91,7 +71,7 @@ func NewSubdomainResolver(suffix string) Resolver {
 			}
 		}
 
-		// Need at least 3 parts for subdomain.domain.tld
+		// Require at least 3 parts for proper subdomain.domain.tld structure
 		if len(originalParts) < 3 {
 			return "", nil
 		}
@@ -108,8 +88,8 @@ func NewSubdomainResolver(suffix string) Resolver {
 	}
 }
 
-// NewHeaderResolver creates a resolver that extracts tenant from HTTP header.
-// Default header name is "X-Tenant-ID" if empty string provided.
+// NewHeaderResolver extracts tenant from HTTP header.
+// Defaults to "X-Tenant-ID" if headerName is empty.
 func NewHeaderResolver(headerName string) Resolver {
 	if headerName == "" {
 		headerName = "X-Tenant-ID"
@@ -117,13 +97,10 @@ func NewHeaderResolver(headerName string) Resolver {
 
 	return func(req *http.Request) (string, error) {
 		value := req.Header.Get(headerName)
-
-		// Return empty if no header value
 		if value == "" {
 			return "", nil
 		}
 
-		// Validate the header value
 		value = strings.TrimSpace(value)
 		if !isValidPath(value) { // Use same validation as path for consistency
 			return "", fmt.Errorf("%w: header value '%s'", ErrInvalidIdentifier, value)
@@ -133,9 +110,8 @@ func NewHeaderResolver(headerName string) Resolver {
 	}
 }
 
-// NewPathResolver creates a resolver that extracts tenant from URL path segment.
-// Position is 1-based (e.g., 2 for /tenants/{id}/...).
-// Returns error if position < 1.
+// NewPathResolver extracts tenant from URL path segment at 1-based position.
+// Position 2 extracts from /tenants/{id}/dashboard.
 func NewPathResolver(position int) Resolver {
 	return func(req *http.Request) (string, error) {
 		if position < 1 {
@@ -155,13 +131,10 @@ func NewPathResolver(position int) Resolver {
 		}
 
 		value := parts[position-1]
-
-		// Return empty if no value at position
 		if value == "" {
 			return "", nil
 		}
 
-		// Validate the path segment
 		value = strings.TrimSpace(value)
 		if !isValidPath(value) {
 			return "", fmt.Errorf("%w: path segment '%s'", ErrInvalidIdentifier, value)
@@ -171,9 +144,7 @@ func NewPathResolver(position int) Resolver {
 	}
 }
 
-// NewCompositeResolver creates a resolver that tries multiple resolvers in order.
-// Returns the first non-empty tenant ID found.
-// If all resolvers return empty, returns empty string.
+// NewCompositeResolver tries multiple resolvers in order, returning the first non-empty result.
 // Aggregates errors from all resolvers for debugging.
 func NewCompositeResolver(resolvers ...Resolver) Resolver {
 	return func(r *http.Request) (string, error) {

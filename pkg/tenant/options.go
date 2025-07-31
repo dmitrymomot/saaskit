@@ -56,7 +56,6 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
-// defaultErrorHandler is the default error handler.
 func defaultErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrTenantNotFound):

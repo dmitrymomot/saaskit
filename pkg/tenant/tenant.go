@@ -7,8 +7,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// Tenant represents a tenant in the system with minimal information
-// needed for request-scoped operations and UI display.
+// Tenant represents a tenant with minimal information needed for request-scoped
+// operations. This is intentionally lightweight to reduce memory usage in
+// request contexts and cache storage.
 type Tenant struct {
 	ID        uuid.UUID `json:"id"`
 	Subdomain string    `json:"subdomain"`
@@ -20,11 +21,10 @@ type Tenant struct {
 }
 
 // Provider loads tenant information from a data source.
-// Implementations should handle various identifier formats
-// (UUID, subdomain, etc.) based on application needs.
+// Implementations should handle various identifier formats (UUID, subdomain, etc.)
+// based on application needs.
 type Provider interface {
 	// GetByIdentifier retrieves a tenant using any unique identifier.
-	// The identifier could be a UUID, subdomain, or any other unique field.
 	// Returns ErrTenantNotFound if no tenant matches the identifier.
 	GetByIdentifier(ctx context.Context, identifier string) (*Tenant, error)
 }
