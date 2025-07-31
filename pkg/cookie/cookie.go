@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	minSecretLength = 32
-	flashPrefix     = "__flash_"
+	minSecretLength = 32         // AES-256 requires 32-byte keys for cryptographic security
+	flashPrefix     = "__flash_" // Namespace prefix prevents conflicts with application cookies
 )
 
 type Manager struct {
@@ -33,6 +33,7 @@ func New(secrets []string, opts ...Option) (*Manager, error) {
 		return nil, ErrNoSecret
 	}
 
+	// Remove empty secrets to prevent cryptographic vulnerabilities
 	secrets = slices.DeleteFunc(secrets, func(s string) bool { return s == "" })
 	if len(secrets) == 0 {
 		return nil, ErrNoSecret
@@ -44,6 +45,7 @@ func New(secrets []string, opts ...Option) (*Manager, error) {
 		}
 	}
 
+	// Secure defaults: HttpOnly prevents XSS, SameSiteLax prevents CSRF
 	defaults := Options{
 		Path:     "/",
 		HttpOnly: true,
@@ -88,6 +90,7 @@ func (m *Manager) Get(r *http.Request, name string) (string, error) {
 }
 
 func (m *Manager) Delete(w http.ResponseWriter, name string) {
+	// Both MaxAge=-1 and Expires in the past ensure reliable deletion across browsers
 	cookie := &http.Cookie{
 		Name:     name,
 		Value:    "",
@@ -182,15 +185,17 @@ func (m *Manager) verify(signed string) (string, error) {
 	}
 
 	// Try all secrets to support key rotation - old cookies remain valid during transition
-	for _, secret := range m.secrets {
+	validIndex := slices.IndexFunc(m.secrets, func(secret string) bool {
 		mac := hmac.New(sha256.New, []byte(secret))
 		mac.Write(value)
 		expectedSig := base64.URLEncoding.EncodeToString(mac.Sum(nil))
 
 		// Use constant-time comparison to prevent timing attacks
-		if subtle.ConstantTimeCompare([]byte(signature), []byte(expectedSig)) == 1 {
-			return string(value), nil
-		}
+		return subtle.ConstantTimeCompare([]byte(signature), []byte(expectedSig)) == 1
+	})
+
+	if validIndex >= 0 {
+		return string(value), nil
 	}
 
 	return "", ErrInvalidSignature
