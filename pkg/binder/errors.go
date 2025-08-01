@@ -5,9 +5,9 @@ import "errors"
 // Common binding errors
 var (
 	ErrUnsupportedMediaType = errors.New("unsupported media type")
-	ErrInvalidJSON          = errors.New("invalid JSON")
-	ErrInvalidForm          = errors.New("invalid form data")
-	ErrInvalidQuery         = errors.New("invalid query parameter")
-	ErrInvalidPath          = errors.New("invalid path parameter")
+	ErrFailedToParseJSON    = errors.New("failed to parse JSON request body")
+	ErrFailedToParseForm    = errors.New("failed to parse form data")
+	ErrFailedToParseQuery   = errors.New("failed to parse query parameters")
+	ErrFailedToParsePath    = errors.New("failed to parse path parameters")
 	ErrMissingContentType   = errors.New("missing content type")
 )

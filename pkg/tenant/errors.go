@@ -2,7 +2,6 @@ package tenant
 
 import "errors"
 
-// Package errors that can be returned by tenant operations.
 var (
 	// ErrTenantNotFound is returned when a tenant cannot be found.
 	ErrTenantNotFound = errors.New("tenant not found")

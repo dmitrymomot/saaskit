@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	minSecretLength = 32
-	flashPrefix     = "__flash_"
+	minSecretLength = 32         // AES-256 requires 32-byte keys for cryptographic security
+	flashPrefix     = "__flash_" // Namespace prefix prevents conflicts with application cookies
 )
 
 type Manager struct {
@@ -33,6 +33,7 @@ func New(secrets []string, opts ...Option) (*Manager, error) {
 		return nil, ErrNoSecret
 	}
 
+	// Remove empty secrets to prevent cryptographic vulnerabilities
 	secrets = slices.DeleteFunc(secrets, func(s string) bool { return s == "" })
 	if len(secrets) == 0 {
 		return nil, ErrNoSecret
@@ -44,6 +45,7 @@ func New(secrets []string, opts ...Option) (*Manager, error) {
 		}
 	}
 
+	// Secure defaults: HttpOnly prevents XSS, SameSiteLax prevents CSRF
 	defaults := Options{
 		Path:     "/",
 		HttpOnly: true,
@@ -88,6 +90,7 @@ func (m *Manager) Get(r *http.Request, name string) (string, error) {
 }
 
 func (m *Manager) Delete(w http.ResponseWriter, name string) {
+	// Both MaxAge=-1 and Expires in the past ensure reliable deletion across browsers
 	cookie := &http.Cookie{
 		Name:     name,
 		Value:    "",
@@ -150,6 +153,7 @@ func (m *Manager) GetFlash(w http.ResponseWriter, r *http.Request, key string, d
 		return err
 	}
 
+	// Flash cookies are automatically deleted after reading to prevent replay attacks
 	m.Delete(w, cookieName)
 
 	if err := json.Unmarshal([]byte(data), dest); err != nil {
@@ -180,20 +184,25 @@ func (m *Manager) verify(signed string) (string, error) {
 		return "", ErrInvalidFormat
 	}
 
-	for _, secret := range m.secrets {
+	// Try all secrets to support key rotation - old cookies remain valid during transition
+	validIndex := slices.IndexFunc(m.secrets, func(secret string) bool {
 		mac := hmac.New(sha256.New, []byte(secret))
 		mac.Write(value)
 		expectedSig := base64.URLEncoding.EncodeToString(mac.Sum(nil))
 
-		if subtle.ConstantTimeCompare([]byte(signature), []byte(expectedSig)) == 1 {
-			return string(value), nil
-		}
+		// Use constant-time comparison to prevent timing attacks
+		return subtle.ConstantTimeCompare([]byte(signature), []byte(expectedSig)) == 1
+	})
+
+	if validIndex >= 0 {
+		return string(value), nil
 	}
 
 	return "", ErrInvalidSignature
 }
 
 func (m *Manager) encrypt(value string) (string, error) {
+	// AES-256 requires exactly 32 bytes for the key
 	block, err := aes.NewCipher([]byte(m.secrets[0][:32]))
 	if err != nil {
 		return "", err
@@ -204,11 +213,13 @@ func (m *Manager) encrypt(value string) (string, error) {
 		return "", err
 	}
 
+	// Generate cryptographically secure random nonce to ensure each encryption is unique
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return "", err
 	}
 
+	// Prepend nonce to ciphertext for self-contained decryption
 	ciphertext := gcm.Seal(nonce, nonce, []byte(value), nil)
 	return base64.URLEncoding.EncodeToString(ciphertext), nil
 }
@@ -219,6 +230,7 @@ func (m *Manager) decrypt(encrypted string) (string, error) {
 		return "", ErrInvalidFormat
 	}
 
+	// Try all secrets to support key rotation during decryption
 	var lastErr error
 	for _, secret := range m.secrets {
 		block, err := aes.NewCipher([]byte(secret[:32]))
@@ -238,6 +250,7 @@ func (m *Manager) decrypt(encrypted string) (string, error) {
 			continue
 		}
 
+		// Extract nonce from the beginning of ciphertext
 		nonce, ciphertext := ciphertext[:gcm.NonceSize()], ciphertext[gcm.NonceSize():]
 		plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 		if err == nil {

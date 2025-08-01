@@ -84,26 +84,27 @@ func (ms *MemoryStorage) ClaimTask(ctx context.Context, workerID uuid.UUID, queu
 	var bestTask *Task
 	var bestPriority Priority = -1
 
-	// Scan all pending tasks to find the best one
+	// Find the highest priority available task using a priority-first, time-second algorithm
+	// This ensures critical tasks are processed first while maintaining fairness within priority tiers
 	for _, taskID := range ms.byStatus[TaskStatusPending] {
 		task := ms.tasks[taskID]
 
-		// Check queue
+		// Skip tasks not in requested queues
 		if !slices.Contains(queues, task.Queue) {
 			continue
 		}
 
-		// Check scheduled time
+		// Skip tasks scheduled for future execution (delayed tasks)
 		if task.ScheduledAt.After(now) {
 			continue
 		}
 
-		// Check lock
+		// Skip tasks still locked by other workers (shouldn't happen in pending status)
 		if task.LockedUntil != nil && task.LockedUntil.After(now) {
 			continue
 		}
 
-		// Select highest priority task, or earliest if same priority
+		// Priority-first selection: higher priority wins, earliest creation time breaks ties
 		if bestTask == nil ||
 			task.Priority > bestPriority ||
 			(task.Priority == bestPriority && task.ScheduledAt.Before(bestTask.ScheduledAt)) {
@@ -187,7 +188,8 @@ func (ms *MemoryStorage) FailTask(ctx context.Context, taskID uuid.UUID, errorMs
 		ms.removeFromStatusIndex(taskID, TaskStatusProcessing)
 		ms.byStatus[TaskStatusPending] = append(ms.byStatus[TaskStatusPending], taskID)
 
-		// Re-add with exponential backoff
+		// Apply exponential backoff to prevent thundering herd on persistent failures
+		// Linear progression: 30s, 60s, 90s... balances quick retry with system stability
 		backoff := time.Duration(task.RetryCount) * 30 * time.Second
 		task.ScheduledAt = time.Now().Add(backoff)
 	}
@@ -257,25 +259,30 @@ func (ms *MemoryStorage) ExtendLock(ctx context.Context, taskID uuid.UUID, durat
 // Helper methods
 
 func (ms *MemoryStorage) removeFromStatusIndex(taskID uuid.UUID, status TaskStatus) {
-	ids := ms.byStatus[status]
-	for i, id := range ids {
-		if id == taskID {
-			ms.byStatus[status] = append(ids[:i], ids[i+1:]...)
-			break
-		}
-	}
+	ms.byStatus[status] = slices.DeleteFunc(ms.byStatus[status], func(id uuid.UUID) bool {
+		return id == taskID
+	})
 }
 
 func (ms *MemoryStorage) removeFromQueueIndex(taskID uuid.UUID, queue string) {
-	ids := ms.byQueue[queue]
-	for i, id := range ids {
-		if id == taskID {
-			ms.byQueue[queue] = append(ids[:i], ids[i+1:]...)
-			break
-		}
-	}
+	ms.byQueue[queue] = slices.DeleteFunc(ms.byQueue[queue], func(id uuid.UUID) bool {
+		return id == taskID
+	})
 }
 
+// lockExpirationManager runs in background to recover tasks from dead workers
+// Essential for system resilience - without this, tasks locked by crashed workers would be lost forever
+//
+// How it works:
+// 1. Runs every 30 seconds (configurable via lockCheckInterval)
+// 2. Scans all tasks in "processing" status
+// 3. Checks if their LockedUntil timestamp has passed
+// 4. Resets expired tasks back to "pending" status for retry
+//
+// This ensures that if a worker crashes, gets killed, or loses network connectivity,
+// its claimed tasks will eventually become available for other workers to process.
+// The lock duration should be set longer than expected task processing time to avoid
+// premature expiration of locks for long-running tasks.
 func (ms *MemoryStorage) lockExpirationManager() {
 	for {
 		select {
@@ -287,6 +294,17 @@ func (ms *MemoryStorage) lockExpirationManager() {
 	}
 }
 
+// expireLocks scans all processing tasks and releases expired locks
+// This allows tasks to be retried if a worker crashes or becomes unresponsive
+//
+// Lock expiration strategy:
+// - Only checks tasks in "processing" status (actively being worked on)
+// - Compares current time against each task's LockedUntil timestamp
+// - Tasks with expired locks are reset to "pending" with cleared lock fields
+// - The task remains at its current retry count, preserving failure history
+//
+// This method must be called while holding the mutex to ensure consistency
+// during the status transitions and index updates.
 func (ms *MemoryStorage) expireLocks() {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
@@ -295,12 +313,12 @@ func (ms *MemoryStorage) expireLocks() {
 	for _, taskID := range ms.byStatus[TaskStatusProcessing] {
 		task := ms.tasks[taskID]
 		if task.LockedUntil != nil && task.LockedUntil.Before(now) {
-			// Reset task to pending
+			// Release expired lock and reset task to pending for retry
 			task.Status = TaskStatusPending
 			task.LockedUntil = nil
 			task.LockedBy = nil
 
-			// Update indexes
+			// Update indexes to make task claimable again
 			ms.removeFromStatusIndex(taskID, TaskStatusProcessing)
 			ms.byStatus[TaskStatusPending] = append(ms.byStatus[TaskStatusPending], taskID)
 		}

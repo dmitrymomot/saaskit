@@ -3,30 +3,30 @@
 //
 // The package revolves around two minimal interfaces – State and Event – that
 // give you full freedom to model domain specific states and events while the
-// library takes care of:
-//  1. Transition validation and lookup.
-//  2. Optional Guard evaluation to accept or reject transitions.
-//  3. Execution of side-effect Actions during a transition.
-//  4. Concurrency-safe access to the current state and transition map.
+// library handles:
+//  1. Transition validation and lookup
+//  2. Optional Guard evaluation to accept or reject transitions
+//  3. Execution of side-effect Actions during transitions
+//  4. Concurrency-safe access to current state and transition map
 //
 // Ready-made helpers such as StringState and StringEvent let you get started
-// quickly for simple scenarios, while your own struct types can satisfy the
+// quickly for simple scenarios, while custom struct types can satisfy the
 // interfaces when additional data is required.
 //
 // # Architecture
 //
-// Internally the package offers a SimpleStateMachine implementation that keeps
-// an in-memory map[FromState][Event][]Transition and guards all access with a
-// RWMutex. A fluent Builder type is provided to construct that map in a clear
-// declarative style.
+// The SimpleStateMachine implementation uses an in-memory nested map structure
+// map[FromState][Event][]Transition for O(1) lookups and guards all access with
+// a RWMutex. Configuration uses the functional options pattern for a clean,
+// idiomatic Go API.
 //
-// Errors that can occur during FSM use are exposed via rich error types and
-// helper predicates (e.g. IsNoTransitionAvailableError) so that callers can
-// differentiate between "transition not defined" and "guard rejected" cases.
+// Rich error types with helper predicates (e.g. IsNoTransitionAvailableError)
+// allow callers to differentiate between "transition not defined" and
+// "guard rejected" cases.
 //
 // # Usage
 //
-// Basic example using the builder pattern:
+// Basic example using the options pattern:
 //
 //	import (
 //	    "context"
@@ -39,9 +39,9 @@
 //	    Submit   = statemachine.StringEvent("submit")
 //	)
 //
-//	machine := statemachine.NewBuilder(Draft).
-//	    From(Draft).When(Submit).To(InReview).Add().
-//	    Build()
+//	machine := statemachine.MustNew(Draft,
+//	    statemachine.WithTransition(Draft, InReview, Submit),
+//	)
 //
 //	_ = machine.Fire(context.Background(), Submit, nil)
 //
@@ -71,9 +71,8 @@
 //
 // # Concurrency
 //
-// SimpleStateMachine employs a RWMutex, making read operations (Current,
-// CanFire) cheap while serialising mutating operations (AddTransition, Fire,
-// Reset).
+// SimpleStateMachine uses RWMutex for thread safety, making read operations
+// (Current, CanFire) cheap while serializing mutations (AddTransition, Fire, Reset).
 //
 // # See Also
 //

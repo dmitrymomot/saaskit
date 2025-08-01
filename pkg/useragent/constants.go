@@ -1,9 +1,5 @@
 package useragent
 
-//------------------------------------------------------------------------------
-// Device Type Constants
-//------------------------------------------------------------------------------
-
 // Device types represent the category of device that made the request
 const (
 	// DeviceTypeBot identifies automated crawlers, bots, and spiders
@@ -27,10 +23,6 @@ const (
 	// DeviceTypeUnknown is used when the device type cannot be determined
 	DeviceTypeUnknown = "unknown"
 )
-
-//------------------------------------------------------------------------------
-// Mobile Device Model Constants
-//------------------------------------------------------------------------------
 
 // Mobile device model identifiers
 const (
@@ -59,10 +51,6 @@ const (
 	MobileDeviceUnknown = "unknown"
 )
 
-//------------------------------------------------------------------------------
-// Tablet Device Model Constants
-//------------------------------------------------------------------------------
-
 // Tablet device model identifiers
 const (
 	// TabletDeviceIPad identifies Apple iPad tablets
@@ -86,10 +74,6 @@ const (
 	// TabletDeviceUnknown is used when the tablet model cannot be determined
 	TabletDeviceUnknown = "unknown"
 )
-
-//------------------------------------------------------------------------------
-// Browser Name Constants
-//------------------------------------------------------------------------------
 
 // Browser name identifiers
 const (
@@ -141,10 +125,6 @@ const (
 	// BrowserUnknown is used when the browser cannot be determined
 	BrowserUnknown = "unknown"
 )
-
-//------------------------------------------------------------------------------
-// Operating System Constants
-//------------------------------------------------------------------------------
 
 // Operating system identifiers
 const (

@@ -4,7 +4,7 @@ import (
 	"strings"
 )
 
-// OS detection keyword sets for faster lookups
+// OS detection keyword sets optimized for common traffic patterns
 var (
 	windowsPhoneKeywords = newKeywordSet("windows phone")
 	windowsKeywords      = newKeywordSet("windows")
@@ -17,15 +17,14 @@ var (
 	linuxKeywords        = newKeywordSet("linux", "ubuntu", "debian", "fedora", "mint", "x11")
 )
 
-// ParseOS determines the operating system from a user agent string
-// Optimized version using map-based lookups for faster performance
+// ParseOS identifies operating systems using keyword matching.
+// Order reflects typical web traffic patterns: Windows first, then mobile OSes.
 func ParseOS(lowerUA string) string {
 	if lowerUA == "" {
 		return OSUnknown
 	}
 
-	// Order checks by frequency for typical traffic patterns
-	// Windows is most common in desktop traffic
+	// Windows dominates desktop traffic, check it first
 	if windowsKeywords.contains(lowerUA) {
 		if windowsPhoneKeywords.contains(lowerUA) {
 			return OSWindowsPhone
@@ -33,7 +32,6 @@ func ParseOS(lowerUA string) string {
 		return OSWindows
 	}
 
-	// iOS and macOS checks
 	if iOSKeywords.contains(lowerUA) {
 		return OSiOS
 	}
@@ -42,13 +40,12 @@ func ParseOS(lowerUA string) string {
 		return OSMacOS
 	}
 
-	// Android is very common in mobile
+	// Android check includes fallback for edge cases where keyword detection fails
 	if androidKeywords.contains(lowerUA) || strings.Contains(lowerUA, "android") {
 		return OSAndroid
 	}
 
-	// Less common OS checks
-	// Use map lookups for less common patterns to reduce code size
+	// Less common OSes use keyword sets for maintainability
 	if harmonyOSKeywords.contains(lowerUA) {
 		return OSHarmonyOS
 	}

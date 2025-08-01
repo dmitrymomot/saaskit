@@ -1,6 +1,7 @@
 package validator_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,22 +42,7 @@ func MockTranslator(key string, values map[string]any) string {
 }
 
 func replaceAll(s, old, new string) string {
-	for {
-		newS := ""
-		for i := 0; i < len(s); i++ {
-			if i <= len(s)-len(old) && s[i:i+len(old)] == old {
-				newS += new
-				i += len(old) - 1
-			} else {
-				newS += string(s[i])
-			}
-		}
-		if newS == s {
-			break
-		}
-		s = newS
-	}
-	return s
+	return strings.ReplaceAll(s, old, new)
 }
 
 func toString(v any) string {

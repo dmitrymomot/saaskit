@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	// ISO 4217 currency codes (basic list - in production, use a comprehensive list)
+	// ISO 4217 currency codes - subset for common international commerce
 	validCurrencyCodes = map[string]bool{
 		"USD": true, "EUR": true, "GBP": true, "JPY": true, "AUD": true, "CAD": true,
 		"CHF": true, "CNY": true, "SEK": true, "NZD": true, "MXN": true, "SGD": true,
@@ -22,7 +22,6 @@ var (
 	currencyCodeRegex = regexp.MustCompile(`^[A-Z]{3}$`)
 )
 
-// PositiveAmount validates that a monetary amount is positive (> 0).
 func PositiveAmount[T Numeric](field string, value T) Rule {
 	return Rule{
 		Check: func() bool {
@@ -39,7 +38,6 @@ func PositiveAmount[T Numeric](field string, value T) Rule {
 	}
 }
 
-// NonNegativeAmount validates that a monetary amount is non-negative (>= 0).
 func NonNegativeAmount[T Numeric](field string, value T) Rule {
 	return Rule{
 		Check: func() bool {
@@ -56,7 +54,6 @@ func NonNegativeAmount[T Numeric](field string, value T) Rule {
 	}
 }
 
-// AmountRange validates that a monetary amount is within a specified range.
 func AmountRange[T Numeric](field string, value T, min T, max T) Rule {
 	return Rule{
 		Check: func() bool {
@@ -75,7 +72,7 @@ func AmountRange[T Numeric](field string, value T, min T, max T) Rule {
 	}
 }
 
-// DecimalPrecision validates that a float has at most the specified number of decimal places.
+// DecimalPrecision prevents floating-point precision issues in financial calculations.
 func DecimalPrecision(field string, value float64, maxDecimals int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -94,8 +91,7 @@ func DecimalPrecision(field string, value float64, maxDecimals int) Rule {
 	}
 }
 
-// CurrencyPrecision validates that a monetary amount has appropriate precision for the currency.
-// Most currencies use 2 decimal places, but some (like JPY) use 0, and some use 3 or more.
+// CurrencyPrecision enforces currency-specific decimal rules (USD=2, JPY=0, etc.).
 func CurrencyPrecision(field string, value float64, decimals int) Rule {
 	return DecimalPrecision(field, value, decimals)
 }

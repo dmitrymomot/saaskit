@@ -24,7 +24,7 @@ func TestForm(t *testing.T) {
 		Height   float64 `form:"height"`
 		Active   bool    `form:"active"`
 		Page     uint    `form:"page"`
-		Internal string  `form:"-"` // Should be skipped
+		Internal string  `form:"-"`
 	}
 
 	t.Run("valid form binding with all types", func(t *testing.T) {
@@ -49,7 +49,7 @@ func TestForm(t *testing.T) {
 		assert.Equal(t, 5.9, result.Height)
 		assert.Equal(t, true, result.Active)
 		assert.Equal(t, uint(2), result.Page)
-		assert.Equal(t, "", result.Internal) // Should remain empty
+		assert.Equal(t, "", result.Internal)
 	})
 
 	t.Run("skips fields with dash tag", func(t *testing.T) {
@@ -62,13 +62,13 @@ func TestForm(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		var result basicForm
-		result.Internal = "original" // Set a value that should not be overwritten
+		result.Internal = "original"
 		bindFunc := binder.Form()
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Test", result.Name)
-		assert.Equal(t, "original", result.Internal) // Should not be changed
+		assert.Equal(t, "original", result.Internal)
 	})
 
 	t.Run("content type with charset", func(t *testing.T) {
@@ -129,11 +129,11 @@ func TestForm(t *testing.T) {
 		err := bindFunc(req, &result)
 
 		require.NoError(t, err)
-		assert.Equal(t, "", result.Name)      // zero value
-		assert.Equal(t, 0, result.Age)        // zero value
-		assert.Equal(t, 0.0, result.Height)   // zero value
-		assert.Equal(t, false, result.Active) // zero value
-		assert.Equal(t, uint(0), result.Page) // zero value
+		assert.Equal(t, "", result.Name)
+		assert.Equal(t, 0, result.Age)
+		assert.Equal(t, 0.0, result.Height)
+		assert.Equal(t, false, result.Active)
+		assert.Equal(t, uint(0), result.Page)
 	})
 
 	t.Run("partial form data", func(t *testing.T) {
@@ -152,8 +152,8 @@ func TestForm(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "Jane", result.Name)
 		assert.Equal(t, 25, result.Age)
-		assert.Equal(t, 0.0, result.Height)   // zero value
-		assert.Equal(t, false, result.Active) // zero value
+		assert.Equal(t, 0.0, result.Height)
+		assert.Equal(t, false, result.Active)
 	})
 
 	t.Run("invalid int value", func(t *testing.T) {
@@ -652,7 +652,7 @@ func TestForm(t *testing.T) {
 		err := bindFunc(req, &result)
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, binder.ErrInvalidForm))
+		assert.True(t, errors.Is(err, binder.ErrFailedToParseForm))
 	})
 
 	t.Run("empty values in form", func(t *testing.T) {

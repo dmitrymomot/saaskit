@@ -6,44 +6,46 @@ import "context"
 type Environment string
 
 const (
-	// Development for development environment.
 	Development Environment = "development"
-	// Production for production environment.
-	Production Environment = "production"
-	// Staging for staging environment.
-	Staging Environment = "staging"
+	Production  Environment = "production"
+	Staging     Environment = "staging"
 )
 
 type contextKey struct{}
 
-// WithContext adds environment to context
-func WithContext(ctx context.Context, env string) context.Context {
+// WithContext attaches the environment to a context, preserving type safety
+// for compile-time checking and consistent API usage throughout the application.
+func WithContext(ctx context.Context, env Environment) context.Context {
 	return context.WithValue(ctx, contextKey{}, env)
 }
 
-// FromContext retrieves environment from context
-func FromContext(ctx context.Context) string {
+// FromContext retrieves the environment from a context, returning empty Environment
+// for nil contexts or missing values to ensure zero-allocation error handling.
+func FromContext(ctx context.Context) Environment {
 	if ctx == nil {
 		return ""
 	}
-	env, _ := ctx.Value(contextKey{}).(string)
+	env, _ := ctx.Value(contextKey{}).(Environment)
 	return env
 }
 
-// IsProduction checks if the environment from context is production
+// IsProduction checks if the environment is production.
+// Accepts both "production" (constant) and "prod" (common alias) for flexibility.
 func IsProduction(ctx context.Context) bool {
 	env := FromContext(ctx)
-	return env == string(Production) || env == "prod"
+	return env == Production || env == "prod"
 }
 
-// IsDevelopment checks if the environment from context is development
+// IsDevelopment checks if the environment is development.
+// Accepts both "development" (constant) and "dev" (common alias) for flexibility.
 func IsDevelopment(ctx context.Context) bool {
 	env := FromContext(ctx)
-	return env == string(Development) || env == "dev"
+	return env == Development || env == "dev"
 }
 
-// IsStaging checks if the environment from context is staging
+// IsStaging checks if the environment is staging.
+// Accepts both "staging" (constant) and "stage" (common alias) for flexibility.
 func IsStaging(ctx context.Context) bool {
 	env := FromContext(ctx)
-	return env == string(Staging) || env == "stage"
+	return env == Staging || env == "stage"
 }

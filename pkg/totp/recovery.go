@@ -9,15 +9,15 @@ import (
 	"fmt"
 )
 
-// GenerateRecoveryCodes generates N recovery codes.
-// Returns an error if count is less than 1.
+// GenerateRecoveryCodes creates cryptographically secure backup codes for account recovery.
+// Each code is a 16-character hexadecimal string (64 bits of entropy).
 func GenerateRecoveryCodes(count int) ([]string, error) {
 	if count < 1 {
 		return nil, ErrInvalidRecoveryCodeCount
 	}
 
 	codes := make([]string, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		codeBytes := make([]byte, 8)
 		if _, err := rand.Read(codeBytes); err != nil {
 			return nil, errors.Join(ErrFailedToGenerateRecoveryCode, err)
@@ -28,21 +28,18 @@ func GenerateRecoveryCodes(count int) ([]string, error) {
 	return codes, nil
 }
 
-// HashRecoveryCode hashes a recovery code using SHA-256.
+// HashRecoveryCode creates a SHA-256 hash for secure storage of recovery codes.
 func HashRecoveryCode(code string) string {
 	hash := sha256.Sum256([]byte(code))
 	return hex.EncodeToString(hash[:])
 }
 
-// VerifyRecoveryCode performs a secure constant-time comparison of a recovery code
-// against its hash to prevent timing attacks. Returns true if the code is valid.
+// VerifyRecoveryCode performs constant-time comparison to prevent timing attacks.
+// Essential for security: comparison time must not reveal information about where differences occur.
 func VerifyRecoveryCode(code, hashedCode string) bool {
-	// Compute hash of provided code
 	computedHash := HashRecoveryCode(code)
 
-	// Convert both hashes to byte slices for constant-time comparison
-	// This prevents timing attacks by ensuring the comparison takes
-	// the same amount of time regardless of where differences occur
+	// Use constant-time comparison to prevent timing-based side-channel attacks
 	return subtle.ConstantTimeCompare(
 		[]byte(computedHash),
 		[]byte(hashedCode),

@@ -8,22 +8,32 @@ import (
 	"github.com/mrz1836/postmark"
 )
 
-// postmarkClient implements the EmailSender interface.
 type postmarkClient struct {
 	client *postmark.Client
 	config Config
 }
 
-// NewPostmarkClient creates a new instance of the mailer client
-// with the provided server token and account token from the config (see mailer.Config).
-// The client is used to send emails synchronously using the Postmark API.
-// For asynchronous email sending, use the email enqueuer.
+// NewPostmarkClient creates a Postmark-backed email sender.
+// Both tokens are required for runtime operation - this enforces
+// explicit configuration rather than silent failures in production.
 func NewPostmarkClient(cfg Config) (EmailSender, error) {
 	if cfg.PostmarkServerToken == "" {
 		return nil, fmt.Errorf("%w: PostmarkServerToken is required", ErrInvalidConfig)
 	}
 	if cfg.PostmarkAccountToken == "" {
 		return nil, fmt.Errorf("%w: PostmarkAccountToken is required", ErrInvalidConfig)
+	}
+	if cfg.SenderEmail == "" {
+		return nil, fmt.Errorf("%w: SenderEmail is required", ErrInvalidConfig)
+	}
+	if !emailRegex.MatchString(cfg.SenderEmail) {
+		return nil, fmt.Errorf("%w: SenderEmail must be a valid email address", ErrInvalidConfig)
+	}
+	if cfg.SupportEmail == "" {
+		return nil, fmt.Errorf("%w: SupportEmail is required", ErrInvalidConfig)
+	}
+	if !emailRegex.MatchString(cfg.SupportEmail) {
+		return nil, fmt.Errorf("%w: SupportEmail must be a valid email address", ErrInvalidConfig)
 	}
 
 	return &postmarkClient{
@@ -32,11 +42,9 @@ func NewPostmarkClient(cfg Config) (EmailSender, error) {
 	}, nil
 }
 
-// MustNewPostmarkClient creates a new instance of the mailer client
-// with the provided server token and account token from the config (see mailer.Config).
-// The client is used to send emails synchronously using the Postmark API.
-// For asynchronous email sending, use the email enqueuer.
-// Panics if the config cannot be loaded.
+// MustNewPostmarkClient creates a Postmark client that panics on invalid config.
+// Follows framework pattern of failing fast during initialization rather than
+// allowing broken services to start.
 func MustNewPostmarkClient(cfg Config) EmailSender {
 	client, err := NewPostmarkClient(cfg)
 	if err != nil {
@@ -45,10 +53,15 @@ func MustNewPostmarkClient(cfg Config) EmailSender {
 	return client
 }
 
-// SendEmail sends an email using the Postmark API with tracking enabled for opens and links.
-// It uses the configured sender email as the "From" address and support email as "Reply-To".
-// Returns an error if the send fails or if Postmark returns an error response.
+// SendEmail implements EmailSender using Postmark's transactional API.
+// Tracking is enabled by default for analytics - opens and HTML link clicks only
+// to avoid privacy issues with plain text. Reply-To is set to support email
+// to ensure customer responses reach the right team.
 func (c *postmarkClient) SendEmail(ctx context.Context, params SendEmailParams) error {
+	if err := params.Validate(); err != nil {
+		return err
+	}
+
 	resp, err := c.client.SendEmail(ctx, postmark.Email{
 		From:       c.config.SenderEmail,
 		ReplyTo:    c.config.SupportEmail,

@@ -40,6 +40,7 @@ type Worker struct {
 	sem      chan struct{}
 	wg       sync.WaitGroup
 	mu       sync.RWMutex
+	stopMu   sync.Mutex // Protects stopping state and WaitGroup operations
 
 	// Configuration
 	pullInterval time.Duration
@@ -144,12 +145,15 @@ func (w *Worker) Stop() error {
 		w.mu.Unlock()
 		return fmt.Errorf("worker not started")
 	}
+
+	// Use stopMu to synchronize with run() goroutine
+	w.stopMu.Lock()
+	w.stopping.Store(true)
+	w.stopMu.Unlock()
+
 	cancel := w.cancel
 	w.cancel = nil
 	w.mu.Unlock()
-
-	// Mark as stopping to prevent new tasks
-	w.stopping.Store(true)
 
 	// Cancel context to stop processing
 	cancel()
@@ -192,14 +196,19 @@ func (w *Worker) run() {
 			// Try to acquire a slot
 			select {
 			case w.sem <- struct{}{}:
-				// Check if we're stopping before adding to wait group
+				// Use stopMu to ensure we don't add to WaitGroup after Stop() starts
+				w.stopMu.Lock()
 				if w.stopping.Load() {
-					<-w.sem // Release slot immediately
+					w.stopMu.Unlock()
+					<-w.sem // Release slot
 					return
 				}
 
-				// Got a slot, process task in background
+				// Safe to add to wait group while holding stopMu
 				w.wg.Add(1)
+				w.stopMu.Unlock()
+
+				// Got a slot, process task in background
 				go func() {
 					defer w.wg.Done()
 					defer func() { <-w.sem }() // Release slot
@@ -293,19 +302,26 @@ func (w *Worker) processTask(task *Task) (retErr error) {
 }
 
 // handleMissingHandler processes tasks that have no registered handler
+// Immediately moves tasks to DLQ since retries won't help without a handler
+//
+// Why direct to DLQ: Tasks without handlers will fail on every retry attempt,
+// wasting resources. Moving them directly to DLQ allows operators to:
+// 1. Deploy the missing handler code
+// 2. Manually requeue tasks from DLQ once handler is available
+// 3. Investigate why tasks were enqueued without corresponding handlers
 func (w *Worker) handleMissingHandler(task *Task) error {
 	w.logger.Error("no handler registered for task type",
 		slog.String("worker_id", w.workerID.String()),
 		slog.String("task_id", task.ID.String()),
 		slog.String("task_name", task.TaskName))
 
-	// First mark as failed with specific error
+	// Mark as failed to record the specific error
 	errorMsg := "no handler registered for task type: " + task.TaskName
 	if err := w.repo.FailTask(w.ctx, task.ID, errorMsg); err != nil {
 		return fmt.Errorf("failed to mark task %s as failed: %w", task.ID, err)
 	}
 
-	// Then move to DLQ since no handler means no retry will help
+	// Move directly to DLQ - no point in retrying without a handler
 	if err := w.repo.MoveToDLQ(w.ctx, task.ID); err != nil {
 		return fmt.Errorf("failed to move task %s to DLQ: %w", task.ID, err)
 	}
@@ -314,6 +330,17 @@ func (w *Worker) handleMissingHandler(task *Task) error {
 }
 
 // handleTaskFailure processes failed task execution
+//
+// Retry decision logic:
+// 1. Always calls FailTask first to record the error and increment retry count
+// 2. Checks if task has exhausted all retries (RetryCount >= MaxRetries)
+// 3. If retries remain: FailTask already reset task to "pending" with backoff
+// 4. If no retries remain: Move to DLQ for manual inspection
+//
+// The separation of FailTask and MoveToDLQ allows the storage layer to:
+// - Track failure history and error messages
+// - Implement exponential backoff strategies
+// - Maintain audit trails of task processing attempts
 func (w *Worker) handleTaskFailure(task *Task, execErr error, duration time.Duration) error {
 	w.logger.Error("task failed",
 		slog.String("worker_id", w.workerID.String()),

@@ -5,29 +5,21 @@ import (
 	"strings"
 )
 
-// TokenExtractorFunc defines a function that extracts a token from an HTTP request
+// TokenExtractorFunc defines a function that extracts a token from an HTTP request.
 type TokenExtractorFunc func(r *http.Request) (string, error)
 
-// SkipFunc defines a function that determines whether to skip the middleware
+// SkipFunc defines a function that determines whether to skip JWT validation for a request.
 type SkipFunc func(r *http.Request) bool
 
-// MiddlewareConfig contains configuration for the JWT middleware
+// MiddlewareConfig configures JWT middleware behavior.
 type MiddlewareConfig struct {
-	// Service is the JWT service to use for parsing tokens
-	Service *Service
-
-	// Extractor is a function that extracts a token from an HTTP request
-	// If not specified, BearerTokenExtractor is used
-	Extractor TokenExtractorFunc
-
-	// Skip is a function that determines whether to skip the middleware
-	// If not specified, the middleware is never skipped
-	Skip SkipFunc
+	Service   *Service           // JWT service for token validation
+	Extractor TokenExtractorFunc // Token extraction strategy (defaults to Bearer)
+	Skip      SkipFunc           // Optional request filter to bypass validation
 }
 
-// Middleware returns a new JWT middleware handler with default configuration.
-// The default configuration uses the BearerTokenExtractor and does not skip the middleware.
-// The claims are stored in the request context using the default ContextKey.
+// Middleware creates JWT middleware with default Bearer token extraction.
+// Validates tokens and injects claims into request context for downstream handlers.
 func Middleware(service *Service) func(next http.Handler) http.Handler {
 	return MiddlewareWithConfig(MiddlewareConfig{
 		Service:   service,
@@ -35,30 +27,26 @@ func Middleware(service *Service) func(next http.Handler) http.Handler {
 	})
 }
 
-// Middleware returns a new JWT middleware handler
+// MiddlewareWithConfig creates JWT middleware with custom configuration.
 func MiddlewareWithConfig(config MiddlewareConfig) func(next http.Handler) http.Handler {
-	// Use default token extractor if none is provided
 	if config.Extractor == nil {
 		config.Extractor = BearerTokenExtractor
 	}
 
-	// Return the middleware handler
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Check if we should skip the middleware
 			if config.Skip != nil && config.Skip(r) {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			// Extract the token from the request
 			tokenString, err := config.Extractor(r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusUnauthorized)
 				return
 			}
 
-			// Parse the token
+			// Parse to map[string]any for maximum flexibility
 			claims := make(map[string]any)
 			if err := config.Service.Parse(tokenString, &claims); err != nil {
 				http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -66,21 +54,16 @@ func MiddlewareWithConfig(config MiddlewareConfig) func(next http.Handler) http.
 			}
 
 			ctx := r.Context()
-
-			// Add the token to the request context
 			ctx = SetToken(ctx, tokenString)
-
-			// Add the claims to the request context
 			ctx = SetClaims(ctx, claims)
 
-			// Call the next handler with the updated context
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
-// BearerTokenExtractor extracts a JWT token from the Authorization header
-// It expects the format "Bearer <token>"
+// BearerTokenExtractor extracts JWT tokens from "Authorization: Bearer <token>" headers.
+// This is the most common JWT transport method per RFC 6750.
 func BearerTokenExtractor(r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
@@ -95,7 +78,8 @@ func BearerTokenExtractor(r *http.Request) (string, error) {
 	return parts[1], nil
 }
 
-// CookieTokenExtractor creates a token extractor that extracts tokens from a cookie
+// CookieTokenExtractor creates a token extractor for cookie-based JWT transport.
+// Useful for browser applications where Authorization headers aren't practical.
 func CookieTokenExtractor(cookieName string) TokenExtractorFunc {
 	return func(r *http.Request) (string, error) {
 		cookie, err := r.Cookie(cookieName)
@@ -106,7 +90,8 @@ func CookieTokenExtractor(cookieName string) TokenExtractorFunc {
 	}
 }
 
-// QueryTokenExtractor creates a token extractor that extracts tokens from a query parameter
+// QueryTokenExtractor creates a token extractor for URL query parameters.
+// Generally discouraged due to token exposure in logs and referrer headers.
 func QueryTokenExtractor(paramName string) TokenExtractorFunc {
 	return func(r *http.Request) (string, error) {
 		token := r.URL.Query().Get(paramName)
@@ -117,7 +102,8 @@ func QueryTokenExtractor(paramName string) TokenExtractorFunc {
 	}
 }
 
-// HeaderTokenExtractor creates a token extractor that extracts tokens from a header
+// HeaderTokenExtractor creates a token extractor for custom headers.
+// Useful for APIs that use non-standard header names for token transport.
 func HeaderTokenExtractor(headerName string) TokenExtractorFunc {
 	return func(r *http.Request) (string, error) {
 		token := r.Header.Get(headerName)

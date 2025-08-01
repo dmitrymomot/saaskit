@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-// InList validates that a value is in the allowed list of values.
 func InList[T comparable](field string, value T, allowedValues []T) Rule {
 	return Rule{
 		Check: func() bool {
@@ -28,7 +27,6 @@ func InList[T comparable](field string, value T, allowedValues []T) Rule {
 	}
 }
 
-// NotInList validates that a value is not in the forbidden list of values.
 func NotInList[T comparable](field string, value T, forbiddenValues []T) Rule {
 	return Rule{
 		Check: func() bool {
@@ -51,7 +49,6 @@ func NotInList[T comparable](field string, value T, forbiddenValues []T) Rule {
 	}
 }
 
-// InListString validates that a string is in the allowed list of string values.
 func InListString(field, value string, allowedValues []string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -74,7 +71,6 @@ func InListString(field, value string, allowedValues []string) Rule {
 	}
 }
 
-// NotInListString validates that a string is not in the forbidden list of string values.
 func NotInListString(field, value string, forbiddenValues []string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -97,7 +93,6 @@ func NotInListString(field, value string, forbiddenValues []string) Rule {
 	}
 }
 
-// InListCaseInsensitive validates that a string is in the allowed list (case-insensitive).
 func InListCaseInsensitive(field, value string, allowedValues []string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -121,7 +116,6 @@ func InListCaseInsensitive(field, value string, allowedValues []string) Rule {
 	}
 }
 
-// NotInListCaseInsensitive validates that a string is not in the forbidden list (case-insensitive).
 func NotInListCaseInsensitive(field, value string, forbiddenValues []string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -145,41 +139,35 @@ func NotInListCaseInsensitive(field, value string, forbiddenValues []string) Rul
 	}
 }
 
-// OneOf validates that a value matches exactly one of the provided options.
-// This is an alias for InList but with a more semantic name.
+// Semantic aliases for choice validation
+
 func OneOf[T comparable](field string, value T, options []T) Rule {
 	return InList(field, value, options)
 }
 
-// OneOfString validates that a string matches exactly one of the provided options.
-// This is an alias for InListString but with a more semantic name.
 func OneOfString(field, value string, options []string) Rule {
 	return InListString(field, value, options)
 }
 
-// NoneOf validates that a value does not match any of the provided options.
-// This is an alias for NotInList but with a more semantic name.
 func NoneOf[T comparable](field string, value T, options []T) Rule {
 	return NotInList(field, value, options)
 }
 
-// NoneOfString validates that a string does not match any of the provided options.
-// This is an alias for NotInListString but with a more semantic name.
 func NoneOfString(field, value string, options []string) Rule {
 	return NotInListString(field, value, options)
 }
 
-// ValidEnum validates that a value is a valid enum member (case-sensitive).
 func ValidEnum(field, value string, enumValues []string) Rule {
 	return InListString(field, value, enumValues)
 }
 
-// ValidEnumCaseInsensitive validates that a value is a valid enum member (case-insensitive).
 func ValidEnumCaseInsensitive(field, value string, enumValues []string) Rule {
 	return InListCaseInsensitive(field, value, enumValues)
 }
 
-// ValidStatus validates that a status string is one of the allowed status values.
+// Domain-specific validation helpers - these could use InListString but provide
+// more semantic error messages for common business concepts.
+
 func ValidStatus(field, value string, allowedStatuses []string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -202,7 +190,6 @@ func ValidStatus(field, value string, allowedStatuses []string) Rule {
 	}
 }
 
-// ValidRole validates that a role string is one of the allowed role values.
 func ValidRole(field, value string, allowedRoles []string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -225,7 +212,6 @@ func ValidRole(field, value string, allowedRoles []string) Rule {
 	}
 }
 
-// ValidPermission validates that a permission string is one of the allowed permission values.
 func ValidPermission(field, value string, allowedPermissions []string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -248,7 +234,6 @@ func ValidPermission(field, value string, allowedPermissions []string) Rule {
 	}
 }
 
-// ValidCategory validates that a category string is one of the allowed category values.
 func ValidCategory(field, value string, allowedCategories []string) Rule {
 	return Rule{
 		Check: func() bool {

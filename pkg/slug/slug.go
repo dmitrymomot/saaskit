@@ -79,6 +79,11 @@ func WithSuffix(length int) Option {
 	}
 }
 
+// shouldBreakForLength checks if adding a separator would exceed the max length.
+func shouldBreakForLength(cfg *config, currentRuneCount int) bool {
+	return cfg.maxLength > 0 && currentRuneCount+len(cfg.separator) > cfg.maxLength
+}
+
 // Make creates a URL-safe slug from the input string.
 // It normalizes the string by replacing spaces and special characters
 // with the separator (default "-"), and optionally converts to lowercase.
@@ -110,17 +115,16 @@ func Make(s string, opts ...Option) string {
 	runeCount := 0
 
 	for _, r := range s {
-		// Check max length (counting runes, not bytes)
+		// Check max length (counts runes, not bytes)
 		if cfg.maxLength > 0 && runeCount >= cfg.maxLength {
 			break
 		}
 
-		// Convert to lowercase if enabled
 		if cfg.lowercase {
 			r = unicode.ToLower(r)
 		}
 
-		// Handle ASCII letters and digits
+		// ASCII letters and digits pass through unchanged
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
 			b.WriteRune(r)
 			lastWasSep = false
@@ -128,7 +132,7 @@ func Make(s string, opts ...Option) string {
 			continue
 		}
 
-		// Try to normalize common diacritics
+		// Try to normalize diacritics (é → e, ñ → n, etc.)
 		if normalized, ok := normalizeDiacritic(r); ok {
 			if cfg.lowercase {
 				normalized = unicode.ToLower(normalized)
@@ -139,9 +143,9 @@ func Make(s string, opts ...Option) string {
 			continue
 		}
 
-		// Replace everything else with separator
+		// Replace all other characters with separator, but avoid consecutive separators
 		if !lastWasSep {
-			if cfg.maxLength > 0 && runeCount+len(cfg.separator) > cfg.maxLength {
+			if shouldBreakForLength(cfg, runeCount) {
 				break
 			}
 			b.WriteString(cfg.separator)
@@ -150,13 +154,10 @@ func Make(s string, opts ...Option) string {
 		}
 	}
 
-	// Trim trailing separator
-	result := b.String()
-	result = strings.TrimSuffix(result, cfg.separator)
+	result := strings.TrimSuffix(b.String(), cfg.separator)
 
-	// Add suffix if requested
+	// Add random suffix for collision avoidance if requested
 	if cfg.suffixLength > 0 {
-		// Determine actual suffix length considering max length
 		actualSuffixLen := cfg.suffixLength
 		if cfg.maxLength > 0 && cfg.suffixLength > cfg.maxLength {
 			actualSuffixLen = cfg.maxLength
@@ -164,11 +165,11 @@ func Make(s string, opts ...Option) string {
 
 		suffix := generateSuffix(actualSuffixLen, cfg.lowercase)
 
-		// If we have a max length, ensure we don't exceed it
+		// Ensure total length doesn't exceed maxLength
 		if cfg.maxLength > 0 {
 			totalLen := len([]rune(result)) + len([]rune(cfg.separator)) + actualSuffixLen
 			if totalLen > cfg.maxLength {
-				// Truncate the main slug to make room for suffix
+				// Truncate main slug to make room for suffix
 				mainSlugMaxLen := cfg.maxLength - len([]rune(cfg.separator)) - actualSuffixLen
 				if mainSlugMaxLen > 0 {
 					runes := []rune(result)
@@ -176,7 +177,7 @@ func Make(s string, opts ...Option) string {
 						result = string(runes[:mainSlugMaxLen])
 					}
 				} else {
-					// Not enough room for both slug and suffix, just use suffix
+					// No room for main slug, use suffix only
 					result = ""
 				}
 			}
@@ -192,7 +193,8 @@ func Make(s string, opts ...Option) string {
 	return result
 }
 
-// diacriticMap maps diacritic characters to their ASCII equivalents.
+// diacriticMap maps common Latin diacritics to ASCII equivalents.
+// Covers major European languages but not exhaustive for all Unicode ranges.
 var diacriticMap = map[rune]rune{
 	// lowercase a
 	'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a', 'ā': 'a', 'ă': 'a', 'ą': 'a',
@@ -245,7 +247,8 @@ var diacriticMap = map[rune]rune{
 	'ß': 's', // Could also be "ss"
 }
 
-// normalizeDiacritic converts common diacritics to their ASCII equivalents.
+// normalizeDiacritic attempts to convert a Unicode diacritic to its ASCII equivalent.
+// Returns true if normalization was applied, false if character should be handled elsewhere.
 func normalizeDiacritic(r rune) (rune, bool) {
 	if normalized, ok := diacriticMap[r]; ok {
 		return normalized, true
@@ -265,8 +268,7 @@ func generateSuffix(length int, lowercase bool) string {
 
 	b := make([]byte, length)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback to less random but still functional suffix
-		// This should rarely happen
+		// Fallback to deterministic suffix on rand.Read failure
 		for i := range b {
 			b[i] = charset[i%len(charset)]
 		}

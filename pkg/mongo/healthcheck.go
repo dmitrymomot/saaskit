@@ -7,8 +7,12 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-// Healthcheck is a function that checks the health of the database.
-// It returns an error if the database is not healthy.
+// Healthcheck returns a health check function suitable for Kubernetes readiness/liveness probes
+// or HTTP health endpoints.
+//
+// The returned function performs a lightweight Ping operation to verify MongoDB connectivity
+// without impacting database performance. This is essential for container orchestration
+// where failed health checks trigger pod restarts or traffic redirection.
 func Healthcheck(client *mongo.Client) func(context.Context) error {
 	return func(ctx context.Context) error {
 		if err := client.Ping(ctx, nil); err != nil {

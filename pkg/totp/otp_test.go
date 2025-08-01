@@ -179,7 +179,7 @@ func TestGenerateHOTP(t *testing.T) {
 
 func pow10(n int) int64 {
 	result := int64(1)
-	for i := 0; i < n; i++ {
+	for range n {
 		result *= 10
 	}
 	return result

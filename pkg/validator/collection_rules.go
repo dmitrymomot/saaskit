@@ -2,7 +2,6 @@ package validator
 
 import "fmt"
 
-// RequiredSlice validates that a slice is not empty.
 func RequiredSlice[T any](field string, value []T) Rule {
 	return Rule{
 		Check: func() bool {
@@ -19,7 +18,6 @@ func RequiredSlice[T any](field string, value []T) Rule {
 	}
 }
 
-// MinLenSlice validates that a slice has at least the minimum number of items.
 func MinLenSlice[T any](field string, value []T, min int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -37,7 +35,6 @@ func MinLenSlice[T any](field string, value []T, min int) Rule {
 	}
 }
 
-// MaxLenSlice validates that a slice has at most the maximum number of items.
 func MaxLenSlice[T any](field string, value []T, max int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -55,7 +52,6 @@ func MaxLenSlice[T any](field string, value []T, max int) Rule {
 	}
 }
 
-// LenSlice validates that a slice has exactly the specified number of items.
 func LenSlice[T any](field string, value []T, exact int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -73,7 +69,6 @@ func LenSlice[T any](field string, value []T, exact int) Rule {
 	}
 }
 
-// RequiredMap validates that a map is not empty.
 func RequiredMap[K comparable, V any](field string, value map[K]V) Rule {
 	return Rule{
 		Check: func() bool {
@@ -90,7 +85,6 @@ func RequiredMap[K comparable, V any](field string, value map[K]V) Rule {
 	}
 }
 
-// MinLenMap validates that a map has at least the minimum number of items.
 func MinLenMap[K comparable, V any](field string, value map[K]V, min int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -108,7 +102,6 @@ func MinLenMap[K comparable, V any](field string, value map[K]V, min int) Rule {
 	}
 }
 
-// MaxLenMap validates that a map has at most the maximum number of items.
 func MaxLenMap[K comparable, V any](field string, value map[K]V, max int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -126,7 +119,6 @@ func MaxLenMap[K comparable, V any](field string, value map[K]V, max int) Rule {
 	}
 }
 
-// LenMap validates that a map has exactly the specified number of items.
 func LenMap[K comparable, V any](field string, value map[K]V, exact int) Rule {
 	return Rule{
 		Check: func() bool {

@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// PastDate validates that a date is in the past.
 func PastDate(field string, value time.Time) Rule {
 	return Rule{
 		Check: func() bool {
@@ -22,7 +21,6 @@ func PastDate(field string, value time.Time) Rule {
 	}
 }
 
-// FutureDate validates that a date is in the future.
 func FutureDate(field string, value time.Time) Rule {
 	return Rule{
 		Check: func() bool {
@@ -39,7 +37,6 @@ func FutureDate(field string, value time.Time) Rule {
 	}
 }
 
-// DateAfter validates that a date is after a specified date.
 func DateAfter(field string, value time.Time, after time.Time) Rule {
 	return Rule{
 		Check: func() bool {
@@ -57,7 +54,6 @@ func DateAfter(field string, value time.Time, after time.Time) Rule {
 	}
 }
 
-// DateBefore validates that a date is before a specified date.
 func DateBefore(field string, value time.Time, before time.Time) Rule {
 	return Rule{
 		Check: func() bool {
@@ -75,7 +71,6 @@ func DateBefore(field string, value time.Time, before time.Time) Rule {
 	}
 }
 
-// DateBetween validates that a date is between two specified dates (inclusive).
 func DateBetween(field string, value time.Time, start time.Time, end time.Time) Rule {
 	return Rule{
 		Check: func() bool {
@@ -94,7 +89,7 @@ func DateBetween(field string, value time.Time, start time.Time, end time.Time) 
 	}
 }
 
-// MinAge validates that a birthdate indicates a minimum age.
+// MinAge validates minimum age by calculating years elapsed, accounting for leap years and exact dates.
 func MinAge(field string, birthdate time.Time, minAge int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -121,7 +116,6 @@ func MinAge(field string, birthdate time.Time, minAge int) Rule {
 	}
 }
 
-// MaxAge validates that a birthdate indicates a maximum age.
 func MaxAge(field string, birthdate time.Time, maxAge int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -148,7 +142,6 @@ func MaxAge(field string, birthdate time.Time, maxAge int) Rule {
 	}
 }
 
-// AgeBetween validates that a birthdate indicates an age within a specified range.
 func AgeBetween(field string, birthdate time.Time, minAge int, maxAge int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -176,7 +169,6 @@ func AgeBetween(field string, birthdate time.Time, minAge int, maxAge int) Rule 
 	}
 }
 
-// BusinessHours validates that a time is within business hours.
 func BusinessHours(field string, value time.Time, startHour int, endHour int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -196,7 +188,6 @@ func BusinessHours(field string, value time.Time, startHour int, endHour int) Ru
 	}
 }
 
-// WorkingDay validates that a date falls on a working day (Monday-Friday).
 func WorkingDay(field string, value time.Time) Rule {
 	return Rule{
 		Check: func() bool {
@@ -214,7 +205,6 @@ func WorkingDay(field string, value time.Time) Rule {
 	}
 }
 
-// Weekend validates that a date falls on a weekend (Saturday-Sunday).
 func Weekend(field string, value time.Time) Rule {
 	return Rule{
 		Check: func() bool {
@@ -232,7 +222,7 @@ func Weekend(field string, value time.Time) Rule {
 	}
 }
 
-// TimeAfter validates that a time is after a specified time on the same day.
+// TimeAfter compares time-of-day only, ignoring date component.
 func TimeAfter(field string, value time.Time, after time.Time) Rule {
 	return Rule{
 		Check: func() bool {
@@ -252,7 +242,6 @@ func TimeAfter(field string, value time.Time, after time.Time) Rule {
 	}
 }
 
-// TimeBefore validates that a time is before a specified time on the same day.
 func TimeBefore(field string, value time.Time, before time.Time) Rule {
 	return Rule{
 		Check: func() bool {
@@ -272,7 +261,6 @@ func TimeBefore(field string, value time.Time, before time.Time) Rule {
 	}
 }
 
-// TimeBetween validates that a time is between two specified times on the same day.
 func TimeBetween(field string, value time.Time, start time.Time, end time.Time) Rule {
 	return Rule{
 		Check: func() bool {
@@ -294,16 +282,15 @@ func TimeBetween(field string, value time.Time, start time.Time, end time.Time) 
 	}
 }
 
-// ValidBirthdate validates that a date is a reasonable birthdate (not in future, not too old).
+// ValidBirthdate ensures reasonable birthdate constraints: not future, not older than 150 years.
 func ValidBirthdate(field string, value time.Time) Rule {
 	return Rule{
 		Check: func() bool {
 			now := time.Now()
-			// Not in the future
 			if value.After(now) {
 				return false
 			}
-			// Not more than 150 years ago (reasonable maximum age)
+			// 150 years is reasonable maximum human lifespan
 			maxAge := now.AddDate(-150, 0, 0)
 			return value.After(maxAge)
 		},

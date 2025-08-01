@@ -1,8 +1,7 @@
 package sanitizer
 
-// Apply executes multiple transformation functions sequentially on a value.
-// Each transform function is applied to the result of the previous transformation.
-// The type of the input value is preserved throughout the transformations.
+// Apply creates functional composition pipeline for sanitization transformations.
+// Useful for building complex sanitization chains while maintaining type safety.
 func Apply[T any](value T, transforms ...func(T) T) T {
 	result := value
 
@@ -13,8 +12,8 @@ func Apply[T any](value T, transforms ...func(T) T) T {
 	return result
 }
 
-// Compose creates a single transformation function that applies multiple transformations in sequence.
-// This is useful for creating reusable sanitization pipelines.
+// Compose creates reusable sanitization pipelines that can be stored and reused.
+// Preferred over repeated Apply calls when the same transformation chain is used multiple times.
 func Compose[T any](transforms ...func(T) T) func(T) T {
 	return func(value T) T {
 		return Apply(value, transforms...)

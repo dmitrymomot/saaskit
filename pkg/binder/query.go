@@ -39,6 +39,6 @@ import (
 //	))
 func Query() func(r *http.Request, v any) error {
 	return func(r *http.Request, v any) error {
-		return bindToStruct(v, "query", r.URL.Query(), ErrInvalidQuery)
+		return bindToStruct(v, "query", r.URL.Query(), ErrFailedToParseQuery)
 	}
 }

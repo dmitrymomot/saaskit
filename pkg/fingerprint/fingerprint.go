@@ -24,7 +24,7 @@ func Generate(r *http.Request) string {
 	}
 
 	// Filter out empty components
-	var filtered []string
+	filtered := make([]string, 0, len(components))
 	for _, comp := range components {
 		if comp != "" {
 			filtered = append(filtered, comp)

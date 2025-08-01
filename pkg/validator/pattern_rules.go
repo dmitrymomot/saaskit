@@ -7,7 +7,7 @@ import (
 	"unicode"
 )
 
-// MatchesRegex validates that a string matches a custom regular expression pattern.
+// MatchesRegex validates against custom patterns. Compiles regex on each call - cache externally for performance.
 func MatchesRegex(field, value string, pattern string, description string) Rule {
 	regex := regexp.MustCompile(pattern)
 	return Rule{
@@ -30,7 +30,6 @@ func MatchesRegex(field, value string, pattern string, description string) Rule 
 	}
 }
 
-// DoesNotMatchRegex validates that a string does not match a regular expression pattern.
 func DoesNotMatchRegex(field, value string, pattern string, description string) Rule {
 	regex := regexp.MustCompile(pattern)
 	return Rule{

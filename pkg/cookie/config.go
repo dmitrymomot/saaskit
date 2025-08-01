@@ -5,7 +5,8 @@ import (
 	"strings"
 )
 
-// Config holds cookie manager configuration
+const defaultOptionCapacity = 6 // Default capacity for options slice to avoid reallocation
+
 type Config struct {
 	Secrets  string        `env:"COOKIE_SECRETS" envDefault:""`
 	Path     string        `env:"COOKIE_PATH" envDefault:"/"`
@@ -13,10 +14,9 @@ type Config struct {
 	MaxAge   int           `env:"COOKIE_MAX_AGE" envDefault:"0"`
 	Secure   bool          `env:"COOKIE_SECURE" envDefault:"false"`
 	HttpOnly bool          `env:"COOKIE_HTTP_ONLY" envDefault:"true"`
-	SameSite http.SameSite `env:"COOKIE_SAME_SITE" envDefault:"2"` // 2 = SameSiteLaxMode
+	SameSite http.SameSite `env:"COOKIE_SAME_SITE" envDefault:"2"` // SameSiteLaxMode (2) provides CSRF protection while maintaining functionality
 }
 
-// DefaultConfig returns default cookie configuration
 func DefaultConfig() Config {
 	return Config{
 		Secrets:  "",
@@ -29,13 +29,13 @@ func DefaultConfig() Config {
 	}
 }
 
-// parseSecrets splits the secrets string into a slice
+// parseSecrets splits comma-separated secrets for key rotation support.
+// Empty strings are filtered out to prevent cryptographic vulnerabilities.
 func (c Config) parseSecrets() []string {
 	if c.Secrets == "" {
 		return nil
 	}
 
-	// Split by comma and trim whitespace
 	parts := strings.Split(c.Secrets, ",")
 	secrets := make([]string, 0, len(parts))
 
@@ -49,14 +49,12 @@ func (c Config) parseSecrets() []string {
 	return secrets
 }
 
-// NewFromConfig creates a new Manager from the provided Config.
-// Only non-zero values from the config are applied.
+// NewFromConfig creates a Manager from configuration.
+// Only non-zero config values override defaults to preserve secure settings.
 func NewFromConfig(cfg Config, opts ...Option) (*Manager, error) {
-	// Parse secrets from config
 	secrets := cfg.parseSecrets()
 
-	// Build options from config
-	configOpts := make([]Option, 0, 6)
+	configOpts := make([]Option, 0, defaultOptionCapacity)
 
 	if cfg.Path != "" {
 		configOpts = append(configOpts, WithPath(cfg.Path))
@@ -77,7 +75,6 @@ func NewFromConfig(cfg Config, opts ...Option) (*Manager, error) {
 		configOpts = append(configOpts, WithSameSite(cfg.SameSite))
 	}
 
-	// Append any additional options provided
 	configOpts = append(configOpts, opts...)
 
 	return New(secrets, configOpts...)

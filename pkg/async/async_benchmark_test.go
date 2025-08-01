@@ -9,23 +9,21 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/async"
 )
 
-// BenchmarkAsyncOverhead measures the overhead of the Async helper with a large number of tasks.
+// BenchmarkAsyncOverhead measures async overhead with 1000 concurrent tasks.
 func BenchmarkAsyncOverhead(b *testing.B) {
 	ctx := context.Background()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var wg sync.WaitGroup
 		numTasks := 1000
 
-		// Function to be executed asynchronously
 		workFunc := func(_ context.Context, param int) (int, error) {
-			// Simulate some work
 			time.Sleep(1 * time.Millisecond)
 			return param * 2, nil
 		}
 
 		futures := make([]*async.Future[int], numTasks)
-		for i := 0; i < numTasks; i++ {
+		for i := range numTasks {
 			wg.Add(1)
 			futures[i] = async.Async(ctx, i, func(ctx context.Context, param int) (int, error) {
 				defer wg.Done()
@@ -33,10 +31,7 @@ func BenchmarkAsyncOverhead(b *testing.B) {
 			})
 		}
 
-		// Wait for all tasks to complete
 		wg.Wait()
-
-		// Optionally, retrieve results (could be omitted to focus on overhead)
 		for _, future := range futures {
 			_, err := future.Await()
 			if err != nil {
@@ -46,22 +41,20 @@ func BenchmarkAsyncOverhead(b *testing.B) {
 	}
 }
 
-// BenchmarkAsyncWithoutSleep measures the overhead of the Async helper without any sleep in the tasks.
+// BenchmarkAsyncWithoutSleep measures async overhead with CPU-bound tasks.
 func BenchmarkAsyncWithoutSleep(b *testing.B) {
 	ctx := context.Background()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var wg sync.WaitGroup
 		numTasks := 1000
 
-		// Function to be executed asynchronously
 		workFunc := func(_ context.Context, param int) (int, error) {
-			// Minimal work
 			return param * 2, nil
 		}
 
 		futures := make([]*async.Future[int], numTasks)
-		for i := 0; i < numTasks; i++ {
+		for i := range numTasks {
 			wg.Add(1)
 			futures[i] = async.Async(ctx, i, func(ctx context.Context, param int) (int, error) {
 				defer wg.Done()
@@ -69,10 +62,7 @@ func BenchmarkAsyncWithoutSleep(b *testing.B) {
 			})
 		}
 
-		// Wait for all tasks to complete
 		wg.Wait()
-
-		// Optionally, retrieve results
 		for _, future := range futures {
 			_, err := future.Await()
 			if err != nil {
@@ -82,19 +72,17 @@ func BenchmarkAsyncWithoutSleep(b *testing.B) {
 	}
 }
 
-// BenchmarkAsyncWithContention measures performance when tasks contend for a shared resource.
+// BenchmarkAsyncWithContention measures performance under mutex contention.
 func BenchmarkAsyncWithContention(b *testing.B) {
 	ctx := context.Background()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var wg sync.WaitGroup
 		numTasks := 1000
 		var mu sync.Mutex
 		counter := 0
 
-		// Function to be executed asynchronously
 		workFunc := func(_ context.Context, param int) (int, error) {
-			// Simulate some work with shared resource
 			mu.Lock()
 			counter += param
 			mu.Unlock()
@@ -102,7 +90,7 @@ func BenchmarkAsyncWithContention(b *testing.B) {
 		}
 
 		futures := make([]*async.Future[int], numTasks)
-		for i := 0; i < numTasks; i++ {
+		for i := range numTasks {
 			wg.Add(1)
 			futures[i] = async.Async(ctx, i, func(ctx context.Context, param int) (int, error) {
 				defer wg.Done()
@@ -110,10 +98,7 @@ func BenchmarkAsyncWithContention(b *testing.B) {
 			})
 		}
 
-		// Wait for all tasks to complete
 		wg.Wait()
-
-		// Optionally, retrieve results
 		for _, future := range futures {
 			_, err := future.Await()
 			if err != nil {

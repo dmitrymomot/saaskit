@@ -18,6 +18,9 @@ type Config struct {
 
 	// CleanupInterval for expired sessions (0 to disable)
 	CleanupInterval time.Duration `env:"SESSION_CLEANUP_INTERVAL" envDefault:"5m"`
+
+	// SecureCookies enables the Secure flag on session cookies (recommended for production)
+	SecureCookies bool `env:"SESSION_SECURE_COOKIES" envDefault:"false"`
 }
 
 // DefaultConfig returns default session configuration
@@ -30,6 +33,7 @@ func DefaultConfig() Config {
 		AuthMaxLifetime:         30 * 24 * time.Hour,
 		ActivityUpdateThreshold: 5 * time.Minute,
 		CleanupInterval:         5 * time.Minute,
+		SecureCookies:           false,
 	}
 }
 
@@ -42,15 +46,12 @@ func (c Config) GetTimeouts(isAuthenticated bool) (idle, max time.Duration) {
 }
 
 // NewFromConfig creates a new Manager from the provided Config.
-// Note: This requires a Store and optionally a Transport to be provided via options.
-// The cookie manager must also be provided if using the default cookie transport.
+// Requires Store via options. Cookie manager required for default cookie transport.
 func NewFromConfig(cfg Config, opts ...Option) *Manager {
-	// Build options from config
 	configOpts := []Option{
 		WithConfig(cfg),
 	}
 
-	// Append any additional options provided
 	configOpts = append(configOpts, opts...)
 
 	return New(configOpts...)

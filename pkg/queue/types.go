@@ -13,10 +13,7 @@ const DefaultQueueName = "default"
 type TaskType string
 
 const (
-	// TaskTypeOneTime represents a one-time task
-	TaskTypeOneTime TaskType = "one-time"
-
-	// TaskTypePeriodic represents a periodic task
+	TaskTypeOneTime  TaskType = "one-time"
 	TaskTypePeriodic TaskType = "periodic"
 )
 
@@ -24,20 +21,14 @@ const (
 type TaskStatus string
 
 const (
-	// TaskStatusPending represents a pending task
-	TaskStatusPending TaskStatus = "pending"
-
-	// TaskStatusProcessing represents a processing task
+	TaskStatusPending    TaskStatus = "pending"
 	TaskStatusProcessing TaskStatus = "processing"
-
-	// TaskStatusCompleted represents a completed task
-	TaskStatusCompleted TaskStatus = "completed"
-
-	// TaskStatusFailed represents a failed task
-	TaskStatusFailed TaskStatus = "failed"
+	TaskStatusCompleted  TaskStatus = "completed"
+	TaskStatusFailed     TaskStatus = "failed"
 )
 
 // Priority represents task priority (0-100, higher is more important)
+// Using int8 provides sufficient range while keeping memory footprint minimal
 type Priority int8
 
 // Priority constants
@@ -75,6 +66,7 @@ type Task struct {
 }
 
 // TasksDlq represents a task in the dead letter queue
+// Stores failed tasks that exhausted all retries for manual inspection and recovery
 type TasksDlq struct {
 	ID         uuid.UUID `json:"id"`
 	TaskID     uuid.UUID `json:"task_id"`

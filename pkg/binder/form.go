@@ -2,6 +2,7 @@ package binder
 
 import (
 	"fmt"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
@@ -60,10 +61,9 @@ const DefaultMaxMemory = 10 << 20 // 10 MB
 //	))
 func Form() func(r *http.Request, v any) error {
 	return func(r *http.Request, v any) error {
-		// Check content type
 		contentType := r.Header.Get("Content-Type")
 		if contentType == "" {
-			return fmt.Errorf("%w: expected application/x-www-form-urlencoded or multipart/form-data", ErrMissingContentType)
+			return fmt.Errorf("%w: missing content-type header, expected application/x-www-form-urlencoded or multipart/form-data", ErrMissingContentType)
 		}
 
 		// Extract media type without parameters
@@ -77,17 +77,32 @@ func Form() func(r *http.Request, v any) error {
 
 		switch {
 		case mediaType == "application/x-www-form-urlencoded":
-			// Parse URL-encoded form
 			if err := r.ParseForm(); err != nil {
-				return fmt.Errorf("%w: %v", ErrInvalidForm, err)
+				return fmt.Errorf("%w: %v", ErrFailedToParseForm, err)
 			}
 			values = r.Form
 
 		case strings.HasPrefix(mediaType, "multipart/form-data"):
-			// Parse multipart form
-			if err := r.ParseMultipartForm(DefaultMaxMemory); err != nil {
-				return fmt.Errorf("%w: %v", ErrInvalidForm, err)
+			// Validate multipart content type and boundary for security
+			_, params, err := mime.ParseMediaType(contentType)
+			if err != nil {
+				return fmt.Errorf("%w: malformed content type with boundary", ErrFailedToParseForm)
 			}
+
+			boundary, ok := params["boundary"]
+			if !ok || boundary == "" {
+				return fmt.Errorf("%w: missing boundary in content type", ErrFailedToParseForm)
+			}
+
+			if !validateBoundary(boundary) {
+				return fmt.Errorf("%w: invalid boundary parameter", ErrFailedToParseForm)
+			}
+
+			// Note: Request size limits should be handled at server/middleware level
+			if err := r.ParseMultipartForm(DefaultMaxMemory); err != nil {
+				return fmt.Errorf("%w: %v", ErrFailedToParseForm, err)
+			}
+
 			if r.MultipartForm != nil {
 				values = r.MultipartForm.Value
 				files = r.MultipartForm.File
@@ -99,8 +114,9 @@ func Form() func(r *http.Request, v any) error {
 			return fmt.Errorf("%w: got %s, expected application/x-www-form-urlencoded or multipart/form-data", ErrUnsupportedMediaType, mediaType)
 		}
 
-		// Bind both form fields and files
-		return bindFormAndFiles(v, values, files, ErrInvalidForm)
+		// Note: Multipart form cleanup should be handled at server/middleware level
+		// to maintain standard Go behavior and allow access to r.MultipartForm after binding
+		return bindFormAndFiles(v, values, files, ErrFailedToParseForm)
 	}
 }
 
@@ -118,7 +134,7 @@ func bindFormAndFiles(v any, values map[string][]string, files map[string][]*mul
 
 	rt := rv.Type()
 
-	for i := 0; i < rv.NumField(); i++ {
+	for i := range rv.NumField() {
 		field := rv.Field(i)
 		fieldType := rt.Field(i)
 
@@ -127,7 +143,6 @@ func bindFormAndFiles(v any, values map[string][]string, files map[string][]*mul
 			continue
 		}
 
-		// Get form and file tags
 		formTag := fieldType.Tag.Get("form")
 		fileTag := fieldType.Tag.Get("file")
 
@@ -153,13 +168,11 @@ func bindFormAndFiles(v any, values map[string][]string, files map[string][]*mul
 				continue
 			}
 
-			// Try to bind form value
 			if fieldValues, exists := values[paramName]; exists && len(fieldValues) > 0 {
 				if err := setFieldValue(field, fieldType.Type, fieldValues); err != nil {
 					return fmt.Errorf("%w: field %s: %v", bindErr, fieldType.Name, err)
 				}
 			}
-			continue
 		}
 
 		// Handle file tag
@@ -187,7 +200,6 @@ func setFileField(field reflect.Value, fieldType reflect.Type, fileHeaders []*mu
 		fh.Filename = sanitizeFilename(fh.Filename)
 	}
 
-	// Handle slice types
 	if fieldType.Kind() == reflect.Slice {
 		elemType := fieldType.Elem()
 		if elemType != reflect.TypeOf((*multipart.FileHeader)(nil)) {
@@ -202,7 +214,6 @@ func setFileField(field reflect.Value, fieldType reflect.Type, fileHeaders []*mu
 		return nil
 	}
 
-	// Handle pointer type (optional single file)
 	if fieldType == reflect.TypeOf((*multipart.FileHeader)(nil)) {
 		if len(fileHeaders) > 0 {
 			field.Set(reflect.ValueOf(fileHeaders[0]))
@@ -216,12 +227,11 @@ func setFileField(field reflect.Value, fieldType reflect.Type, fileHeaders []*mu
 // sanitizeFilename removes any path components and dangerous characters from a filename
 // to prevent path traversal attacks and other security issues.
 func sanitizeFilename(filename string) string {
-	// First, replace backslashes with forward slashes to normalize paths
+	// Replace backslashes with forward slashes to normalize paths
 	// This ensures filepath.Base works correctly on Windows-style paths
 	filename = strings.ReplaceAll(filename, "\\", "/")
 
-	// Remove any directory components using filepath.Base
-	// This now handles both Unix and Windows paths correctly
+	// Remove any directory components - handles both Unix and Windows paths
 	filename = filepath.Base(filename)
 
 	// Remove null bytes and other potentially dangerous characters

@@ -17,6 +17,11 @@
 // then evaluating its strategy against the provided context. This allows for both simple
 // on/off toggles and sophisticated rollout rules.
 //
+// The Provider interface is organized into three logical method groups:
+//   - Evaluation methods: IsEnabled, GetFlag
+//   - Management methods: ListFlags, CreateFlag, UpdateFlag, DeleteFlag
+//   - Lifecycle methods: Close
+//
 // # Usage
 //
 // Basic feature flag setup:
@@ -105,6 +110,16 @@
 //
 // Percentage-based rollouts use consistent hashing (FNV-1a) to ensure users
 // always receive the same feature state across evaluations.
+//
+// The package includes comprehensive benchmarks for performance monitoring:
+//   - Provider operations (IsEnabled, ListFlags) under various scenarios
+//   - Strategy evaluation performance for all strategy types
+//   - Concurrent access patterns
+//
+// Memory optimizations include pre-allocated slice capacity in ListFlags when
+// filtering by tags, reducing allocations during filtering operations.
+//
+// Run benchmarks with: go test -bench=. ./pkg/feature/...
 //
 // # Examples
 //

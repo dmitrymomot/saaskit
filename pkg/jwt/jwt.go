@@ -11,48 +11,39 @@ import (
 	"time"
 )
 
-// Constants for JWT
+// JWT header constants required by RFC 7519
 const (
-	// HeaderType is the type of the JWT header
-	HeaderType = "JWT"
-	// HeaderAlgorithm is the algorithm used for signing
-	HeaderAlgorithm = "HS256"
+	HeaderType      = "JWT"
+	HeaderAlgorithm = "HS256" // HMAC-SHA256 chosen for security/performance balance
 )
 
-// Header represents the JWT header
+// Header represents the JWT header as defined in RFC 7515
 type Header struct {
 	Type      string `json:"typ"`
 	Algorithm string `json:"alg"`
 }
 
-// StandardClaims represents the standard JWT claims
+// StandardClaims represents the registered JWT claims defined in RFC 7519 Section 4.1.
+// All fields use Unix timestamps for temporal claims to ensure consistent validation.
 type StandardClaims struct {
-	// ID is a unique identifier for this token
-	ID string `json:"jti,omitempty"`
-	// Subject is the subject of the token
-	Subject string `json:"sub,omitempty"`
-	// Issuer is the issuer of the token
-	Issuer string `json:"iss,omitempty"`
-	// Audience is the audience of the token
-	Audience string `json:"aud,omitempty"`
-	// ExpiresAt is the time at which the token expires
-	ExpiresAt int64 `json:"exp,omitempty"`
-	// NotBefore is the time before which the token must not be accepted
-	NotBefore int64 `json:"nbf,omitempty"`
-	// IssuedAt is the time at which the token was issued
-	IssuedAt int64 `json:"iat,omitempty"`
+	ID        string `json:"jti,omitempty"` // JWT ID - unique identifier for preventing token reuse
+	Subject   string `json:"sub,omitempty"` // Subject - typically user ID or entity identifier
+	Issuer    string `json:"iss,omitempty"` // Issuer - identifies who issued the token
+	Audience  string `json:"aud,omitempty"` // Audience - intended recipient(s) of the token
+	ExpiresAt int64  `json:"exp,omitempty"` // Expiration time - Unix timestamp when token expires
+	NotBefore int64  `json:"nbf,omitempty"` // Not before - Unix timestamp when token becomes valid
+	IssuedAt  int64  `json:"iat,omitempty"` // Issued at - Unix timestamp when token was created
 }
 
-// Valid checks if the claims are valid
+// Valid validates the temporal claims against current time.
+// Zero values are treated as unset (per RFC 7519) and are ignored during validation.
 func (c StandardClaims) Valid() error {
 	now := time.Now().Unix()
 
-	// Check if the token is expired
 	if c.ExpiresAt > 0 && now > c.ExpiresAt {
 		return ErrExpiredToken
 	}
 
-	// Check if the token is not yet valid
 	if c.NotBefore > 0 && now < c.NotBefore {
 		return ErrInvalidToken
 	}
@@ -60,12 +51,14 @@ func (c StandardClaims) Valid() error {
 	return nil
 }
 
-// Service is the JWT service
+// Service handles JWT token generation and validation using HMAC-SHA256.
+// The signing key is kept in memory only and should be cryptographically secure.
 type Service struct {
 	signingKey []byte
 }
 
-// New creates a new JWT service
+// New creates a new JWT service with the provided signing key.
+// The key should be at least 32 bytes for adequate security with HMAC-SHA256.
 func New(signingKey []byte) (*Service, error) {
 	if len(signingKey) == 0 {
 		return nil, ErrMissingSigningKey
@@ -76,7 +69,8 @@ func New(signingKey []byte) (*Service, error) {
 	}, nil
 }
 
-// NewFromString creates a new JWT service from a string signing key
+// NewFromString creates a new JWT service from a string signing key.
+// Convenience wrapper around New() for string-based configuration.
 func NewFromString(signingKey string) (*Service, error) {
 	if signingKey == "" {
 		return nil, ErrMissingSigningKey
@@ -87,93 +81,83 @@ func NewFromString(signingKey string) (*Service, error) {
 	}, nil
 }
 
-// Generate generates a JWT token with the given claims
+// Generate creates a JWT token with the given claims.
+// Accepts any JSON-serializable claims structure and returns a signed JWT string.
 func (s *Service) Generate(claims any) (string, error) {
 	if claims == nil {
 		return "", ErrMissingClaims
 	}
 
-	// Create the header
 	header := Header{
 		Type:      HeaderType,
 		Algorithm: HeaderAlgorithm,
 	}
 
-	// Encode the header
 	headerJSON, err := json.Marshal(header)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal header: %w", err)
 	}
 
-	// Encode the claims
 	claimsJSON, err := json.Marshal(claims)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal claims: %w", err)
 	}
 
-	// Create the payload (header.claims)
+	// Build JWT payload: base64url(header).base64url(claims)
 	headerEncoded := base64URLEncode(headerJSON)
 	claimsEncoded := base64URLEncode(claimsJSON)
 	payload := headerEncoded + "." + claimsEncoded
 
-	// Sign the payload
 	signature := s.sign(payload)
-
-	// Create the token (payload.signature)
 	token := payload + "." + signature
 
 	return token, nil
 }
 
-// Parse parses a JWT token and returns the claims
+// Parse validates a JWT token and unmarshals its claims into the provided structure.
+// Performs cryptographic verification, algorithm validation, and temporal claim checks.
 func (s *Service) Parse(tokenString string, claims any) error {
-	// Split the token
 	parts := strings.Split(tokenString, ".")
 	if len(parts) != 3 {
 		return ErrInvalidToken
 	}
 
-	// Extract the parts
 	headerEncoded := parts[0]
 	claimsEncoded := parts[1]
 	signatureEncoded := parts[2]
 
-	// Verify the signature
+	// Verify signature using constant-time comparison to prevent timing attacks
 	payload := headerEncoded + "." + claimsEncoded
 	expectedSignature := s.sign(payload)
 	if subtle.ConstantTimeCompare([]byte(signatureEncoded), []byte(expectedSignature)) != 1 {
 		return ErrInvalidSignature
 	}
 
-	// Decode the header
 	headerJSON, err := base64URLDecode(headerEncoded)
 	if err != nil {
 		return fmt.Errorf("failed to decode header: %w", err)
 	}
 
-	// Parse the header
 	var header Header
 	if err := json.Unmarshal(headerJSON, &header); err != nil {
 		return fmt.Errorf("failed to unmarshal header: %w", err)
 	}
 
-	// Check the algorithm
+	// Reject tokens using unexpected algorithms to prevent algorithm confusion attacks
 	if header.Algorithm != HeaderAlgorithm {
 		return ErrUnexpectedSigningMethod
 	}
 
-	// Decode the claims
 	claimsJSON, err := base64URLDecode(claimsEncoded)
 	if err != nil {
 		return fmt.Errorf("failed to decode claims: %w", err)
 	}
 
-	// Parse the claims
 	if err := json.Unmarshal(claimsJSON, claims); err != nil {
 		return fmt.Errorf("failed to unmarshal claims: %w", err)
 	}
 
-	// Check if the claims are valid (if they implement the Valid interface)
+	// Validate temporal claims if the type implements the Valid interface
 	if validator, ok := claims.(interface{ Valid() error }); ok {
 		if err := validator.Valid(); err != nil {
 			return err
@@ -183,26 +167,28 @@ func (s *Service) Parse(tokenString string, claims any) error {
 	return nil
 }
 
-// sign signs the payload using HMAC-SHA256
+// sign creates an HMAC-SHA256 signature for the given payload.
+// Returns base64url-encoded signature as required by RFC 7515.
 func (s *Service) sign(payload string) string {
 	h := hmac.New(sha256.New, s.signingKey)
 	h.Write([]byte(payload))
 	return base64URLEncode(h.Sum(nil))
 }
 
-// base64URLEncode encodes data to base64URL
+// base64URLEncode encodes data using base64url encoding without padding.
+// Padding removal is required by RFC 7515 for JWT tokens.
 func base64URLEncode(data []byte) string {
 	return strings.TrimRight(base64.URLEncoding.EncodeToString(data), "=")
 }
 
-// base64URLDecode decodes base64URL data
+// base64URLDecode decodes base64url-encoded data, restoring padding as needed.
+// JWT tokens omit padding per RFC 7515, but Go's decoder requires it.
 func base64URLDecode(s string) ([]byte, error) {
-	// Add padding if needed
 	switch len(s) % 4 {
 	case 2:
-		s += "=="
+		s += strings.Repeat("=", 2)
 	case 3:
-		s += "="
+		s += strings.Repeat("=", 1)
 	}
 
 	return base64.URLEncoding.DecodeString(s)

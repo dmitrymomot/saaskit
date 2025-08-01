@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// ValidUUID validates that a string is a valid UUID format.
+// ValidUUID validates standard UUID format with pre-validation to avoid expensive parsing.
 func ValidUUID(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -15,12 +15,11 @@ func ValidUUID(field, value string) Rule {
 				return false
 			}
 
-			// UUID must be exactly 36 characters with hyphens in correct positions
+			// Fast rejection: check length and hyphen positions before parsing
 			if len(value) != 36 {
 				return false
 			}
 
-			// Check hyphen positions: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 			if value[8] != '-' || value[13] != '-' || value[18] != '-' || value[23] != '-' {
 				return false
 			}
@@ -39,7 +38,6 @@ func ValidUUID(field, value string) Rule {
 	}
 }
 
-// NonNilUUID validates that a UUID is not uuid.Nil (all zeros).
 func NonNilUUID(field string, value uuid.UUID) Rule {
 	return Rule{
 		Check: func() bool {
@@ -56,7 +54,6 @@ func NonNilUUID(field string, value uuid.UUID) Rule {
 	}
 }
 
-// NonNilUUIDString validates that a UUID string is not the nil UUID representation.
 func NonNilUUIDString(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -64,7 +61,6 @@ func NonNilUUIDString(field, value string) Rule {
 				return false
 			}
 
-			// First validate it's a proper UUID format
 			if len(value) != 36 || value[8] != '-' || value[13] != '-' || value[18] != '-' || value[23] != '-' {
 				return false
 			}
@@ -86,7 +82,6 @@ func NonNilUUIDString(field, value string) Rule {
 	}
 }
 
-// ValidUUIDVersion validates that a UUID is of a specific version.
 func ValidUUIDVersion(field string, value uuid.UUID, version int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -104,7 +99,6 @@ func ValidUUIDVersion(field string, value uuid.UUID, version int) Rule {
 	}
 }
 
-// ValidUUIDVersionString validates that a UUID string is of a specific version.
 func ValidUUIDVersionString(field, value string, version int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -112,7 +106,6 @@ func ValidUUIDVersionString(field, value string, version int) Rule {
 				return false
 			}
 
-			// First validate it's a proper UUID format
 			if len(value) != 36 || value[8] != '-' || value[13] != '-' || value[18] != '-' || value[23] != '-' {
 				return false
 			}
@@ -135,47 +128,40 @@ func ValidUUIDVersionString(field, value string, version int) Rule {
 	}
 }
 
-// ValidUUIDv1 validates that a UUID is version 1 (time-based).
+// Version-specific validation helpers
+
 func ValidUUIDv1(field string, value uuid.UUID) Rule {
 	return ValidUUIDVersion(field, value, 1)
 }
 
-// ValidUUIDv1String validates that a UUID string is version 1 (time-based).
 func ValidUUIDv1String(field, value string) Rule {
 	return ValidUUIDVersionString(field, value, 1)
 }
 
-// ValidUUIDv3 validates that a UUID is version 3 (name-based using MD5).
 func ValidUUIDv3(field string, value uuid.UUID) Rule {
 	return ValidUUIDVersion(field, value, 3)
 }
 
-// ValidUUIDv3String validates that a UUID string is version 3 (name-based using MD5).
 func ValidUUIDv3String(field, value string) Rule {
 	return ValidUUIDVersionString(field, value, 3)
 }
 
-// ValidUUIDv4 validates that a UUID is version 4 (random).
 func ValidUUIDv4(field string, value uuid.UUID) Rule {
 	return ValidUUIDVersion(field, value, 4)
 }
 
-// ValidUUIDv4String validates that a UUID string is version 4 (random).
 func ValidUUIDv4String(field, value string) Rule {
 	return ValidUUIDVersionString(field, value, 4)
 }
 
-// ValidUUIDv5 validates that a UUID is version 5 (name-based using SHA-1).
 func ValidUUIDv5(field string, value uuid.UUID) Rule {
 	return ValidUUIDVersion(field, value, 5)
 }
 
-// ValidUUIDv5String validates that a UUID string is version 5 (name-based using SHA-1).
 func ValidUUIDv5String(field, value string) Rule {
 	return ValidUUIDVersionString(field, value, 5)
 }
 
-// RequiredUUID validates that a UUID is not the zero value and not nil.
 func RequiredUUID(field string, value uuid.UUID) Rule {
 	return Rule{
 		Check: func() bool {
@@ -192,7 +178,6 @@ func RequiredUUID(field string, value uuid.UUID) Rule {
 	}
 }
 
-// RequiredUUIDString validates that a UUID string is not empty and represents a valid, non-nil UUID.
 func RequiredUUIDString(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -200,7 +185,6 @@ func RequiredUUIDString(field, value string) Rule {
 				return false
 			}
 
-			// First validate it's a proper UUID format
 			if len(value) != 36 || value[8] != '-' || value[13] != '-' || value[18] != '-' || value[23] != '-' {
 				return false
 			}

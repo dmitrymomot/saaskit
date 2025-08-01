@@ -47,6 +47,8 @@ func EncryptBytes(appKey, workspaceKey []byte, data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Clear key from memory when done
+	defer clearBytes(key)
 
 	// Create AES cipher
 	block, err := aes.NewCipher(key)
@@ -66,8 +68,7 @@ func EncryptBytes(appKey, workspaceKey []byte, data []byte) ([]byte, error) {
 		return nil, errors.Join(ErrEncryptionFailed, err)
 	}
 
-	// Encrypt data
-	// Prepend nonce to ciphertext for storage
+	// Encrypt and prepend nonce to ciphertext for storage
 	ciphertext := aesGCM.Seal(nonce, nonce, data, nil)
 
 	return ciphertext, nil
@@ -86,6 +87,8 @@ func DecryptBytes(appKey, workspaceKey []byte, ciphertext []byte) ([]byte, error
 	if err != nil {
 		return nil, err
 	}
+	// Clear key from memory when done
+	defer clearBytes(key)
 
 	// Create AES cipher
 	block, err := aes.NewCipher(key)

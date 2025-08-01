@@ -7,8 +7,9 @@ import (
 	"github.com/opensearch-project/opensearch-go/v2"
 )
 
-// New creates a new OpenSearch client.
-// It returns an error if the client cannot be created.
+// New creates an OpenSearch client and verifies cluster connectivity.
+// Performs an immediate health check to fail fast if the cluster is unreachable,
+// preventing broken clients from being returned to callers.
 func New(ctx context.Context, cfg Config) (*opensearch.Client, error) {
 	ocfg := opensearch.Config{
 		Addresses:    cfg.Addresses,
@@ -22,7 +23,7 @@ func New(ctx context.Context, cfg Config) (*opensearch.Client, error) {
 		return nil, errors.Join(ErrConnectionFailed, err)
 	}
 
-	// Healthcheck
+	// Verify cluster is reachable before returning client to prevent runtime failures
 	if err := Healthcheck(client)(ctx); err != nil {
 		return nil, err
 	}

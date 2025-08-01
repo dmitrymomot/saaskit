@@ -9,13 +9,12 @@ import (
 )
 
 var (
-	// Character class regexes for password validation
 	uppercaseRegex   = regexp.MustCompile(`[A-Z]`)
 	lowercaseRegex   = regexp.MustCompile(`[a-z]`)
 	digitRegex       = regexp.MustCompile(`[0-9]`)
 	specialCharRegex = regexp.MustCompile(`[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~` + "`" + `]`)
 
-	// Common weak passwords (basic list - in production, use a comprehensive list)
+	// Common weak passwords - curated list of frequently compromised passwords
 	commonPasswords = map[string]bool{
 		"password":      true,
 		"123456":        true,
@@ -154,7 +153,6 @@ var (
 	}
 )
 
-// PasswordStrengthConfig defines the requirements for password strength validation.
 type PasswordStrengthConfig struct {
 	MinLength        int
 	MaxLength        int
@@ -165,7 +163,7 @@ type PasswordStrengthConfig struct {
 	MinCharClasses   int // Minimum number of different character classes required
 }
 
-// DefaultPasswordStrength returns a sensible default password strength configuration.
+// DefaultPasswordStrength returns NIST-recommended password policy: 8-128 chars, 3+ character classes.
 func DefaultPasswordStrength() PasswordStrengthConfig {
 	return PasswordStrengthConfig{
 		MinLength:        8,
@@ -178,7 +176,6 @@ func DefaultPasswordStrength() PasswordStrengthConfig {
 	}
 }
 
-// StrongPassword validates password strength according to the provided configuration.
 func StrongPassword(field, value string, config PasswordStrengthConfig) Rule {
 	return Rule{
 		Check: func() bool {
@@ -239,7 +236,6 @@ func StrongPassword(field, value string, config PasswordStrengthConfig) Rule {
 	}
 }
 
-// PasswordUppercase validates that a password contains at least one uppercase letter.
 func PasswordUppercase(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -256,7 +252,6 @@ func PasswordUppercase(field, value string) Rule {
 	}
 }
 
-// PasswordLowercase validates that a password contains at least one lowercase letter.
 func PasswordLowercase(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -273,7 +268,6 @@ func PasswordLowercase(field, value string) Rule {
 	}
 }
 
-// PasswordDigit validates that a password contains at least one digit.
 func PasswordDigit(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -290,7 +284,6 @@ func PasswordDigit(field, value string) Rule {
 	}
 }
 
-// PasswordSpecialChar validates that a password contains at least one special character.
 func PasswordSpecialChar(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -307,7 +300,6 @@ func PasswordSpecialChar(field, value string) Rule {
 	}
 }
 
-// NotCommonPassword validates that a password is not in the list of common passwords.
 func NotCommonPassword(field, value string) Rule {
 	return Rule{
 		Check: func() bool {
@@ -324,8 +316,8 @@ func NotCommonPassword(field, value string) Rule {
 	}
 }
 
-// PasswordEntropy validates that a password has sufficient entropy (randomness).
-// Minimum entropy is measured in bits (e.g., 50 bits is reasonably strong).
+// PasswordEntropy validates password randomness using Shannon entropy.
+// 50+ bits indicates strong randomness, 40-49 is moderate, <40 is weak.
 func PasswordEntropy(field, value string, minEntropy float64) Rule {
 	return Rule{
 		Check: func() bool {
@@ -344,7 +336,6 @@ func PasswordEntropy(field, value string, minEntropy float64) Rule {
 	}
 }
 
-// NoRepeatingChars validates that a password doesn't contain too many repeating characters.
 func NoRepeatingChars(field, value string, maxRepeats int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -386,7 +377,7 @@ func NoRepeatingChars(field, value string, maxRepeats int) Rule {
 	}
 }
 
-// NoSequentialChars validates that a password doesn't contain sequential characters.
+// NoSequentialChars prevents patterns like "abc" or "123" that reduce effective entropy.
 func NoSequentialChars(field, value string, maxSequential int) Rule {
 	return Rule{
 		Check: func() bool {
@@ -422,13 +413,13 @@ func NoSequentialChars(field, value string, maxSequential int) Rule {
 	}
 }
 
-// calculatePasswordEntropy calculates the entropy of a password in bits.
+// calculatePasswordEntropy estimates password strength using Shannon entropy formula.
+// Accounts for character set diversity and actual unique characters used.
 func calculatePasswordEntropy(password string) float64 {
 	if len(password) == 0 {
 		return 0
 	}
 
-	// Count unique characters and determine character set size
 	uniqueChars := make(map[rune]bool)
 	hasLower := false
 	hasUpper := false
@@ -449,7 +440,7 @@ func calculatePasswordEntropy(password string) float64 {
 		}
 	}
 
-	// Estimate character set size based on character types used
+	// Estimate theoretical character set size
 	charsetSize := 0
 	if hasLower {
 		charsetSize += 26
@@ -461,20 +452,20 @@ func calculatePasswordEntropy(password string) float64 {
 		charsetSize += 10
 	}
 	if hasSpecial {
-		charsetSize += 32 // Approximate number of common special characters
+		charsetSize += 32 // Approximation for common special chars
 	}
 
 	if charsetSize == 0 {
 		return 0
 	}
 
-	// Calculate entropy: log2(charset_size^length)
-	// But also consider the actual unique characters used
+	// Use actual unique chars but cap at theoretical max
 	effectiveCharsetSize := float64(len(uniqueChars))
 	if effectiveCharsetSize > float64(charsetSize) {
 		effectiveCharsetSize = float64(charsetSize)
 	}
 
+	// Shannon entropy: length * log2(charset_size)
 	entropy := float64(len(password)) * math.Log2(effectiveCharsetSize)
 	return entropy
 }

@@ -61,10 +61,10 @@
 // The package defines several error variables for common binding failures:
 //
 //   - ErrUnsupportedMediaType: Content type doesn't match expected type
-//   - ErrInvalidJSON: Malformed JSON data
-//   - ErrInvalidForm: Invalid form data
-//   - ErrInvalidQuery: Invalid query parameters
-//   - ErrInvalidPath: Invalid path parameters
+//   - ErrFailedToParseJSON: Failed to parse JSON request body
+//   - ErrFailedToParseForm: Failed to parse form data
+//   - ErrFailedToParseQuery: Failed to parse query parameters
+//   - ErrFailedToParsePath: Failed to parse path parameters
 //   - ErrMissingContentType: Missing Content-Type header
 //
 // All binding errors are automatically handled by the saaskit framework and

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/dmitrymomot/saaskit/pkg/scopes"
@@ -107,10 +108,7 @@ func (a *authorizer) Can(roleName, permission string) error {
 
 	// Check for wildcard permissions using the existing scopes logic
 	// Convert back to slice for compatibility with scopes package
-	permissions := make([]string, 0, len(permissionSet))
-	for perm := range permissionSet {
-		permissions = append(permissions, perm)
-	}
+	permissions := slices.Collect(maps.Keys(permissionSet))
 
 	if !scopes.HasScope(permissions, permission) {
 		return ErrInsufficientPermissions
@@ -138,10 +136,7 @@ func (a *authorizer) CanAny(roleName string, permissions ...string) error {
 	}
 
 	// If no exact matches, fall back to wildcard checking
-	rolePermissions := make([]string, 0, len(permissionSet))
-	for perm := range permissionSet {
-		rolePermissions = append(rolePermissions, perm)
-	}
+	rolePermissions := slices.Collect(maps.Keys(permissionSet))
 
 	if !scopes.HasAnyScopes(rolePermissions, permissions) {
 		return ErrInsufficientPermissions
@@ -180,10 +175,7 @@ func (a *authorizer) CanAll(roleName string, permissions ...string) error {
 
 	// For remaining permissions, check wildcards
 	if len(remainingPermissions) > 0 {
-		rolePermissions := make([]string, 0, len(permissionSet))
-		for perm := range permissionSet {
-			rolePermissions = append(rolePermissions, perm)
-		}
+		rolePermissions := slices.Collect(maps.Keys(permissionSet))
 
 		if !scopes.HasAllScopes(rolePermissions, remainingPermissions) {
 			return ErrInsufficientPermissions
@@ -280,10 +272,7 @@ func sortRolesByInheritance(roles map[string]Role) []string {
 	}
 
 	// Create sorted slice
-	result := make([]string, 0, len(roles))
-	for roleName := range roles {
-		result = append(result, roleName)
-	}
+	result := slices.Collect(maps.Keys(roles))
 
 	// Sort by depth (base roles first)
 	slices.SortFunc(result, func(a, b string) int {

@@ -217,7 +217,7 @@ func TestFingerprintConsistency(t *testing.T) {
 		}, "192.168.1.100:54321")
 
 		fingerprints := make(map[string]bool)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			fp := fingerprint.Generate(req)
 			fingerprints[fp] = true
 		}

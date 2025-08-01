@@ -2,7 +2,6 @@ package totp_test
 
 import (
 	"encoding/base64"
-	"fmt"
 	"testing"
 
 	"github.com/dmitrymomot/saaskit/pkg/totp"
@@ -99,7 +98,6 @@ func TestGenerateEncryptionKey(t *testing.T) {
 func TestGenerateEncodedEncryptionKey(t *testing.T) {
 	t.Parallel()
 	key, err := totp.GenerateEncodedEncryptionKey()
-	fmt.Println(key) // Print the key to stdout
 	require.NoError(t, err)
 	require.NotEmpty(t, key)
 

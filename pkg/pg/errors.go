@@ -17,7 +17,7 @@ var (
 	ErrMigrationPathNotProvided = errors.New("migration path not provided")
 )
 
-// IsNotFoundError checks if the given error is a "not found" error.
+// IsNotFoundError detects pgx.ErrNoRows for consistent "not found" handling across queries.
 func IsNotFoundError(err error) bool {
 	if err == nil {
 		return false
@@ -25,7 +25,7 @@ func IsNotFoundError(err error) bool {
 	return errors.Is(err, pgx.ErrNoRows)
 }
 
-// IsTxClosedError checks if the given error is a "transaction closed" error.
+// IsTxClosedError detects attempts to use closed transactions, helping debug concurrency issues.
 func IsTxClosedError(err error) bool {
 	if err == nil {
 		return false
@@ -33,7 +33,8 @@ func IsTxClosedError(err error) bool {
 	return errors.Is(err, pgx.ErrTxClosed)
 }
 
-// IsDuplicateKeyError checks if the error is a duplicate key error.
+// IsDuplicateKeyError detects PostgreSQL unique constraint violations (SQLSTATE 23505).
+// Common in SaaS applications for email uniqueness, username conflicts, etc.
 func IsDuplicateKeyError(err error) bool {
 	if err == nil {
 		return false
@@ -43,7 +44,8 @@ func IsDuplicateKeyError(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
-// IsForeignKeyViolationError checks if the error is a foreign key violation error.
+// IsForeignKeyViolationError detects referential integrity violations (SQLSTATE 23503).
+// Occurs when trying to insert/update records that reference non-existent foreign keys.
 func IsForeignKeyViolationError(err error) bool {
 	if err == nil {
 		return false

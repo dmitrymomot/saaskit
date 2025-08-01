@@ -1,8 +1,8 @@
 package i18n
 
 import (
+	"cmp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -10,7 +10,9 @@ import (
 // DefaultLanguage is the default language code used when no language is detected
 const DefaultLanguage = "en"
 
-// maxAcceptLanguageLength is the maximum allowed length for Accept-Language header
+// maxAcceptLanguageLength prevents DoS attacks through oversized Accept-Language headers.
+// RFC 7231 doesn't specify a limit, but 4KB is generous for legitimate headers while
+// preventing memory exhaustion from malicious requests.
 const maxAcceptLanguageLength = 4096
 
 // langWithQ represents a language tag with its quality value
@@ -19,14 +21,14 @@ type langWithQ struct {
 	q    float64
 }
 
-// parseAcceptLanguageHeader parses an Accept-Language header into a slice of languages with quality values.
-// It handles the parsing of quality values and returns the languages sorted by quality (highest first).
+// parseAcceptLanguageHeader parses Accept-Language headers according to RFC 7231.
+// Uses quality values to prioritize user preferences, handling malformed entries gracefully.
+// Truncates oversized headers to prevent DoS while preserving most user preferences.
 func parseAcceptLanguageHeader(header string) []langWithQ {
 	if header == "" {
 		return nil
 	}
 
-	// Limit header length to prevent DoS
 	if len(header) > maxAcceptLanguageLength {
 		header = header[:maxAcceptLanguageLength]
 	}
@@ -39,11 +41,10 @@ func parseAcceptLanguageHeader(header string) []langWithQ {
 			continue
 		}
 
-		// Split by semicolon to separate language from quality
 		langAndQ := strings.Split(part, ";")
 		lang := strings.TrimSpace(langAndQ[0])
-		lang = strings.ToLower(lang) // Normalize to lowercase for consistency
-		q := 1.0                     // Default quality
+		lang = strings.ToLower(lang) // Case-insensitive matching per RFC 7231
+		q := 1.0
 
 		// Parse quality value if present
 		if len(langAndQ) > 1 {
@@ -60,41 +61,38 @@ func parseAcceptLanguageHeader(header string) []langWithQ {
 		}
 	}
 
-	// Sort by quality (highest first)
-	sort.Slice(languages, func(i, j int) bool {
-		return languages[i].q > languages[j].q
+	// Sort by quality score descending to respect user preferences
+	slices.SortFunc(languages, func(a, b langWithQ) int {
+		return cmp.Compare(b.q, a.q) // Reversed for descending order
 	})
 
 	return languages
 }
 
-// ParseAcceptLanguage parses an Accept-Language header and returns the best matching language
-// from the list of supported languages. If no match is found, returns the defaultLang.
-// It handles quality values and language variants (e.g., "en-US" matching "en").
+// ParseAcceptLanguage implements RFC 7231 Accept-Language negotiation with fallback strategy.
+// First attempts exact matches (en-US), then base language matches (en-US -> en).
+// This two-phase approach balances user preferences with practical language support.
 func ParseAcceptLanguage(header string, supportedLangs []string, defaultLang string) string {
 	if header == "" || len(supportedLangs) == 0 {
 		return defaultLang
 	}
 
-	// Normalize supported languages to lowercase for case-insensitive matching
 	normalizedSupported := make([]string, len(supportedLangs))
 	for i, lang := range supportedLangs {
 		normalizedSupported[i] = strings.ToLower(lang)
 	}
 
-	// Parse Accept-Language header
 	languages := parseAcceptLanguageHeader(header)
 
-	// Find the first matching supported language
-	// Process in quality order, checking exact match then base language
+	// Phase 1: Exact matches (en-US matches en-US)
 	for _, lq := range languages {
-		// Check for exact match first
 		if slices.Contains(normalizedSupported, lq.lang) {
 			return lq.lang
 		}
 	}
 
-	// No exact matches found, now check for base language matches
+	// Phase 2: Base language fallback (en-US matches en)
+	// Only after all exact matches are exhausted to respect quality ordering
 	for _, lq := range languages {
 		if idx := strings.Index(lq.lang, "-"); idx > 0 {
 			baseLang := lq.lang[:idx]

@@ -2,7 +2,6 @@ package async
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 )
@@ -30,7 +29,7 @@ func (f *Future[U]) AwaitWithTimeout(timeout time.Duration) (U, error) {
 		return f.result, f.err
 	case <-time.After(timeout):
 		var zero U
-		return zero, errors.New("future: timeout waiting for completion")
+		return zero, ErrTimeout
 	}
 }
 
@@ -53,7 +52,7 @@ func Async[T any, U any](ctx context.Context, param T, fn func(context.Context, 
 	go func() {
 		defer close(f.done)
 
-		// Check if the context is already canceled
+		// Early exit prevents goroutine leak when context is pre-canceled
 		select {
 		case <-ctx.Done():
 			var zero U
@@ -63,10 +62,9 @@ func Async[T any, U any](ctx context.Context, param T, fn func(context.Context, 
 		default:
 		}
 
-		// Execute the function
 		res, err := fn(ctx, param)
 
-		// Set the result and error
+		// Use sync.Once to prevent race conditions on multiple goroutine completions
 		f.once.Do(func() {
 			f.result = res
 			f.err = err
@@ -81,7 +79,6 @@ func Async[T any, U any](ctx context.Context, param T, fn func(context.Context, 
 func WaitAll[U any](futures ...*Future[U]) ([]U, error) {
 	results := make([]U, len(futures))
 
-	// Wait for all futures to complete
 	for i, future := range futures {
 		result, err := future.Await()
 		results[i] = result
@@ -95,20 +92,20 @@ func WaitAll[U any](futures ...*Future[U]) ([]U, error) {
 
 // WaitAny waits for any of the futures to complete and returns the index of the completed future,
 // its result, and any error it might have returned.
+// Note: This function spawns one goroutine per future. All goroutines will complete naturally
+// when their respective futures finish.
 func WaitAny[U any](futures ...*Future[U]) (int, U, error) {
 	if len(futures) == 0 {
 		var zero U
-		return -1, zero, errors.New("future: no futures provided to WaitAny")
+		return -1, zero, ErrNoFutures
 	}
 
-	// Create a channel to signal completion
 	done := make(chan struct {
 		index  int
 		result U
 		err    error
 	})
 
-	// Start a goroutine for each future
 	for i, future := range futures {
 		go func(index int, f *Future[U]) {
 			result, err := f.Await()
@@ -119,12 +116,11 @@ func WaitAny[U any](futures ...*Future[U]) (int, U, error) {
 				err    error
 			}{index, result, err}:
 			default:
-				// Another future already completed
+				// Prevents race condition where multiple futures complete simultaneously
 			}
 		}(i, future)
 	}
 
-	// Wait for the first future to complete
 	res := <-done
 	return res.index, res.result, res.err
 }

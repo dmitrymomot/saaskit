@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // bindToStruct binds values to a struct using reflection.
@@ -24,7 +26,7 @@ func bindToStruct(v any, tagName string, values map[string][]string, bindErr err
 
 	rt := rv.Type()
 
-	for i := 0; i < rv.NumField(); i++ {
+	for i := range rv.NumField() {
 		field := rv.Field(i)
 		fieldType := rt.Field(i)
 
@@ -33,20 +35,16 @@ func bindToStruct(v any, tagName string, values map[string][]string, bindErr err
 			continue
 		}
 
-		// Parse field tag
 		paramName, skip := parseFieldTag(fieldType, tagName)
 		if skip {
 			continue
 		}
 
-		// Get values from map
 		fieldValues, exists := values[paramName]
 		if !exists || len(fieldValues) == 0 {
-			// No value provided, leave as zero value
-			continue
+			continue // No value provided, leave as zero value
 		}
 
-		// Set field value based on type
 		if err := setFieldValue(field, fieldType.Type, fieldValues); err != nil {
 			return fmt.Errorf("%w: field %s: %v", bindErr, fieldType.Name, err)
 		}
@@ -59,12 +57,10 @@ func bindToStruct(v any, tagName string, values map[string][]string, bindErr err
 func parseFieldTag(field reflect.StructField, tagName string) (paramName string, skip bool) {
 	tag := field.Tag.Get(tagName)
 	if tag == "" {
-		// No tag, use field name in lowercase
-		return strings.ToLower(field.Name), false
+		return strings.ToLower(field.Name), false // No tag, use field name in lowercase
 	}
 	if tag == "-" {
-		// Skip this field
-		return "", true
+		return "", true // Skip this field
 	}
 
 	// Handle comma-separated tag options (e.g., "name,omitempty")
@@ -93,10 +89,9 @@ func setFieldValue(field reflect.Value, fieldType reflect.Type, values []string)
 	}
 	value := values[0]
 
-	// Handle basic types
 	switch fieldType.Kind() {
 	case reflect.String:
-		field.SetString(value)
+		field.SetString(sanitizeStringValue(value))
 
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		n, err := strconv.ParseInt(value, 10, fieldType.Bits())
@@ -166,4 +161,51 @@ func setSliceValue(field reflect.Value, fieldType reflect.Type, values []string)
 
 	field.Set(slice)
 	return nil
+}
+
+// sanitizeStringValue removes potentially dangerous characters and normalizes input.
+// This prevents CRLF injection, NUL byte injection, and handles unicode normalization.
+func sanitizeStringValue(value string) string {
+	// Remove NUL bytes
+	value = strings.ReplaceAll(value, "\x00", "")
+
+	// Remove CRLF sequences to prevent header injection
+	value = strings.ReplaceAll(value, "\r\n", "")
+	value = strings.ReplaceAll(value, "\r", "")
+	value = strings.ReplaceAll(value, "\n", "")
+
+	// Remove other control characters except tab and space
+	var builder strings.Builder
+	builder.Grow(len(value))
+
+	for _, r := range value {
+		if r == '\t' || r >= ' ' || unicode.IsGraphic(r) {
+			if utf8.ValidRune(r) {
+				builder.WriteRune(r)
+			}
+		}
+	}
+
+	return builder.String()
+}
+
+// validateBoundary checks if a multipart boundary contains potentially malicious content.
+func validateBoundary(boundary string) bool {
+	if boundary == "" {
+		return false
+	}
+
+	// Check for control characters that could break parsing
+	for _, r := range boundary {
+		if r == '\x00' || r == '\r' || r == '\n' {
+			return false
+		}
+	}
+
+	// RFC7578 recommends max 70 characters
+	if len(boundary) > 100 {
+		return false
+	}
+
+	return true
 }

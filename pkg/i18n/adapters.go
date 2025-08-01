@@ -58,24 +58,23 @@ func (a *FileAdapter) Load(ctx context.Context) (map[string]map[string]any, erro
 		return nil, fmt.Errorf("file path is empty")
 	}
 
-	// Use context for cancellation
-	// Create a channel for done signal
+	// File I/O in goroutine with context cancellation prevents blocking on slow disk/network.
+	// Critical for server startup where hanging on missing files would delay service.
+	// The select pattern allows immediate cancellation rather than waiting for os.ReadFile timeout.
 	done := make(chan struct{})
 	var content []byte
 	var readErr error
 
-	// Start file reading in a goroutine
 	go func() {
 		content, readErr = os.ReadFile(a.path)
 		close(done)
 	}()
 
-	// Wait for either context cancellation or file reading completion
 	select {
 	case <-ctx.Done():
 		return nil, errors.Join(ErrLoadingFileCancelled, ctx.Err())
 	case <-done:
-		// Continue with normal processing
+		// File operation completed
 	}
 
 	// Handle file reading error with context
@@ -168,18 +167,16 @@ func (a *DirectoryAdapter) processDirectory(ctx context.Context, allTranslations
 	var entries []os.DirEntry
 	var readErr error
 
-	// Start reading directory in a goroutine to respect context cancellation
 	go func() {
 		entries, readErr = os.ReadDir(a.path)
 		close(done)
 	}()
 
-	// Wait for either context cancellation or reading completion
 	select {
 	case <-ctx.Done():
 		return errors.Join(ErrLoadingDirectoryCancelled, ctx.Err())
 	case <-done:
-		// Continue with processing
+		// Directory reading completed
 	}
 
 	// Handle directory reading error
@@ -206,7 +203,7 @@ func (a *DirectoryAdapter) processDirectory(ctx context.Context, allTranslations
 			continue
 		}
 
-		// Check context before processing each file
+		// Check for cancellation before expensive operations
 		if ctx.Err() != nil {
 			return errors.Join(ErrContextCancelledDuringProcessing, ctx.Err())
 		}
@@ -215,8 +212,7 @@ func (a *DirectoryAdapter) processDirectory(ctx context.Context, allTranslations
 		filePath := filepath.Join(a.path, entry.Name())
 		err := a.processFile(ctx, filePath, allTranslations)
 		if err != nil {
-			// Log the error but continue with other files
-			// This makes the adapter more resilient to single file failures
+			// Continue processing other files for resilient loading
 			fmt.Printf("Warning: failed to process file '%s': %v\n", filePath, err)
 			continue
 		}

@@ -58,7 +58,8 @@ func WithTaskPriority(priority Priority) SchedulerTaskOption {
 	}
 }
 
-// WithTaskMaxRetries sets the max retries for the scheduled task
+// WithTaskMaxRetries sets the max retries for the scheduled task (0-10)
+// Capped at 10 to prevent infinite retry loops on persistent failures
 func WithTaskMaxRetries(maxRetries int8) SchedulerTaskOption {
 	return func(o *schedulerTaskOptions) {
 		if maxRetries >= 0 && maxRetries <= 10 {

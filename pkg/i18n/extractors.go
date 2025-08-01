@@ -6,15 +6,16 @@ import (
 	"strings"
 )
 
-// maxLangCodeLength is the maximum allowed length for a language code
-const maxLangCodeLength = 35 // RFC 5646 recommends 35 characters max
+// maxLangCodeLength enforces RFC 5646 compliance and prevents buffer overflow attacks.
+// Language tags longer than 35 characters are malformed or malicious (legitimate tags
+// like "zh-Hans-CN-x-private-tag" are well under this limit).
+const maxLangCodeLength = 35
 
 // langValidator validates and normalizes language codes
 type langValidator struct {
 	supportedLangs []string
 }
 
-// newLangValidator creates a new language validator with normalized supported languages
 func newLangValidator(supportedLangs []string) *langValidator {
 	normalized := make([]string, len(supportedLangs))
 	for i, lang := range supportedLangs {
@@ -29,24 +30,22 @@ func (v *langValidator) validate(lang string) string {
 		return ""
 	}
 
-	// Limit language code length for security
 	if len(lang) > maxLangCodeLength {
 		return ""
 	}
 
-	// Always normalize to lowercase for consistency
 	normalizedLang := strings.ToLower(lang)
 
-	// If no validation required, return normalized
 	if len(v.supportedLangs) == 0 {
 		return normalizedLang
 	}
 
-	// Check if language is supported
+	// Exact match first (en-US matches en-US)
 	if slices.Contains(v.supportedLangs, normalizedLang) {
 		return normalizedLang
 	}
-	// Check without region code
+
+	// Fallback to base language (en-US matches en)
 	if idx := strings.Index(normalizedLang, "-"); idx > 0 {
 		baseLang := normalizedLang[:idx]
 		if slices.Contains(v.supportedLangs, baseLang) {
@@ -96,15 +95,16 @@ func WithSupportedLanguages(langs ...string) ExtractorOption {
 	}
 }
 
-// DefaultLangExtractor creates a language extractor that checks multiple sources in priority order:
-// 1. Cookie (default name: "lang")
-// 2. Query parameter (default name: "lang")
-// 3. Language header
-// 4. Accept-Language header
+// DefaultLangExtractor implements security-conscious language detection with fallback hierarchy.
+// Priority order reflects security vs usability: explicit user choice (cookie, query) before
+// implicit browser preferences (headers). This prevents language injection while respecting
+// user preferences. Cookie takes precedence as it represents persistent user choice.
 //
-// The extractor returns the first non-empty language code found.
-// If SupportedLangs is provided, it will validate the language.
-// For Accept-Language headers, it uses ParseAcceptLanguage to find the best match.
+// Priority order:
+// 1. Cookie - explicit user preference, persistent across sessions
+// 2. Query parameter - explicit per-request override
+// 3. Language header - non-standard but sometimes used by APIs
+// 4. Accept-Language header - browser preferences with quality values
 func DefaultLangExtractor(opts ...ExtractorOption) LangExtractor {
 	config := &ExtractorConfig{
 		CookieName:     "lang",
@@ -116,12 +116,10 @@ func DefaultLangExtractor(opts ...ExtractorOption) LangExtractor {
 		opt(config)
 	}
 
-	// Create validator once at initialization time
 	validator := newLangValidator(config.SupportedLangs)
 
 	return func(r *http.Request) string {
-
-		// 1. Check cookie
+		// 1. Cookie - persistent user preference
 		if config.CookieName != "" {
 			if cookie, err := r.Cookie(config.CookieName); err == nil && cookie.Value != "" {
 				if lang := strings.TrimSpace(cookie.Value); lang != "" {
@@ -132,7 +130,7 @@ func DefaultLangExtractor(opts ...ExtractorOption) LangExtractor {
 			}
 		}
 
-		// 2. Check query parameter
+		// 2. Query parameter - per-request override
 		if config.QueryParamName != "" {
 			if lang := strings.TrimSpace(r.URL.Query().Get(config.QueryParamName)); lang != "" {
 				if validated := validator.validate(lang); validated != "" {
@@ -141,21 +139,20 @@ func DefaultLangExtractor(opts ...ExtractorOption) LangExtractor {
 			}
 		}
 
-		// 3. Check Language header (non-standard but sometimes used)
+		// 3. Language header - non-standard but used by some APIs
 		if lang := strings.TrimSpace(r.Header.Get("Language")); lang != "" {
 			if validated := validator.validate(lang); validated != "" {
 				return validated
 			}
 		}
 
-		// 4. Check Accept-Language header
+		// 4. Accept-Language header - browser preferences
 		acceptLang := r.Header.Get("Accept-Language")
 		if acceptLang != "" {
 			if len(config.SupportedLangs) > 0 {
-				// Parse and find best match
 				return ParseAcceptLanguage(acceptLang, config.SupportedLangs, "")
 			}
-			// Return the highest priority language without validation
+			// Return highest quality language without validation
 			langs := parseAcceptLanguageHeader(acceptLang)
 			if len(langs) > 0 {
 				return langs[0].lang
@@ -163,7 +160,6 @@ func DefaultLangExtractor(opts ...ExtractorOption) LangExtractor {
 			return ""
 		}
 
-		// Return empty string to let the middleware handle the default
 		return ""
 	}
 }

@@ -1,173 +1,125 @@
-# mailer
+# Email
 
-Email sending package with type-safe templates and provider abstraction.
-
-## Overview
-
-This package provides email sending functionality for the SaaS application, featuring a provider-agnostic interface with Postmark implementation and type-safe email templates using templ. It's designed for synchronous email operations with built-in tracking capabilities.
-
-## Internal Usage
-
-This package is internal to the project and provides email sending capabilities for authentication flows, notifications, and transactional emails across the application.
+Provider-agnostic interface for sending transactional emails with built-in support for Postmark and type-safe email templates using templ.
 
 ## Features
 
-- Provider-agnostic EmailSender interface for easy provider switching
-- Postmark integration with automatic email tracking (opens and links)
-- Type-safe email templates using templ components
-- Comprehensive validation of configuration at client creation
-- Support for HTML email with responsive design
-- Reusable email components (buttons, headers, footers, OTP displays)
+- Provider abstraction with Postmark implementation and development mode
+- Type-safe email templates with templ integration
+- Development sender that saves emails to disk for testing
+- Built-in validation for email parameters and configuration
+
+## Installation
+
+```go
+import "github.com/dmitrymomot/saaskit/pkg/email"
+```
 
 ## Usage
 
-### Basic Example
-
 ```go
-import
-    "github.com/dmitrymomot/saaskit/pkg/email"
-    "github.com/dmitrymomot/saaskit/pkg/config"
-)
-
-// Load configuration from environment variables
-cfg, err := config.Load[mailer.Config]()
-if err != nil {
-	// Handle error
+// Production usage with Postmark
+cfg := email.Config{
+    PostmarkServerToken:  "your-server-token",
+    PostmarkAccountToken: "your-account-token",
+    SenderEmail:          "noreply@example.com",
+    SupportEmail:         "support@example.com",
 }
 
-// Create email client
-client, err := mailer.NewPostmarkClient(cfg)
+client, err := email.NewPostmarkClient(cfg)
 if err != nil {
-    // Handle configuration error
+    log.Fatal(err)
 }
 
-// Send email
-err = client.SendEmail(ctx, mailer.SendEmailParams{
+// Send an email
+err = client.SendEmail(ctx, email.SendEmailParams{
     SendTo:   "user@example.com",
-    Subject:  "Welcome to Our Service",
-    BodyHTML: "<h1>Welcome!</h1><p>Thanks for signing up.</p>",
-    Tag:      "welcome-email", // optional, for Postmark categorization
+    Subject:  "Welcome!",
+    BodyHTML: "<h1>Welcome</h1><p>Thanks for signing up!</p>",
+    Tag:      "welcome", // optional, for analytics
 })
 ```
 
-### Using Email Templates
+## Common Operations
+
+### Development Mode
 
 ```go
-import (
-    "github.com/dmitrymomot/saaskit/pkg/email"
-    "github.com/dmitrymomot/saaskit/pkg/email/templates"
-    "github.com/dmitrymomot/saaskit/pkg/email/templates/components"
-)
+// Save emails to disk instead of sending
+devSender := email.NewDevSender("./email-output")
 
-// Build an email using components
-emailTemplate := components.Layout(
-	components.Header("Welcome to Our Platform"),
-	components.Text("We're excited to have you join us."),
-	components.PrimaryButton("Get Started", "https://example.com/start"),
-	components.Footer(" 2025 Example Inc."),
-)
+err := devSender.SendEmail(ctx, email.SendEmailParams{
+    SendTo:   "test@example.com",
+    Subject:  "Test Email",
+    BodyHTML: htmlContent,
+})
+// Creates: ./email-output/2024_01_15_143022_test_email.html
+// Creates: ./email-output/2024_01_15_143022_test_email.json
+```
 
-// Render template to HTML
-htmlBody, err := templates.Render(context.Background(), emailTemplate)
+### Using Templates
+
+```go
+import "github.com/dmitrymomot/saaskit/pkg/email/templates"
+
+// Render a templ component to HTML
+html, err := templates.Render(ctx, myTemplComponent)
 if err != nil {
-	// Handle error
+    return err
 }
 
-// Send email with the rendered template
-err = client.SendEmail(context.Background(), mailer.SendEmailParams{
-	SendTo:   "user@example.com",
-	Subject:  "Welcome!",
-	BodyHTML: htmlBody,
-	Tag:      "onboarding",
+// Send the rendered email
+err = client.SendEmail(ctx, email.SendEmailParams{
+    SendTo:   "user@example.com",
+    Subject:  "Your OTP Code",
+    BodyHTML: html,
+    Tag:      "otp",
 })
 ```
 
-### Error Handling
+## Error Handling
 
 ```go
-err := client.SendEmail(ctx, params)
-if err != nil {
-    if errors.Is(err, mailer.ErrInvalidConfig) {
-        // Configuration issue - check Postmark tokens
-    } else if errors.Is(err, mailer.ErrFailedToSendEmail) {
-        // Email delivery failed - check logs for Postmark error details
-    }
+// Package errors:
+var (
+    ErrInvalidConfig     = errors.New("invalid email configuration")
+    ErrInvalidParams     = errors.New("invalid email parameters")
+    ErrFailedToSendEmail = errors.New("failed to send email")
+)
+
+// Usage:
+if errors.Is(err, email.ErrInvalidParams) {
+    // handle validation error
 }
 ```
 
-## Best Practices
-
-### Integration Guidelines
-
-- Initialize the mailer client once at application startup and reuse it
-- Use environment variables for all configuration values
-- Always validate email addresses before sending
-- Use meaningful tags for email categorization and analytics
-
-### Project-Specific Considerations
-
-- The package is designed for synchronous operations - integrate with taskqueue for async email sending
-- Template components are optimized for email clients with inline styles
-- All emails automatically include tracking for opens and link clicks
-- Support email is set as Reply-To header for all outgoing emails
-
-## API Reference
-
-### Types
+## Configuration
 
 ```go
-type Config struct {
-    PostmarkServerToken  string `env:"POSTMARK_SERVER_TOKEN"`
-    PostmarkAccountToken string `env:"POSTMARK_ACCOUNT_TOKEN"`
-    SenderEmail          string `env:"SENDER_EMAIL,required"`
-    SupportEmail         string `env:"SUPPORT_EMAIL,required"`
+// All fields required for production
+config := email.Config{
+    PostmarkServerToken:  os.Getenv("POSTMARK_SERVER_TOKEN"),
+    PostmarkAccountToken: os.Getenv("POSTMARK_ACCOUNT_TOKEN"),
+    SenderEmail:          os.Getenv("SENDER_EMAIL"),
+    SupportEmail:         os.Getenv("SUPPORT_EMAIL"),
 }
 
-type EmailSender interface {
-    SendEmail(ctx context.Context, params SendEmailParams) error
-}
-
-type SendEmailParams struct {
-    SendTo   string `json:"send_to"`
-    Subject  string `json:"subject"`
-    BodyHTML string `json:"body_html"`
-    Tag      string `json:"tag,omitempty"`
-}
+// Panic on invalid config (for initialization)
+client := email.MustNewPostmarkClient(config)
 ```
 
-### Functions
+## API Documentation
 
-```go
-func NewPostmarkClient(cfg Config) (EmailSender, error)
-func MustNewPostmarkClient(cfg Config) EmailSender
+```bash
+# Full API documentation
+go doc github.com/dmitrymomot/saaskit/pkg/email
+
+# Specific function or type
+go doc github.com/dmitrymomot/saaskit/pkg/email.EmailSender
 ```
 
-### Template Functions
+## Notes
 
-```go
-// templates package
-func Render(ctx context.Context, tpl templ.Component) (string, error)
-
-// templates/components package
-func Layout() templ.Component
-func Header(title, subtitle string) templ.Component
-func Text() templ.Component
-func TextWarning() templ.Component
-func TextSecondary() templ.Component
-func Logo(logoURL, alt string) templ.Component
-func Footer() templ.Component
-func FooterLink(text, url string) templ.Component
-func ButtonGroup() templ.Component
-func PrimaryButton(text, url string) templ.Component
-func SuccessButton(text, url string) templ.Component
-func DangerButton(text, url string) templ.Component
-func Link(text, url string) templ.Component
-func OTP(otp string) templ.Component
-```
-
-### Error Types
-
-```go
-var ErrFailedToSendEmail = errors.New("mailer.errors.failed_to_send_email")
-var ErrInvalidConfig = errors.New("mailer.errors.invalid_config")
-```
+- Email validation uses a simple regex that covers most common cases
+- DevSender sanitizes filenames and limits them to 100 characters
+- Templates subpackage provides pre-styled email components (Layout, Buttons, Text styles, OTP)

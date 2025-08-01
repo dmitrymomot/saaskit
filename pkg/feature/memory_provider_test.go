@@ -11,10 +11,8 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/feature"
 )
 
-// Test helper context key for memory provider tests
 type testMemoryUserIDKey struct{}
 
-// Test helper extractor for memory provider tests
 func testMemoryUserIDExtractor(ctx context.Context) string {
 	userID, _ := ctx.Value(testMemoryUserIDKey{}).(string)
 	return userID
@@ -26,12 +24,9 @@ func TestMemoryProvider(t *testing.T) {
 
 	t.Run("NewMemoryProvider", func(t *testing.T) {
 		t.Parallel()
-		// Test creating an empty provider
 		provider, err := feature.NewMemoryProvider()
 		require.NoError(t, err)
 		require.NotNil(t, provider)
-
-		// Test creating with initial flags
 		flags := []*feature.Flag{
 			{
 				Name:        "test-flag-1",
@@ -51,7 +46,6 @@ func TestMemoryProvider(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, provider)
 
-		// Test creating with invalid flag
 		_, err = feature.NewMemoryProvider(&feature.Flag{Name: ""})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "flag name cannot be empty")
@@ -61,7 +55,6 @@ func TestMemoryProvider(t *testing.T) {
 		t.Parallel()
 		provider, _ := feature.NewMemoryProvider()
 
-		// Test creating a valid flag
 		flag := &feature.Flag{
 			Name:        "new-flag",
 			Description: "A new flag",
@@ -73,17 +66,14 @@ func TestMemoryProvider(t *testing.T) {
 		err := provider.CreateFlag(ctx, flag)
 		require.NoError(t, err)
 
-		// Test creating with empty name
 		err = provider.CreateFlag(ctx, &feature.Flag{Name: ""})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "flag name cannot be empty")
 
-		// Test creating a nil flag
 		err = provider.CreateFlag(ctx, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "flag cannot be nil")
 
-		// Test creating a duplicate flag
 		err = provider.CreateFlag(ctx, flag)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "flag already exists")
@@ -91,7 +81,6 @@ func TestMemoryProvider(t *testing.T) {
 
 	t.Run("GetFlag", func(t *testing.T) {
 		t.Parallel()
-		// Create a provider with a test flag
 		testFlag := &feature.Flag{
 			Name:        "test-flag",
 			Description: "Test flag",
@@ -101,7 +90,6 @@ func TestMemoryProvider(t *testing.T) {
 		}
 		provider, _ := feature.NewMemoryProvider(testFlag)
 
-		// Test retrieving an existing flag
 		flag, err := provider.GetFlag(ctx, "test-flag")
 		require.NoError(t, err)
 		assert.Equal(t, testFlag.Name, flag.Name)
@@ -109,7 +97,6 @@ func TestMemoryProvider(t *testing.T) {
 		assert.Equal(t, testFlag.Enabled, flag.Enabled)
 		assert.Equal(t, testFlag.Tags, flag.Tags)
 
-		// Test retrieving a non-existent flag
 		_, err = provider.GetFlag(ctx, "non-existent")
 		require.Error(t, err)
 		assert.Equal(t, feature.ErrFlagNotFound, err)
@@ -117,24 +104,21 @@ func TestMemoryProvider(t *testing.T) {
 		// Verify GetFlag returns a copy, not the original reference
 		retrievedFlag, _ := provider.GetFlag(ctx, "test-flag")
 		retrievedFlag.Enabled = false
-		// Get the flag again and verify it's unchanged
 		originalFlag, _ := provider.GetFlag(ctx, "test-flag")
 		assert.True(t, originalFlag.Enabled, "Original flag should be unmodified")
 	})
 
 	t.Run("UpdateFlag", func(t *testing.T) {
 		t.Parallel()
-		// Create a provider with a test flag
 		testFlag := &feature.Flag{
 			Name:        "update-flag",
 			Description: "Flag to update",
 			Enabled:     true,
 			Strategy:    feature.NewAlwaysOnStrategy(),
-			CreatedAt:   time.Now().Add(-1 * time.Hour), // Set creation time in the past
+			CreatedAt:   time.Now().Add(-1 * time.Hour),
 		}
 		provider, _ := feature.NewMemoryProvider(testFlag)
 
-		// Update the flag
 		updatedFlag := &feature.Flag{
 			Name:        "update-flag",
 			Description: "Updated description",
@@ -146,7 +130,6 @@ func TestMemoryProvider(t *testing.T) {
 		err := provider.UpdateFlag(ctx, updatedFlag)
 		require.NoError(t, err)
 
-		// Retrieve and verify the update
 		flag, err := provider.GetFlag(ctx, "update-flag")
 		require.NoError(t, err)
 		assert.Equal(t, "Updated description", flag.Description)
@@ -155,12 +138,9 @@ func TestMemoryProvider(t *testing.T) {
 		assert.Equal(t, testFlag.CreatedAt, flag.CreatedAt, "CreatedAt should be preserved")
 		assert.True(t, flag.UpdatedAt.After(testFlag.CreatedAt), "UpdatedAt should be more recent")
 
-		// Test updating a non-existent flag
 		err = provider.UpdateFlag(ctx, &feature.Flag{Name: "non-existent"})
 		require.Error(t, err)
 		assert.Equal(t, feature.ErrFlagNotFound, err)
-
-		// Test invalid updates
 		err = provider.UpdateFlag(ctx, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "flag cannot be nil")
@@ -269,7 +249,7 @@ func TestMemoryProvider(t *testing.T) {
 
 		disabledFlag := &feature.Flag{
 			Name:     "disabled-flag",
-			Enabled:  false, // Globally disabled, strategy doesn't matter
+			Enabled:  false, // Global disabled overrides strategy
 			Strategy: feature.NewAlwaysOnStrategy(),
 		}
 

@@ -12,15 +12,13 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-// Migrate migrates the database to the latest version using the provided connection pool.
-// If the database is already up to date, it will return nil. If the database is not up to date,
-// it will apply all available migrations and return nil. If an error occurs, it will return the error.
+// Migrate applies database schema migrations using goose with pgx integration.
+// Handles the complex pgx->database/sql conversion required since goose doesn't natively support pgx.
 func Migrate(ctx context.Context, pool *pgxpool.Pool, cfg Config, log logger) error {
 	if cfg.MigrationsPath == "" {
 		return errors.Join(ErrFailedToApplyMigrations, ErrMigrationPathNotProvided)
 	}
 
-	// Check if the provided directory exists
 	if _, err := os.Stat(cfg.MigrationsPath); err != nil {
 		if os.IsNotExist(err) {
 			return errors.Join(ErrMigrationsDirNotFound, err)
@@ -28,7 +26,9 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, cfg Config, log logger) er
 		return errors.Join(ErrFailedToApplyMigrations, err)
 	}
 
-	// Convert pgx pool to database/sql DB since goose expects it
+	// Bridge pgx connection pool to database/sql interface required by goose.
+	// This creates a wrapper that shares the underlying connections but provides
+	// the standard library interface that goose migration tool expects.
 	db := stdlib.OpenDBFromPool(pool)
 	defer func(db *sql.DB) {
 		err := db.Close()
@@ -37,16 +37,14 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, cfg Config, log logger) er
 		}
 	}(db)
 
-	// Set the custom logger for goose
+	// Route goose migration logs through application logger instead of stdout.
 	goose.SetLogger(newSlogAdapter(log))
 	goose.SetTableName(cfg.MigrationsTable)
 
-	// Set the dialect
 	if err := goose.SetDialect("postgres"); err != nil {
 		return errors.Join(ErrFailedToApplyMigrations, err)
 	}
 
-	// Run migrations with context
 	if err := goose.UpContext(ctx, db, cfg.MigrationsPath); err != nil {
 		return errors.Join(ErrFailedToApplyMigrations, err)
 	}
@@ -54,7 +52,8 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, cfg Config, log logger) er
 	return nil
 }
 
-// migrateSlogAdapter is an adapter that converts goose's logger interface to use slog.
+// migrateSlogAdapter bridges goose's Printf-style logging to structured logging.
+// Maps goose's Fatalf to ErrorContext and Printf to InfoContext for consistency.
 type migrateSlogAdapter struct {
 	log logger
 }

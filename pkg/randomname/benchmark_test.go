@@ -9,28 +9,28 @@ import (
 func BenchmarkGenerate(b *testing.B) {
 	b.Run("Simple", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = randomname.Simple()
 		}
 	})
 
 	b.Run("WithSuffix", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = randomname.WithSuffix()
 		}
 	})
 
 	b.Run("Descriptive", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = randomname.Descriptive()
 		}
 	})
 
 	b.Run("Full", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = randomname.Full()
 		}
 	})
@@ -39,7 +39,7 @@ func BenchmarkGenerate(b *testing.B) {
 func BenchmarkGenerateWithOptions(b *testing.B) {
 	b.Run("DefaultOptions", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = randomname.Generate(nil)
 		}
 	})
@@ -49,7 +49,7 @@ func BenchmarkGenerateWithOptions(b *testing.B) {
 			Pattern: []randomname.WordType{randomname.Size, randomname.Color, randomname.Noun},
 		}
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = randomname.Generate(opts)
 		}
 	})
@@ -59,7 +59,7 @@ func BenchmarkGenerateWithOptions(b *testing.B) {
 			Validator: func(s string) bool { return true },
 		}
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = randomname.Generate(opts)
 		}
 	})
@@ -72,7 +72,7 @@ func BenchmarkGenerateWithOptions(b *testing.B) {
 			},
 		}
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = randomname.Generate(opts)
 		}
 	})
@@ -95,7 +95,7 @@ func BenchmarkSuffixTypes(b *testing.B) {
 				Suffix: s.suffix,
 			}
 			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				_ = randomname.Generate(opts)
 			}
 		})
@@ -120,7 +120,7 @@ func BenchmarkPatternComplexity(b *testing.B) {
 				Pattern: p.pattern,
 			}
 			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				_ = randomname.Generate(opts)
 			}
 		})
@@ -144,7 +144,7 @@ func BenchmarkValidatorRejection(b *testing.B) {
 			Validator: func(s string) bool { return true },
 		}
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = randomname.Generate(opts)
 		}
 	})
@@ -157,7 +157,7 @@ func BenchmarkValidatorRejection(b *testing.B) {
 			},
 		}
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = randomname.Generate(opts)
 		}
 	})
@@ -172,7 +172,7 @@ func BenchmarkValidatorRejection(b *testing.B) {
 			},
 		}
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			count = 0
 			_ = randomname.Generate(opts)
 		}

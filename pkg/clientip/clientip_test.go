@@ -294,7 +294,6 @@ func BenchmarkGetIPWithLongForwardedChain(b *testing.B) {
 	}
 }
 
-// Performance requirement test
 func TestPerformanceRequirement(t *testing.T) {
 	t.Parallel()
 	headers := map[string]string{
@@ -306,7 +305,7 @@ func TestPerformanceRequirement(t *testing.T) {
 	req := createTestRequest(headers, "10.0.0.1:54321")
 
 	start := time.Now()
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		clientip.GetIP(req)
 	}
 	duration := time.Since(start)
@@ -316,8 +315,6 @@ func TestPerformanceRequirement(t *testing.T) {
 		t.Errorf("Performance requirement not met: average duration %v > 1ms", avgDuration)
 	}
 }
-
-// Test helper functions
 
 func createTestRequest(headers map[string]string, remoteAddr string) *http.Request {
 	req := httptest.NewRequest("GET", "/", nil)

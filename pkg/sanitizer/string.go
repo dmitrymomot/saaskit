@@ -2,33 +2,27 @@ package sanitizer
 
 import (
 	"html"
-	"regexp"
 	"strings"
 	"unicode"
 )
 
-// Trim removes leading and trailing whitespace from a string.
 func Trim(s string) string {
 	return strings.TrimSpace(s)
 }
 
-// ToLower converts a string to lowercase.
 func ToLower(s string) string {
 	return strings.ToLower(s)
 }
 
-// ToUpper converts a string to uppercase.
 func ToUpper(s string) string {
 	return strings.ToUpper(s)
 }
 
-// ToTitle converts a string to title case.
 func ToTitle(s string) string {
 	return strings.ToTitle(s)
 }
 
-// ToKebabCase converts a string to kebab-case by replacing non-alphanumeric
-// characters with hyphens and normalizing multiple hyphens.
+// ToKebabCase prevents consecutive dashes and ensures clean URL-safe identifiers.
 func ToKebabCase(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 
@@ -50,8 +44,7 @@ func ToKebabCase(s string) string {
 	return result
 }
 
-// ToSnakeCase converts a string to snake_case by replacing non-alphanumeric
-// characters with underscores and normalizing multiple underscores.
+// ToSnakeCase prevents consecutive underscores for clean database column names.
 func ToSnakeCase(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 
@@ -73,8 +66,7 @@ func ToSnakeCase(s string) string {
 	return result
 }
 
-// ToCamelCase converts a string to camelCase. Non-alphanumeric characters start
-// new words, with the first word lowercased and subsequent words capitalized.
+// ToCamelCase follows JavaScript convention: first word lowercase, subsequent words capitalized.
 func ToCamelCase(s string) string {
 	s = strings.TrimSpace(s)
 
@@ -105,18 +97,15 @@ func ToCamelCase(s string) string {
 	return b.String()
 }
 
-// TrimToLower removes leading and trailing whitespace and converts to lowercase.
 func TrimToLower(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
 }
 
-// TrimToUpper removes leading and trailing whitespace and converts to uppercase.
 func TrimToUpper(s string) string {
 	return strings.ToUpper(strings.TrimSpace(s))
 }
 
-// MaxLength truncates a string to the specified maximum length.
-// If the string is longer than maxLen, it will be truncated.
+// MaxLength handles Unicode properly and prevents buffer overflows from malicious input.
 func MaxLength(s string, maxLen int) string {
 	if maxLen <= 0 {
 		return ""
@@ -130,37 +119,30 @@ func MaxLength(s string, maxLen int) string {
 	return string(runes[:maxLen])
 }
 
-// RemoveExtraWhitespace normalizes whitespace by replacing multiple consecutive
-// whitespace characters with a single space and trimming.
+// RemoveExtraWhitespace prevents layout issues and normalizes user input formatting.
 func RemoveExtraWhitespace(s string) string {
-	// Replace multiple whitespace with single space
-	re := regexp.MustCompile(`\s+`)
-	normalized := re.ReplaceAllString(s, " ")
+	normalized := whitespaceRegex.ReplaceAllString(s, " ")
 	return strings.TrimSpace(normalized)
 }
 
-// RemoveControlChars removes control characters from a string,
-// keeping only printable characters and common whitespace.
+// RemoveControlChars prevents injection attacks while preserving common whitespace.
 func RemoveControlChars(s string) string {
 	return strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) && r != '\n' && r != '\r' && r != '\t' {
-			return -1 // Remove the character
+			return -1
 		}
 		return r
 	}, s)
 }
 
-// StripHTML removes HTML tags and unescapes HTML entities.
+// StripHTML prevents XSS by removing tags and decoding entities for safe text extraction.
 func StripHTML(s string) string {
-	// Remove HTML tags
-	re := regexp.MustCompile(`<[^>]*>`)
-	stripped := re.ReplaceAllString(s, "")
+	stripped := htmlTagRegex.ReplaceAllString(s, "")
 
-	// Unescape HTML entities
+	// Decode entities like &amp; to &
 	return html.UnescapeString(stripped)
 }
 
-// RemoveChars removes all occurrences of the specified characters from a string.
 func RemoveChars(s string, chars string) string {
 	for _, char := range chars {
 		s = strings.ReplaceAll(s, string(char), "")
@@ -168,7 +150,6 @@ func RemoveChars(s string, chars string) string {
 	return s
 }
 
-// ReplaceChars replaces all occurrences of characters in 'old' with 'new'.
 func ReplaceChars(s string, old string, new string) string {
 	for _, char := range old {
 		s = strings.ReplaceAll(s, string(char), new)
@@ -176,7 +157,7 @@ func ReplaceChars(s string, old string, new string) string {
 	return s
 }
 
-// KeepAlphanumeric keeps only alphanumeric characters and spaces.
+// KeepAlphanumeric preserves spaces for readability while removing special characters.
 func KeepAlphanumeric(s string) string {
 	return strings.Map(func(r rune) rune {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsSpace(r) {
@@ -186,7 +167,6 @@ func KeepAlphanumeric(s string) string {
 	}, s)
 }
 
-// KeepAlpha keeps only alphabetic characters and spaces.
 func KeepAlpha(s string) string {
 	return strings.Map(func(r rune) rune {
 		if unicode.IsLetter(r) || unicode.IsSpace(r) {
@@ -196,7 +176,6 @@ func KeepAlpha(s string) string {
 	}, s)
 }
 
-// KeepDigits keeps only numeric digits.
 func KeepDigits(s string) string {
 	return strings.Map(func(r rune) rune {
 		if unicode.IsDigit(r) {
@@ -206,13 +185,10 @@ func KeepDigits(s string) string {
 	}, s)
 }
 
-// SingleLine converts a multi-line string to a single line by replacing
-// line breaks with spaces and normalizing whitespace.
+// SingleLine useful for form fields and log messages that need to be on one line.
 func SingleLine(s string) string {
-	// Replace line breaks with spaces
 	s = strings.ReplaceAll(s, "\n", " ")
 	s = strings.ReplaceAll(s, "\r", " ")
 
-	// Normalize whitespace
 	return RemoveExtraWhitespace(s)
 }

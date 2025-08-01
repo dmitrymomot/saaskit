@@ -10,14 +10,14 @@ type CompositeTransport struct {
 	transports []Transport
 }
 
-// NewCompositeTransport creates a new composite transport that tries multiple transports
+// NewCompositeTransport creates a composite transport that tries multiple transports
 func NewCompositeTransport(transports ...Transport) *CompositeTransport {
 	return &CompositeTransport{
 		transports: transports,
 	}
 }
 
-// GetToken tries to extract the session token from each transport in order
+// GetToken extracts session token from first successful transport
 func (t *CompositeTransport) GetToken(r *http.Request) (string, error) {
 	for _, transport := range t.transports {
 		token, err := transport.GetToken(r)
@@ -28,7 +28,7 @@ func (t *CompositeTransport) GetToken(r *http.Request) (string, error) {
 	return "", ErrSessionNotFound
 }
 
-// SetToken sends the session token using all configured transports
+// SetToken sends session token via all configured transports
 func (t *CompositeTransport) SetToken(w http.ResponseWriter, token string, ttl time.Duration) error {
 	var lastErr error
 	for _, transport := range t.transports {
@@ -39,7 +39,7 @@ func (t *CompositeTransport) SetToken(w http.ResponseWriter, token string, ttl t
 	return lastErr
 }
 
-// ClearToken removes the session token from all configured transports
+// ClearToken removes session token from all configured transports
 func (t *CompositeTransport) ClearToken(w http.ResponseWriter) error {
 	var lastErr error
 	for _, transport := range t.transports {

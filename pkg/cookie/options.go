@@ -49,10 +49,9 @@ func WithSameSite(sameSite http.SameSite) Option {
 	}
 }
 
-// applyOptions creates a new Options struct by copying the base options
-// and applying the provided option functions. The base options are not modified.
+// applyOptions creates a new Options struct by copying base options and applying modifications.
+// Explicit struct copy prevents accidental mutation of shared defaults.
 func applyOptions(base Options, opts []Option) Options {
-	// Explicit struct copy - all fields are value types so this is a deep copy
 	result := Options{
 		Path:     base.Path,
 		Domain:   base.Domain,

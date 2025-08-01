@@ -4,15 +4,15 @@ import (
 	"context"
 )
 
-// clientIPContextKey is the key for storing client IP in context
 type clientIPContextKey struct{}
 
-// SetIPToContext stores client IP in context
+// SetIPToContext stores client IP in context for middleware chain access.
 func SetIPToContext(ctx context.Context, ip string) context.Context {
 	return context.WithValue(ctx, clientIPContextKey{}, ip)
 }
 
-// GetIPFromContext retrieves client IP from context
+// GetIPFromContext retrieves client IP from context.
+// Returns empty string if IP was not previously stored.
 func GetIPFromContext(ctx context.Context) string {
 	ip, _ := ctx.Value(clientIPContextKey{}).(string)
 	return ip

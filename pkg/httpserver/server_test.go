@@ -2,7 +2,6 @@ package httpserver_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -13,18 +12,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	httpserver "github.com/dmitrymomot/saaskit/pkg/httpserver"
 )
 
 func freeAddr(t *testing.T) string {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("unable to get free port: %v", err)
-	}
+	require.NoError(t, err, "unable to get free port")
 	addr := l.Addr().String()
-	if err := l.Close(); err != nil {
-		t.Fatalf("close listener: %v", err)
-	}
+	require.NoError(t, l.Close(), "close listener")
 	return addr
 }
 
@@ -43,32 +41,24 @@ func TestRunAndShutdown(t *testing.T) {
 	var resp *http.Response
 	var err error
 	// Wait for server to start listening with more generous timeouts
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		resp, err = http.Get("http://" + addr)
 		if err == nil {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	if err != nil {
-		t.Fatalf("http get after 50 retries: %v", err)
-	}
-	if err := resp.Body.Close(); err != nil {
-		t.Fatalf("close body: %v", err)
-	}
+	require.NoError(t, err, "http get after 50 retries")
+	require.NoError(t, resp.Body.Close(), "close body")
 
 	cancel()
 	select {
 	case err := <-done:
-		if err != nil {
-			t.Fatalf("run: %v", err)
-		}
+		require.NoError(t, err, "run")
 	case <-time.After(time.Second):
-		t.Fatal("run did not finish")
+		require.Fail(t, "run did not finish")
 	}
-	if err := srv.Shutdown(context.Background()); err != nil {
-		t.Fatalf("shutdown: %v", err)
-	}
+	require.NoError(t, srv.Shutdown(context.Background()), "shutdown")
 }
 
 func TestManualShutdown(t *testing.T) {
@@ -86,16 +76,12 @@ func TestManualShutdown(t *testing.T) {
 		done <- srv.Run(context.Background(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	}()
 	<-start
-	if err := srv.Shutdown(context.Background()); err != nil {
-		t.Fatalf("shutdown: %v", err)
-	}
+	require.NoError(t, srv.Shutdown(context.Background()), "shutdown")
 	select {
 	case err := <-done:
-		if err != nil {
-			t.Fatalf("run error: %v", err)
-		}
+		require.NoError(t, err, "run error")
 	case <-time.After(time.Second):
-		t.Fatal("run did not finish")
+		require.Fail(t, "run did not finish")
 	}
 }
 
@@ -103,9 +89,8 @@ func TestStartError(t *testing.T) {
 	t.Parallel()
 	srv := httpserver.New(httpserver.WithAddr(":invalid"))
 	err := srv.Run(context.Background(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	if err == nil || !errors.Is(err, httpserver.ErrStart) {
-		t.Fatalf("expected httpserver.ErrStart, got %v", err)
-	}
+	require.Error(t, err)
+	assert.ErrorIs(t, err, httpserver.ErrStart)
 }
 
 func TestHooks(t *testing.T) {
@@ -129,19 +114,14 @@ func TestHooks(t *testing.T) {
 	cancel()
 	select {
 	case err := <-done:
-		if err != nil {
-			t.Fatalf("run error: %v", err)
-		}
+		require.NoError(t, err, "run error")
 	case <-time.After(time.Second):
-		t.Fatal("run did not finish")
+		require.Fail(t, "run did not finish")
 	}
-	if err := srv.Shutdown(context.Background()); err != nil {
-		t.Fatalf("shutdown: %v", err)
-	}
+	require.NoError(t, srv.Shutdown(context.Background()), "shutdown")
 
-	if !started.Load() || !stopped.Load() {
-		t.Fatalf("hooks not executed")
-	}
+	assert.True(t, started.Load(), "start hook not executed")
+	assert.True(t, stopped.Load(), "stop hook not executed")
 }
 
 func TestAlreadyRunning(t *testing.T) {
@@ -157,9 +137,9 @@ func TestAlreadyRunning(t *testing.T) {
 	go func() { _ = srv.Run(ctx, http.NewServeMux()) }()
 	<-started
 
-	if err := srv.Run(context.Background(), http.NewServeMux()); err == nil || !errors.Is(err, httpserver.ErrStart) {
-		t.Fatalf("expected httpserver.ErrStart, got %v", err)
-	}
+	err := srv.Run(context.Background(), http.NewServeMux())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, httpserver.ErrStart)
 	cancel()
 	_ = srv.Shutdown(context.Background())
 }
@@ -176,19 +156,13 @@ func TestDoubleShutdown(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- srv.Run(context.Background(), http.NewServeMux()) }()
 	<-start
-	if err := srv.Shutdown(context.Background()); err != nil {
-		t.Fatalf("first shutdown: %v", err)
-	}
-	if err := srv.Shutdown(context.Background()); err != nil {
-		t.Fatalf("second shutdown: %v", err)
-	}
+	require.NoError(t, srv.Shutdown(context.Background()), "first shutdown")
+	require.NoError(t, srv.Shutdown(context.Background()), "second shutdown")
 	select {
 	case err := <-done:
-		if err != nil {
-			t.Fatalf("run error: %v", err)
-		}
+		require.NoError(t, err, "run error")
 	case <-time.After(time.Second):
-		t.Fatal("run did not finish")
+		require.Fail(t, "run did not finish")
 	}
 }
 
@@ -205,17 +179,15 @@ func TestWithServer(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- srv.Run(context.Background(), http.NewServeMux()) }()
 	<-start
-	if hs.ReadTimeout != time.Second || hs.Addr != addr || hs.Handler == nil {
-		t.Fatalf("server not configured")
-	}
+	assert.Equal(t, time.Second, hs.ReadTimeout, "read timeout not set")
+	assert.Equal(t, addr, hs.Addr, "address not set")
+	assert.NotNil(t, hs.Handler, "handler not set")
 	_ = srv.Shutdown(context.Background())
 	select {
 	case err := <-done:
-		if err != nil {
-			t.Fatalf("run error: %v", err)
-		}
+		require.NoError(t, err, "run error")
 	case <-time.After(time.Second):
-		t.Fatal("run did not finish")
+		require.Fail(t, "run did not finish")
 	}
 }
 
@@ -229,7 +201,7 @@ func TestSignalShutdown(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- srv.Run(context.Background(), http.NewServeMux()) }()
 	// Wait for server to start listening
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		conn, err := net.Dial("tcp", addr)
 		if err == nil {
 			_ = conn.Close()
@@ -241,11 +213,9 @@ func TestSignalShutdown(t *testing.T) {
 	_ = p.Signal(syscall.SIGTERM)
 	select {
 	case err := <-done:
-		if err != nil {
-			t.Fatalf("run error: %v", err)
-		}
+		require.NoError(t, err, "run error")
 	case <-time.After(time.Second):
-		t.Fatal("run did not finish")
+		require.Fail(t, "run did not finish")
 	}
 }
 
@@ -268,9 +238,7 @@ func TestOptionPanics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			defer func() {
-				if recover() == nil {
-					t.Fatal("expected panic")
-				}
+				assert.NotNil(t, recover(), "expected panic")
 			}()
 			tt.fn()
 		})
@@ -302,15 +270,11 @@ func TestOptionsApply(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- srv.Run(context.Background(), nil) }()
 	logger := <-gotLogger
-	if hs.Addr != addr {
-		t.Fatalf("addr option not applied")
-	}
-	if hs.ReadTimeout != time.Second || hs.WriteTimeout != 2*time.Second || hs.IdleTimeout != 3*time.Second {
-		t.Fatalf("timeout options not applied")
-	}
-	if logger != l {
-		t.Fatalf("logger option not applied")
-	}
+	assert.Equal(t, addr, hs.Addr, "addr option not applied")
+	assert.Equal(t, time.Second, hs.ReadTimeout, "read timeout not applied")
+	assert.Equal(t, 2*time.Second, hs.WriteTimeout, "write timeout not applied")
+	assert.Equal(t, 3*time.Second, hs.IdleTimeout, "idle timeout not applied")
+	assert.Equal(t, l, logger, "logger option not applied")
 	_ = srv.Shutdown(context.Background())
 	<-done
 }
@@ -332,16 +296,14 @@ func TestTimeouts(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- srv.Run(context.Background(), nil) }()
 	<-start
-	if hs.ReadTimeout != time.Second || hs.WriteTimeout != 2*time.Second || hs.IdleTimeout != 3*time.Second {
-		t.Fatalf("timeouts not applied to server")
-	}
+	assert.Equal(t, time.Second, hs.ReadTimeout, "read timeout not applied")
+	assert.Equal(t, 2*time.Second, hs.WriteTimeout, "write timeout not applied")
+	assert.Equal(t, 3*time.Second, hs.IdleTimeout, "idle timeout not applied")
 	_ = srv.Shutdown(context.Background())
 	select {
 	case err := <-done:
-		if err != nil {
-			t.Fatalf("run error: %v", err)
-		}
+		require.NoError(t, err, "run error")
 	case <-time.After(time.Second):
-		t.Fatal("run did not finish")
+		require.Fail(t, "run did not finish")
 	}
 }

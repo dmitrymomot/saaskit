@@ -19,8 +19,10 @@ func BenchmarkMemoryStore_Create(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		sess := session.NewSession("token"+string(rune(i)), nil, "", 1*time.Hour)
+		i++
 		_ = store.Create(ctx, sess)
 	}
 }
@@ -31,14 +33,16 @@ func BenchmarkMemoryStore_Get(b *testing.B) {
 	ctx := context.Background()
 
 	// Pre-populate store
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		sess := session.NewSession("token"+string(rune(i)), nil, "", 1*time.Hour)
 		_ = store.Create(ctx, sess)
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		_, _ = store.Get(ctx, "token"+string(rune(i%1000)))
+		i++
 	}
 }
 
@@ -51,8 +55,10 @@ func BenchmarkMemoryStore_Update(b *testing.B) {
 	_ = store.Create(ctx, sess)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		sess.Set("counter", i)
+		i++
 		_ = store.Update(ctx, sess)
 	}
 }
@@ -66,7 +72,7 @@ func BenchmarkManager_Ensure(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		_, _ = manager.Ensure(ctx, w, r)
@@ -93,7 +99,7 @@ func BenchmarkManager_Get(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = manager.Get(ctx, req)
 	}
 }
@@ -111,8 +117,10 @@ func BenchmarkManager_SetValue(b *testing.B) {
 	r := httptest.NewRequest("GET", "/", nil)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		_ = manager.Set(ctx, w, r, "key", i)
+		i++
 	}
 }
 
@@ -124,7 +132,7 @@ func BenchmarkTransport_Cookie(b *testing.B) {
 	ttl := 1 * time.Hour
 
 	b.Run("SetToken", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w := httptest.NewRecorder()
 			_ = trans.SetToken(w, token, ttl)
 		}
@@ -141,7 +149,7 @@ func BenchmarkTransport_Cookie(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, _ = trans.GetToken(r)
 		}
 	})
@@ -153,7 +161,7 @@ func BenchmarkTransport_Header(b *testing.B) {
 	ttl := 1 * time.Hour
 
 	b.Run("SetToken", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w := httptest.NewRecorder()
 			_ = trans.SetToken(w, token, ttl)
 		}
@@ -164,7 +172,7 @@ func BenchmarkTransport_Header(b *testing.B) {
 		r.Header.Set("X-Session-Token", "Bearer "+token)
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, _ = trans.GetToken(r)
 		}
 	})
@@ -175,27 +183,29 @@ func BenchmarkSession_Operations(b *testing.B) {
 	sess := session.NewSession("token", &userID, "fingerprint", 1*time.Hour)
 
 	b.Run("Set", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		i := 0
+		for b.Loop() {
 			sess.Set("key", i)
+			i++
 		}
 	})
 
 	b.Run("Get", func(b *testing.B) {
 		sess.Set("key", "value")
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, _ = sess.Get("key")
 		}
 	})
 
 	b.Run("IsAuthenticated", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = sess.IsAuthenticated()
 		}
 	})
 
 	b.Run("ValidateFingerprint", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = sess.ValidateFingerprint("fingerprint")
 		}
 	})
@@ -229,7 +239,7 @@ func BenchmarkMiddleware(b *testing.B) {
 	middleware := manager.Middleware(handler)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		middleware.ServeHTTP(w, req)
 	}

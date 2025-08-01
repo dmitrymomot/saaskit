@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -277,9 +278,9 @@ func TestAuthorizer_GetRoles(t *testing.T) {
 	assert.Contains(t, roleNames, "superadmin")
 
 	// Verify ordering - base roles should come first
-	viewerIdx := indexOf(roleNames, "viewer")
-	editorIdx := indexOf(roleNames, "editor")
-	adminIdx := indexOf(roleNames, "admin")
+	viewerIdx := slices.Index(roleNames, "viewer")
+	editorIdx := slices.Index(roleNames, "editor")
+	adminIdx := slices.Index(roleNames, "admin")
 
 	assert.True(t, viewerIdx < editorIdx, "viewer should come before editor")
 	assert.True(t, editorIdx < adminIdx, "editor should come before admin")
@@ -537,15 +538,6 @@ func getTestRoles() map[string]rbac.Role {
 	}
 }
 
-func indexOf(slice []string, item string) int {
-	for i, v := range slice {
-		if v == item {
-			return i
-		}
-	}
-	return -1
-}
-
 // Benchmark tests for RBAC performance optimization
 
 func BenchmarkAuthorizer_Can(b *testing.B) {
@@ -556,19 +548,19 @@ func BenchmarkAuthorizer_Can(b *testing.B) {
 
 	b.ResetTimer()
 	b.Run("exact_match", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = auth.Can("editor", "content.write")
 		}
 	})
 
 	b.Run("inherited_permission", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = auth.Can("editor", "content.read")
 		}
 	})
 
 	b.Run("wildcard_match", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = auth.Can("admin", "admin.users.create")
 		}
 	})
@@ -583,7 +575,7 @@ func BenchmarkAuthorizer_CanAny(b *testing.B) {
 	permissions := []string{"content.read", "content.write", "admin.users.create"}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = auth.CanAny("editor", permissions...)
 	}
 }
@@ -597,7 +589,7 @@ func BenchmarkAuthorizer_CanAll(b *testing.B) {
 	permissions := []string{"content.read", "content.write"}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = auth.CanAll("editor", permissions...)
 	}
 }

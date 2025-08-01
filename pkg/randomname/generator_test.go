@@ -131,7 +131,7 @@ func TestGenerate(t *testing.T) {
 		foundCustomAdj := false
 		foundCustomNoun := false
 
-		for i := 0; i < 25; i++ {
+		for range 25 {
 			name := randomname.Generate(&randomname.Options{
 				Words: customWords,
 			})

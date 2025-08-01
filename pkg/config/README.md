@@ -4,17 +4,16 @@ A type-safe configuration loader for Go applications using environment variables
 
 ## Overview
 
-The `config` package provides a type-safe way to load configurations from environment variables with Go generics support. It implements a thread-safe singleton pattern ensuring each configuration type is loaded only once during application lifecycle. The package supports automatic `.env` file loading, custom environment file paths, and provides comprehensive error handling.
+The `config` package provides a type-safe way to load configurations from environment variables with Go generics support. It implements a thread-safe singleton pattern ensuring each configuration type is loaded only once during application lifecycle. The package automatically loads a `.env` file from the current directory if present and provides comprehensive error handling.
 
 ## Features
 
 - Type-safe configuration loading with Go generics
 - Thread-safe singleton implementation for each config type
-- Automatic and custom path `.env` file loading
+- Automatic `.env` file loading from current directory
 - Support for default values and required fields validation
 - Environment variable expansion in configuration values
 - Comprehensive error handling with specific error types
-- Testing utilities for configuration management
 
 ## Usage
 
@@ -48,38 +47,6 @@ func main() {
 }
 ```
 
-### Loading From Custom Paths
-
-```go
-import (
-    "log"
-
-    "github.com/dmitrymomot/saaskit/pkg/config"
-)
-
-type AppConfig struct {
-    APIKey    string `env:"API_KEY,required"`
-    Debug     bool   `env:"DEBUG" envDefault:"false"`
-    CacheTTL  int    `env:"CACHE_TTL" envDefault:"3600"`
-}
-
-func main() {
-    // Load environment variables from a custom path
-    err := config.LoadEnv("./config/.env.development")
-    if err != nil {
-        log.Fatalf("Failed to load environment file: %v", err)
-    }
-
-    // Or load from multiple files (later files override earlier ones)
-    // err := config.LoadEnv("./config/.env.base", "./config/.env.local")
-
-    var appConfig AppConfig
-    err = config.Load(&appConfig)
-    if err != nil {
-        log.Fatalf("Failed to load config: %v", err)
-    }
-}
-```
 
 ### Multiple Configuration Types
 
@@ -157,62 +124,29 @@ func loadConfig() {
     - Mark truly required fields with the `required` tag option
 
 5. **Environment Files**:
+    - The package automatically loads `.env` file from current directory if present
     - Use different .env files for different environments (dev, test, prod)
-    - Load environment-specific files before component-specific ones
-    - Structure files from general to specific (base → environment → local)
-    - Always call `LoadEnv` before any `Load` calls that depend on those variables
+    - Structure your environment variables logically
 
 6. **Testing**:
-    - Reset the cache between tests with `ResetCache()` when testing with different environment variables
-    - Use `ForceReloadConfig()` to reload a specific configuration type after changing environment variables
-    - Verify configuration state with `IsConfigLoaded[ConfigType]()`
     - Set up clean environment variables with `t.Setenv()` in your tests
+    - Each configuration type is cached, so changing environment variables after first load won't affect the cached instance
 
 ## API Reference
 
 ### Functions
 
 ```go
-func LoadEnv(filenames ...string) error
-```
-
-Loads environment variables from one or more .env files. If no paths are provided, attempts to load the default .env file from the current directory. Files are loaded in the order provided, with variables in later files taking precedence over earlier ones.
-
-```go
-func MustLoadEnv(filenames ...string)
-```
-
-Like LoadEnv but panics if loading fails. Useful when environment files are essential for the application to start.
-
-```go
 func Load[T any](v *T) error
 ```
 
-Loads environment variables into the provided configuration struct pointer of type T. Ensures each configuration type is only loaded once and subsequent calls return the cached instance. Returns an error if parsing fails or a nil pointer is provided.
+Loads environment variables into the provided configuration struct pointer of type T. Automatically loads `.env` file from current directory if present. Ensures each configuration type is only loaded once and subsequent calls return the cached instance. Returns an error if parsing fails or a nil pointer is provided.
 
 ```go
 func MustLoad[T any](v *T)
 ```
 
 Like Load but panics if configuration loading fails. Useful for configurations that are required for the application to start.
-
-```go
-func ResetCache()
-```
-
-Clears all cached configuration instances. This is primarily useful in testing scenarios where environment variables change between test cases.
-
-```go
-func ForceReloadConfig[T any](v *T) error
-```
-
-Forces a reload of the specified configuration type, ignoring any previously cached instances. This is useful in testing when environment variables have changed.
-
-```go
-func IsConfigLoaded[T any]() bool
-```
-
-Returns true if the specified configuration type has already been loaded and cached.
 
 ### Environment Variable Tags
 
@@ -241,7 +175,6 @@ type Config struct {
 
 ```go
 var ErrParsingConfig = errors.New("failed to parse environment variables into config")
-var ErrInvalidConfigType = errors.New("invalid config type")
 var ErrConfigNotLoaded = errors.New("configuration has not been loaded")
 var ErrNilPointer = errors.New("nil pointer provided to config loader")
 ```

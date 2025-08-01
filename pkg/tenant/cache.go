@@ -16,8 +16,7 @@ type Cache interface {
 	Delete(ctx context.Context, key string) error
 }
 
-// NoOpCache is a cache that doesn't cache anything.
-// Useful for testing or when caching should be disabled.
+// NoOpCache disables caching, useful for testing or when caching is unwanted.
 type NoOpCache struct{}
 
 func (n *NoOpCache) Get(ctx context.Context, key string) (*Tenant, bool) {

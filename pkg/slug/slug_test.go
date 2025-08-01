@@ -350,7 +350,7 @@ func TestGenerateSuffixErrorHandling(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Since we can't easily mock rand.Read failure, we'll test that
 			// the function always produces valid output
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				result := slug.Make("test", slug.WithSuffix(tt.length))
 				if tt.length > 0 {
 					parts := strings.Split(result, "-")

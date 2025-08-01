@@ -2,7 +2,6 @@ package totp
 
 import "errors"
 
-// Predefined package errors.
 var (
 	ErrFailedToEncryptSecret         = errors.New("failed to encrypt TOTP secret")
 	ErrFailedToDecryptSecret         = errors.New("failed to decrypt TOTP secret")

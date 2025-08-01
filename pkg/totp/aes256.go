@@ -10,14 +10,12 @@ import (
 )
 
 const (
-	// AESKeySize is the required size in bytes for AES-256 keys
-	AESKeySize = 32
+	AESKeySize = 32 // Required key size for AES-256 (256 bits / 8 = 32 bytes)
 )
 
 // EncryptSecret encrypts the TOTP secret using AES-256-GCM.
 // Returns the ciphertext as a base64-encoded string.
 func EncryptSecret(plainText string, key []byte) (string, error) {
-	// Validate key size
 	if len(key) != AESKeySize {
 		return "", errors.Join(ErrFailedToEncryptSecret, ErrInvalidEncryptionKeyLength)
 	}
@@ -44,7 +42,6 @@ func EncryptSecret(plainText string, key []byte) (string, error) {
 // DecryptSecret decrypts the encrypted TOTP secret.
 // Expects the ciphertext as a base64-encoded string.
 func DecryptSecret(cipherTextBase64 string, key []byte) (string, error) {
-	// Validate key size
 	if len(key) != AESKeySize {
 		return "", errors.Join(ErrFailedToDecryptSecret, ErrInvalidEncryptionKeyLength)
 	}
@@ -81,7 +78,7 @@ func DecryptSecret(cipherTextBase64 string, key []byte) (string, error) {
 // GenerateEncryptionKey creates a new random 32-byte key suitable for AES-256 encryption.
 // Returns the generated key or an error if the random number generation fails.
 func GenerateEncryptionKey() ([]byte, error) {
-	key := make([]byte, 32) // AES-256 requires 32 bytes
+	key := make([]byte, AESKeySize)
 	if _, err := rand.Read(key); err != nil {
 		return nil, errors.Join(ErrFailedToGenerateEncryptionKey, err)
 	}
@@ -116,7 +113,7 @@ func LoadEncryptionKey() ([]byte, error) {
 		return nil, errors.Join(ErrFailedToLoadEncryptionKey, err)
 	}
 
-	if len(key) != 32 {
+	if len(key) != AESKeySize {
 		return nil, errors.Join(ErrFailedToLoadEncryptionKey, ErrInvalidEncryptionKeyLength)
 	}
 
