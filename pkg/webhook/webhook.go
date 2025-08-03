@@ -3,6 +3,7 @@ package webhook
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,9 +45,32 @@ func NewSenderWithClient(client *http.Client) *Sender {
 }
 
 // Send delivers a webhook payload to the specified URL with retry logic.
-// The payload is sent as a POST request with Content-Type: application/json.
+// The payload is automatically marshaled to JSON and sent as a POST request with Content-Type: application/json.
+// The data parameter can be any Go value that can be marshaled to JSON (struct, map, slice, etc.).
 // Options control timeout, retries, signing, and other behavior.
-func (s *Sender) Send(ctx context.Context, webhookURL string, payload []byte, opts ...SendOption) error {
+//
+// Example:
+//
+//	type Event struct {
+//		Type string `json:"type"`
+//		ID   string `json:"id"`
+//		Data map[string]any `json:"data"`
+//	}
+//
+//	event := Event{
+//		Type: "user.created",
+//		ID:   "evt_123",
+//		Data: map[string]any{"user_id": "usr_456"},
+//	}
+//
+//	err := sender.Send(ctx, webhookURL, event, webhook.WithSignature(secret))
+func (s *Sender) Send(ctx context.Context, webhookURL string, data any, opts ...SendOption) error {
+	// Marshal the data to JSON
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload to JSON: %w", err)
+	}
+
 	if err := s.validateInputs(webhookURL, payload); err != nil {
 		return err
 	}

@@ -3,7 +3,6 @@ package webhook_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +20,10 @@ import (
 func TestSender_Send_Success(t *testing.T) {
 	t.Parallel()
 
-	payload := []byte(`{"event":"test","id":"123"}`)
+	payload := map[string]any{
+		"event": "test",
+		"id":    "123",
+	}
 
 	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +35,12 @@ func TestSender_Send_Success(t *testing.T) {
 		// Read body
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
-		assert.Equal(t, payload, body)
+
+		// Verify JSON content
+		var received map[string]any
+		err = json.Unmarshal(body, &received)
+		require.NoError(t, err)
+		assert.Equal(t, payload, received)
 
 		// Success response
 		w.WriteHeader(http.StatusOK)
@@ -49,7 +56,7 @@ func TestSender_Send_Success(t *testing.T) {
 func TestSender_Send_WithOptions(t *testing.T) {
 	t.Parallel()
 
-	payload := []byte(`{"test":"data"}`)
+	payload := map[string]string{"test": "data"}
 	secret := "webhook_secret"
 
 	var deliveryResults []webhook.DeliveryResult
@@ -102,7 +109,7 @@ func TestSender_Send_WithOptions(t *testing.T) {
 func TestSender_Send_Retries(t *testing.T) {
 	t.Parallel()
 
-	payload := []byte(`{"test":"retry"}`)
+	payload := map[string]string{"test": "retry"}
 	var attempts int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -169,7 +176,7 @@ func TestSender_Send_PermanentFailure(t *testing.T) {
 			err := sender.Send(
 				context.Background(),
 				server.URL,
-				[]byte(`{"test":"data"}`),
+				map[string]string{"test": "data"},
 				webhook.WithMaxRetries(3),
 				webhook.WithBackoff(webhook.FixedBackoff{Interval: time.Millisecond}),
 			)
@@ -203,7 +210,7 @@ func TestSender_Send_CircuitBreaker(t *testing.T) {
 		err := sender.Send(
 			context.Background(),
 			server.URL,
-			[]byte(`{"test":"data"}`),
+			map[string]string{"test": "data"},
 			webhook.WithCircuitBreaker(cb),
 			webhook.WithNoRetry(),
 		)
@@ -217,7 +224,7 @@ func TestSender_Send_CircuitBreaker(t *testing.T) {
 	err := sender.Send(
 		context.Background(),
 		server.URL,
-		[]byte(`{"test":"data"}`),
+		map[string]string{"test": "data"},
 		webhook.WithCircuitBreaker(cb),
 	)
 	assert.ErrorIs(t, err, webhook.ErrCircuitOpen)
@@ -243,7 +250,7 @@ func TestSender_Send_Timeout(t *testing.T) {
 	err := sender.Send(
 		context.Background(),
 		server.URL,
-		[]byte(`{"test":"data"}`),
+		map[string]string{"test": "data"},
 		webhook.WithTimeout(50*time.Millisecond),
 		webhook.WithNoRetry(),
 	)
@@ -270,7 +277,7 @@ func TestSender_Send_ContextCancellation(t *testing.T) {
 	}()
 
 	sender := webhook.NewSender()
-	err := sender.Send(ctx, server.URL, []byte(`{"test":"data"}`))
+	err := sender.Send(ctx, server.URL, map[string]string{"test": "data"})
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
@@ -284,51 +291,37 @@ func TestSender_Send_ValidationErrors(t *testing.T) {
 	tests := []struct {
 		name    string
 		url     string
-		payload []byte
+		payload any
 		wantErr error
 		errMsg  string
 	}{
 		{
 			name:    "empty URL",
 			url:     "",
-			payload: []byte(`{"test":"data"}`),
+			payload: map[string]string{"test": "data"},
 			wantErr: webhook.ErrInvalidURL,
 			errMsg:  "URL is required",
 		},
 		{
 			name:    "invalid URL",
 			url:     "not a url",
-			payload: []byte(`{"test":"data"}`),
+			payload: map[string]string{"test": "data"},
 			wantErr: webhook.ErrInvalidURL,
 			errMsg:  "only http and https schemes are supported",
 		},
 		{
 			name:    "invalid scheme",
 			url:     "ftp://example.com",
-			payload: []byte(`{"test":"data"}`),
+			payload: map[string]string{"test": "data"},
 			wantErr: webhook.ErrInvalidURL,
 			errMsg:  "only http and https schemes are supported",
 		},
 		{
 			name:    "missing host",
 			url:     "http:///path",
-			payload: []byte(`{"test":"data"}`),
+			payload: map[string]string{"test": "data"},
 			wantErr: webhook.ErrInvalidURL,
 			errMsg:  "host is required",
-		},
-		{
-			name:    "empty payload",
-			url:     "https://example.com",
-			payload: []byte{},
-			wantErr: webhook.ErrInvalidPayload,
-			errMsg:  "payload cannot be empty",
-		},
-		{
-			name:    "nil payload",
-			url:     "https://example.com",
-			payload: nil,
-			wantErr: webhook.ErrInvalidPayload,
-			errMsg:  "payload cannot be empty",
 		},
 	}
 
@@ -364,7 +357,7 @@ func TestSender_Send_DeliveryHook(t *testing.T) {
 	err := sender.Send(
 		context.Background(),
 		server.URL,
-		[]byte(`{"test":"data"}`),
+		map[string]string{"test": "data"},
 		webhook.WithMaxRetries(2),
 		webhook.WithBackoff(webhook.FixedBackoff{Interval: time.Millisecond}),
 		webhook.WithOnDelivery(func(result webhook.DeliveryResult) {
@@ -397,21 +390,29 @@ func TestSender_Send_LargePayload(t *testing.T) {
 		largeData[i] = byte(i % 256)
 	}
 
-	payload, err := json.Marshal(map[string]interface{}{
+	payload := map[string]any{
 		"data": largeData,
-	})
-	require.NoError(t, err)
+	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
-		assert.Equal(t, len(payload), len(body))
+
+		// Verify it's valid JSON
+		var decoded map[string]any
+		err = json.Unmarshal(body, &decoded)
+		require.NoError(t, err)
+
+		// Verify the data field exists
+		_, ok := decoded["data"]
+		assert.True(t, ok)
+
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
 	sender := webhook.NewSender()
-	err = sender.Send(context.Background(), server.URL, payload)
+	err := sender.Send(context.Background(), server.URL, payload)
 	assert.NoError(t, err)
 }
 
@@ -431,7 +432,7 @@ func TestSender_Concurrent(t *testing.T) {
 	errCh := make(chan error, 10)
 	for i := 0; i < 10; i++ {
 		go func(id int) {
-			payload := []byte(fmt.Sprintf(`{"id":%d}`, id))
+			payload := map[string]int{"id": id}
 			err := sender.Send(context.Background(), server.URL, payload)
 			errCh <- err
 		}(i)
@@ -453,7 +454,10 @@ func BenchmarkSender_Send(b *testing.B) {
 	defer server.Close()
 
 	sender := webhook.NewSender()
-	payload := []byte(`{"event":"benchmark","data":{"id":"123"}}`)
+	payload := map[string]any{
+		"event": "benchmark",
+		"data":  map[string]string{"id": "123"},
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -471,7 +475,10 @@ func BenchmarkSender_SendWithSignature(b *testing.B) {
 	defer server.Close()
 
 	sender := webhook.NewSender()
-	payload := []byte(`{"event":"benchmark","data":{"id":"123"}}`)
+	payload := map[string]any{
+		"event": "benchmark",
+		"data":  map[string]string{"id": "123"},
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -511,7 +518,7 @@ func TestSender_CircuitBreaker_HalfOpenRecovery(t *testing.T) {
 		err := sender.Send(
 			context.Background(),
 			server.URL,
-			[]byte(`{"test":"failure"}`),
+			map[string]string{"test": "failure"},
 			webhook.WithCircuitBreaker(cb),
 			webhook.WithNoRetry(),
 		)
@@ -527,7 +534,7 @@ func TestSender_CircuitBreaker_HalfOpenRecovery(t *testing.T) {
 	err := sender.Send(
 		context.Background(),
 		server.URL,
-		[]byte(`{"test":"halfopen_fail"}`),
+		map[string]string{"test": "halfopen_fail"},
 		webhook.WithCircuitBreaker(cb),
 		webhook.WithNoRetry(),
 	)
@@ -541,7 +548,7 @@ func TestSender_CircuitBreaker_HalfOpenRecovery(t *testing.T) {
 	err = sender.Send(
 		context.Background(),
 		server.URL,
-		[]byte(`{"test":"success1"}`),
+		map[string]string{"test": "success1"},
 		webhook.WithCircuitBreaker(cb),
 		webhook.WithNoRetry(),
 	)
@@ -551,7 +558,7 @@ func TestSender_CircuitBreaker_HalfOpenRecovery(t *testing.T) {
 	err = sender.Send(
 		context.Background(),
 		server.URL,
-		[]byte(`{"test":"success2"}`),
+		map[string]string{"test": "success2"},
 		webhook.WithCircuitBreaker(cb),
 		webhook.WithNoRetry(),
 	)
@@ -562,7 +569,7 @@ func TestSender_CircuitBreaker_HalfOpenRecovery(t *testing.T) {
 	err = sender.Send(
 		context.Background(),
 		server.URL,
-		[]byte(`{"test":"verify_closed"}`),
+		map[string]string{"test": "verify_closed"},
 		webhook.WithCircuitBreaker(cb),
 		webhook.WithNoRetry(),
 	)
@@ -607,7 +614,7 @@ func TestSender_CircuitBreaker_Concurrent(t *testing.T) {
 			defer wg.Done()
 
 			for j := 0; j < requestsPerGoroutine; j++ {
-				payload := []byte(fmt.Sprintf(`{"goroutine":%d,"request":%d}`, id, j))
+				payload := map[string]int{"goroutine": id, "request": j}
 				err := sender.Send(
 					context.Background(),
 					server.URL,
@@ -668,20 +675,22 @@ func TestSender_CircuitBreaker_WithLargePayload(t *testing.T) {
 		largeData[i] = byte(i % 256)
 	}
 
-	payload, err := json.Marshal(map[string]interface{}{
+	payload := map[string]any{
 		"event": "large_payload_test",
 		"data":  largeData,
-	})
-	require.NoError(t, err)
+	}
 
 	var attempts int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempt := atomic.AddInt32(&attempts, 1)
 
-		// Verify payload size
+		// Verify payload is valid JSON
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
-		assert.Equal(t, len(payload), len(body))
+
+		var decoded map[string]any
+		err = json.Unmarshal(body, &decoded)
+		require.NoError(t, err)
 
 		// Fail first 2 attempts to open circuit, succeed on 3rd attempt
 		if attempt <= 2 {
@@ -714,7 +723,7 @@ func TestSender_CircuitBreaker_WithLargePayload(t *testing.T) {
 	assert.Equal(t, webhook.CircuitOpen, cb.State())
 
 	// Next request should be blocked immediately
-	err = sender.Send(
+	err := sender.Send(
 		context.Background(),
 		server.URL,
 		payload,
@@ -741,4 +750,23 @@ func TestSender_CircuitBreaker_WithLargePayload(t *testing.T) {
 	// Verify we made the expected number of attempts
 	// 2 initial failures (opens circuit) + 1 success after recovery = 3 total server requests
 	assert.Equal(t, int32(3), atomic.LoadInt32(&attempts))
+}
+
+func TestSender_Send_MarshalError(t *testing.T) {
+	t.Parallel()
+
+	// Create a type that cannot be marshaled to JSON
+	type UnmarshalableType struct {
+		Ch chan int `json:"channel"` // channels cannot be marshaled
+	}
+
+	data := UnmarshalableType{
+		Ch: make(chan int),
+	}
+
+	sender := webhook.NewSender()
+	err := sender.Send(context.Background(), "https://example.com", data)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to marshal payload to JSON")
 }

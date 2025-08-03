@@ -4,6 +4,7 @@ Low-level utility package for reliable, synchronous HTTP webhook delivery with r
 
 ## Features
 
+- **Automatic JSON Marshaling**: Send method handles JSON encoding automatically
 - **Synchronous Delivery**: Blocking HTTP POST with configurable timeouts
 - **Retry Logic**: Automatic retries with exponential backoff for transient failures
 - **Request Signing**: HMAC-SHA256 signatures for payload authentication
@@ -23,26 +24,70 @@ import "github.com/dmitrymomot/saaskit/pkg/webhook"
 // Create sender with default config
 sender := webhook.NewSender()
 
-// Send webhook
-err := sender.Send(ctx, "https://api.example.com/webhook",
-    []byte(`{"event":"user.created","id":"123"}`))
+// Send with automatic JSON marshaling
+event := map[string]any{
+    "event": "user.created",
+    "id":    "123",
+}
+err := sender.Send(ctx, "https://api.example.com/webhook", event)
+
+// Or send a struct
+type WebhookEvent struct {
+    Event string `json:"event"`
+    ID    string `json:"id"`
+}
+
+event := WebhookEvent{
+    Event: "user.created",
+    ID:    "123",
+}
+err := sender.Send(ctx, "https://api.example.com/webhook", event)
 ```
+
+## Sending Webhooks
+
+The Send method accepts any Go value that can be marshaled to JSON:
+
+- Structs with JSON tags
+- Maps (map[string]any, etc.)
+- Slices and arrays
+- Basic types that marshal to JSON
+
+The payload is automatically marshaled to JSON and sent with `Content-Type: application/json`.
 
 ## Advanced Usage
 
 ### With Request Signing
 
 ```go
-err := sender.Send(ctx, url, payload,
+// Using structured data
+type WebhookEvent struct {
+    Type string                 `json:"type"`
+    ID   string                 `json:"id"`
+    Data map[string]any `json:"data"`
+}
+
+event := WebhookEvent{
+    Type: "user.created",
+    ID:   "evt_123",
+    Data: map[string]any{
+        "user_id": "usr_456",
+        "email":   "user@example.com",
+    },
+}
+
+err := sender.Send(ctx, url, event,
     webhook.WithSignature("webhook_secret"),
-    webhook.WithHeader("X-Event-Type", "user.created"),
+    webhook.WithHeader("X-Event-Type", event.Type),
 )
 ```
 
 ### With Custom Retry Strategy
 
 ```go
-err := sender.Send(ctx, url, payload,
+event := map[string]string{"status": "update"}
+
+err := sender.Send(ctx, url, event,
     webhook.WithMaxRetries(5),
     webhook.WithBackoff(webhook.ExponentialBackoff{
         InitialInterval: 2 * time.Second,
@@ -60,7 +105,8 @@ err := sender.Send(ctx, url, payload,
 cb := webhook.NewCircuitBreaker(5, 2, 30*time.Second)
 
 // Use in sends
-err := sender.Send(ctx, url, payload,
+event := map[string]any{"action": "notify"}
+err := sender.Send(ctx, url, event,
     webhook.WithCircuitBreaker(cb),
 )
 ```
@@ -68,7 +114,9 @@ err := sender.Send(ctx, url, payload,
 ### With Delivery Tracking
 
 ```go
-err := sender.Send(ctx, url, payload,
+event := map[string]string{"event": "test"}
+
+err := sender.Send(ctx, url, event,
     webhook.WithOnDelivery(func(result webhook.DeliveryResult) {
         if result.Success {
             metrics.WebhookDelivered(result.Duration)
@@ -187,7 +235,8 @@ client := &http.Client{
     },
 }
 
-err := sender.Send(ctx, url, payload,
+event := map[string]string{"test": "data"}
+err := sender.Send(ctx, url, event,
     webhook.WithHTTPClient(client),
 )
 ```
@@ -224,8 +273,34 @@ See the `modules/webhooks` package which builds on top of this foundation.
 ```go
 sender := webhook.NewSender()
 
-// Production-ready webhook send
-err := sender.Send(ctx, webhookURL, eventPayload,
+// Define your event structure
+type WebhookEvent struct {
+    Type      string                 `json:"type"`
+    ID        string                 `json:"id"`
+    Timestamp string                 `json:"timestamp"`
+    Data      any            `json:"data"`
+    Metadata  map[string]any `json:"metadata,omitempty"`
+}
+
+// Create the event
+event := WebhookEvent{
+    Type:      "user.subscription.updated",
+    ID:        uuid.New().String(),
+    Timestamp: time.Now().UTC().Format(time.RFC3339),
+    Data: map[string]any{
+        "user_id":         "usr_123",
+        "subscription_id": "sub_456",
+        "plan":           "premium",
+        "status":         "active",
+    },
+    Metadata: map[string]any{
+        "source": "billing_system",
+        "version": "1.0",
+    },
+}
+
+// Production-ready webhook send with automatic JSON marshaling
+err := sender.Send(ctx, webhookURL, event,
     // Security
     webhook.WithSignature(os.Getenv("WEBHOOK_SECRET")),
 
@@ -243,5 +318,6 @@ err := sender.Send(ctx, webhookURL, eventPayload,
     // Metadata
     webhook.WithHeader("X-Event-Type", event.Type),
     webhook.WithHeader("X-Event-ID", event.ID),
+    webhook.WithHeader("X-Timestamp", event.Timestamp),
 )
 ```

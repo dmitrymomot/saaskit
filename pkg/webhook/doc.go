@@ -8,6 +8,7 @@
 //
 // # Key Features
 //
+// - Automatic JSON marshaling for any Go value
 // - Synchronous HTTP POST delivery with configurable timeouts
 // - Automatic retry logic with exponential backoff and jitter
 // - HMAC-SHA256 request signing for payload authentication
@@ -25,15 +26,31 @@
 //	// Create a sender
 //	sender := webhook.NewSender()
 //
-//	// Send a webhook
-//	err := sender.Send(ctx, "https://api.example.com/webhook",
-//	    []byte(`{"event":"user.created","id":"123"}`))
+//	// Send with automatic JSON marshaling
+//	event := map[string]any{
+//	    "event": "user.created",
+//	    "id":    "123",
+//	}
+//	err := sender.Send(ctx, "https://api.example.com/webhook", event)
 //
 // # Advanced Usage
 //
 // The Send method accepts functional options to customize behavior:
 //
-//	err := sender.Send(ctx, url, payload,
+//	// Using Send with structured data
+//	type WebhookEvent struct {
+//	    Type string                 `json:"type"`
+//	    ID   string                 `json:"id"`
+//	    Data map[string]any `json:"data"`
+//	}
+//
+//	event := WebhookEvent{
+//	    Type: "user.created",
+//	    ID:   "evt_123",
+//	    Data: map[string]any{"user_id": "usr_456"},
+//	}
+//
+//	err := sender.Send(ctx, url, event,
 //	    // Security
 //	    webhook.WithSignature("webhook_secret"),
 //
