@@ -31,6 +31,9 @@ type sendOptions struct {
 	circuitBreaker *CircuitBreaker
 
 	onDelivery DeliveryHook
+
+	maxPayloadSize  int64 // Maximum allowed payload size in bytes
+	maxResponseSize int64 // Maximum response body size to read
 }
 
 // defaultSendOptions returns options with sensible defaults
@@ -40,6 +43,8 @@ func defaultSendOptions() *sendOptions {
 		headers:         make(map[string]string),
 		maxRetries:      3,
 		backoffStrategy: DefaultBackoffStrategy(),
+		maxPayloadSize:  10 * 1024 * 1024, // 10MB default
+		maxResponseSize: 64 * 1024,        // 64KB default
 	}
 }
 
@@ -158,5 +163,25 @@ func WithExponentialRetry(attempts int, initialInterval, maxInterval time.Durati
 func WithNoRetry() SendOption {
 	return func(o *sendOptions) {
 		o.maxRetries = 0
+	}
+}
+
+// WithMaxPayloadSize sets the maximum allowed payload size in bytes.
+// Default is 10MB if not specified. Set to 0 to disable limit.
+func WithMaxPayloadSize(size int64) SendOption {
+	return func(o *sendOptions) {
+		if size >= 0 {
+			o.maxPayloadSize = size
+		}
+	}
+}
+
+// WithMaxResponseSize sets the maximum response body size to read in bytes.
+// Default is 64KB if not specified. This limits memory usage when reading error responses.
+func WithMaxResponseSize(size int64) SendOption {
+	return func(o *sendOptions) {
+		if size > 0 {
+			o.maxResponseSize = size
+		}
 	}
 }

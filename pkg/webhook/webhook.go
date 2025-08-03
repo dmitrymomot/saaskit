@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+// TODO: Add metrics/telemetry integration hooks for monitoring webhook performance and reliability
+// TODO: Add structured logging support for better observability and debugging
+// TODO: Add request ID propagation for distributed tracing across webhook calls
+
 // Sender provides reliable webhook delivery with retries and circuit breaking.
 // Zero value is not usable; use NewSender to create instances.
 type Sender struct {
@@ -78,6 +82,12 @@ func (s *Sender) Send(ctx context.Context, webhookURL string, data any, opts ...
 	options := defaultSendOptions()
 	for _, opt := range opts {
 		opt(options)
+	}
+
+	// Check payload size limit
+	if options.maxPayloadSize > 0 && int64(len(payload)) > options.maxPayloadSize {
+		return fmt.Errorf("%w: payload size %d bytes exceeds maximum allowed size of %d bytes", 
+			ErrInvalidPayload, len(payload), options.maxPayloadSize)
 	}
 
 	// Allow per-request client override for testing or custom transports
@@ -220,8 +230,8 @@ func (s *Sender) attemptDelivery(ctx context.Context, client *http.Client, webho
 	result.StatusCode = resp.StatusCode
 	result.Success = resp.StatusCode >= 200 && resp.StatusCode < 300
 
-	// Read response body for error context (64KB limit prevents memory exhaustion)
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024*64))
+	// Read response body for error context (use configurable limit to prevent memory exhaustion)
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, options.maxResponseSize))
 
 	// Check status code
 	if !result.Success {

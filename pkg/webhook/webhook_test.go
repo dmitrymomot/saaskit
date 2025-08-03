@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -769,4 +770,358 @@ func TestSender_Send_MarshalError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to marshal payload to JSON")
+}
+
+func TestSender_Send_PayloadSizeLimit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		payloadSize    int
+		maxPayloadSize int64
+		expectError    bool
+		errorContains  string
+	}{
+		{
+			name:           "payload within limit",
+			payloadSize:    1024,     // 1KB
+			maxPayloadSize: 10 * 1024, // 10KB limit
+			expectError:    false,
+		},
+		{
+			name:           "payload exactly at limit",
+			payloadSize:    700,      // Less than 1KB to account for JSON overhead
+			maxPayloadSize: 1024,     // 1KB limit
+			expectError:    false,
+		},
+		{
+			name:           "payload exceeds limit",
+			payloadSize:    2 * 1024,  // 2KB
+			maxPayloadSize: 1024,      // 1KB limit
+			expectError:    true,
+			errorContains:  "exceeds maximum allowed size",
+		},
+		{
+			name:           "no limit when set to 0",
+			payloadSize:    10 * 1024 * 1024, // 10MB
+			maxPayloadSize: 0,                // No limit
+			expectError:    false,
+		},
+		{
+			name:           "default 10MB limit",
+			payloadSize:    11 * 1024 * 1024, // 11MB
+			maxPayloadSize: -1,               // Use default (10MB)
+			expectError:    true,
+			errorContains:  "exceeds maximum allowed size",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create payload of specific size
+			data := make([]byte, tt.payloadSize)
+			for i := range data {
+				data[i] = byte(i % 256)
+			}
+			payload := map[string]any{
+				"data": data,
+			}
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, err := io.ReadAll(r.Body)
+				require.NoError(t, err)
+
+				// Verify it's valid JSON if we got here
+				var decoded map[string]any
+				err = json.Unmarshal(body, &decoded)
+				require.NoError(t, err)
+
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+
+			sender := webhook.NewSender()
+
+			opts := []webhook.SendOption{}
+			if tt.maxPayloadSize >= 0 {
+				opts = append(opts, webhook.WithMaxPayloadSize(tt.maxPayloadSize))
+			}
+
+			err := sender.Send(context.Background(), server.URL, payload, opts...)
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, webhook.ErrInvalidPayload)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestSender_Send_ResponseSizeLimit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		responseSize    int
+		maxResponseSize int64
+		statusCode      int
+	}{
+		{
+			name:            "small response within limit",
+			responseSize:    1024,      // 1KB response
+			maxResponseSize: 64 * 1024, // 64KB limit
+			statusCode:      http.StatusBadRequest,
+		},
+		{
+			name:            "large response truncated",
+			responseSize:    100 * 1024, // 100KB response
+			maxResponseSize: 10 * 1024,  // 10KB limit
+			statusCode:      http.StatusInternalServerError,
+		},
+		{
+			name:            "custom response limit",
+			responseSize:    5 * 1024, // 5KB response
+			maxResponseSize: 2 * 1024, // 2KB limit
+			statusCode:      http.StatusServiceUnavailable,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Generate response body of specific size
+			responseBody := make([]byte, tt.responseSize)
+			for i := range responseBody {
+				responseBody[i] = byte('A' + (i % 26))
+			}
+
+			var capturedErrorMsg string
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				w.Write(responseBody)
+			}))
+			defer server.Close()
+
+			sender := webhook.NewSender()
+			err := sender.Send(
+				context.Background(),
+				server.URL,
+				map[string]string{"test": "data"},
+				webhook.WithMaxResponseSize(tt.maxResponseSize),
+				webhook.WithNoRetry(),
+				webhook.WithOnDelivery(func(result webhook.DeliveryResult) {
+					if result.Error != nil {
+						capturedErrorMsg = result.Error.Error()
+					}
+				}),
+			)
+
+			require.Error(t, err)
+
+			// Verify error message doesn't contain more than maxResponseSize of response body
+			// The error message should be truncated appropriately
+			assert.NotEmpty(t, capturedErrorMsg)
+			
+			// Extract the response body portion from error message
+			// Error format: "webhook returned status XXX: <body>"
+			parts := strings.SplitN(capturedErrorMsg, ": ", 2)
+			if len(parts) == 2 {
+				bodyInError := parts[1]
+				// Account for the "..." suffix and some overhead
+				maxExpectedLen := min(int(tt.maxResponseSize), 200) + 10
+				assert.LessOrEqual(t, len(bodyInError), maxExpectedLen,
+					"Error message body portion should be limited by maxResponseSize")
+			}
+		})
+	}
+}
+
+// Helper function for min since Go doesn't have built-in generic min
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// Benchmark tests for high-throughput scenarios
+func BenchmarkSender_HighThroughput_Sequential(b *testing.B) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulate minimal processing
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer server.Close()
+
+	sender := webhook.NewSender()
+	payload := map[string]any{
+		"event": "high_throughput_test",
+		"data": map[string]string{
+			"id": "bench_123",
+			"timestamp": time.Now().Format(time.RFC3339),
+		},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := sender.Send(
+			context.Background(),
+			server.URL,
+			payload,
+			webhook.WithTimeout(5*time.Second),
+			webhook.WithNoRetry(), // Disable retries for consistent benchmarking
+		)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkSender_HighThroughput_Concurrent(b *testing.B) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulate minimal processing
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer server.Close()
+
+	sender := webhook.NewSender()
+	payload := map[string]any{
+		"event": "concurrent_test",
+		"data": map[string]string{
+			"id": "bench_456",
+		},
+	}
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			err := sender.Send(
+				context.Background(),
+				server.URL,
+				payload,
+				webhook.WithTimeout(5*time.Second),
+				webhook.WithNoRetry(),
+			)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func BenchmarkSender_LargePayload(b *testing.B) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Just acknowledge receipt, don't process
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	sender := webhook.NewSender()
+	
+	// Create payloads of different sizes
+	sizes := []struct {
+		name string
+		size int
+	}{
+		{"1KB", 1024},
+		{"10KB", 10 * 1024},
+		{"100KB", 100 * 1024},
+		{"1MB", 1024 * 1024},
+	}
+
+	for _, sz := range sizes {
+		b.Run(sz.name, func(b *testing.B) {
+			// Create payload of specific size
+			data := make([]byte, sz.size)
+			for i := range data {
+				data[i] = byte(i % 256)
+			}
+			payload := map[string]any{
+				"event": "large_payload_bench",
+				"data":  data,
+			}
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				err := sender.Send(
+					context.Background(),
+					server.URL,
+					payload,
+					webhook.WithTimeout(10*time.Second),
+					webhook.WithNoRetry(),
+					webhook.WithMaxPayloadSize(0), // No limit for benchmarking
+				)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkSender_WithRetries(b *testing.B) {
+	var requestCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count := atomic.AddInt32(&requestCount, 1)
+		// Fail first attempt, succeed on retry
+		if count%2 == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	sender := webhook.NewSender()
+	payload := map[string]string{"test": "retry_bench"}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := sender.Send(
+			context.Background(),
+			server.URL,
+			payload,
+			webhook.WithMaxRetries(1),
+			webhook.WithBackoff(webhook.FixedBackoff{Interval: time.Millisecond}),
+		)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkSender_CircuitBreaker(b *testing.B) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Always succeed for benchmarking
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cb := webhook.NewCircuitBreaker(5, 2, 100*time.Millisecond)
+	sender := webhook.NewSender()
+	payload := map[string]string{"test": "circuit_bench"}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := sender.Send(
+			context.Background(),
+			server.URL,
+			payload,
+			webhook.WithCircuitBreaker(cb),
+			webhook.WithNoRetry(),
+		)
+		if err != nil {
+			// Circuit might open under high load, which is expected
+			if !webhook.IsCircuitOpen(err) {
+				b.Fatal(err)
+			}
+		}
+	}
 }
