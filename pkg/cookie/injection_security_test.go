@@ -127,7 +127,7 @@ func TestFlashCookieInjectionPrevention(t *testing.T) {
 
 	maliciousFlashData := []struct {
 		name string
-		data interface{}
+		data any
 		desc string
 	}{
 		{
