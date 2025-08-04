@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -30,6 +31,14 @@ type Event struct {
 	UserAgent  string         `json:"user_agent,omitempty"`
 	Metadata   map[string]any `json:"metadata,omitempty"`
 	CreatedAt  time.Time      `json:"created_at"`
+}
+
+// Validate checks if the event has all required fields
+func (e *Event) Validate() error {
+	if e.Action == "" {
+		return fmt.Errorf("%w: action is required", ErrEventValidation)
+	}
+	return nil
 }
 
 // Storage defines the interface for persisting audit events
@@ -75,4 +84,5 @@ type Criteria struct {
 	EndTime    time.Time `json:"end_time,omitzero"`
 	Limit      int       `json:"limit,omitempty"`
 	Offset     int       `json:"offset,omitempty"`
+	Cursor     string    `json:"cursor,omitempty"`
 }

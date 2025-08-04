@@ -2,7 +2,6 @@ package audit
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +20,7 @@ type logger struct {
 	ipExtractor        contextExtractor
 	userAgentExtractor contextExtractor
 	asyncBufferSize    int
+	asyncOptions       AsyncOptions
 }
 
 // NewLogger creates a new audit logger
@@ -38,22 +38,7 @@ func NewLogger(storage Storage, opts ...Option) Logger {
 	}
 
 	if l.asyncBufferSize > 0 {
-		l.storage = newAsyncStorage(l.storage, l.asyncBufferSize)
-	}
-
-	// Verify storage connectivity at initialization to fail fast if backend is unavailable
-	// This prevents runtime surprises when audit logging is first attempted
-	healthEvent := Event{
-		ID:        uuid.New().String(),
-		CreatedAt: time.Now(),
-		Action:    "audit.health_check",
-		TenantID:  "system",
-		UserID:    "system",
-		Result:    ResultSuccess,
-	}
-
-	if err := storage.Store(context.Background(), healthEvent); err != nil {
-		panic(fmt.Sprintf("audit: storage health check failed: %v", err))
+		l.storage = newAsyncStorage(l.storage, l.asyncBufferSize, l.asyncOptions)
 	}
 
 	return l
@@ -71,6 +56,10 @@ func (l *logger) Log(ctx context.Context, action string, opts ...EventOption) er
 		opt(&event)
 	}
 
+	if err := event.Validate(); err != nil {
+		return err
+	}
+
 	return l.storage.Store(ctx, event)
 }
 
@@ -85,6 +74,10 @@ func (l *logger) LogError(ctx context.Context, action string, err error, opts ..
 
 	for _, opt := range opts {
 		opt(&event)
+	}
+
+	if err := event.Validate(); err != nil {
+		return err
 	}
 
 	return l.storage.Store(ctx, event)
