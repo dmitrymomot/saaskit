@@ -562,7 +562,7 @@ func TestManager_FlashEdgeCases(t *testing.T) {
 			ID        string
 			Timestamp time.Time
 			Values    []int
-			Meta      map[string]interface{}
+			Meta      map[string]any
 		}
 
 		w := httptest.NewRecorder()
@@ -572,7 +572,7 @@ func TestManager_FlashEdgeCases(t *testing.T) {
 			ID:        "test-123",
 			Timestamp: time.Now().UTC(),
 			Values:    []int{1, 2, 3, 4, 5},
-			Meta: map[string]interface{}{
+			Meta: map[string]any{
 				"key1": "value1",
 				"key2": 123,
 				"key3": true,

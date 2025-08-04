@@ -218,7 +218,7 @@ func TestDevSender_SendEmail(t *testing.T) {
 		// Verify JSON metadata
 		jsonContent, err := os.ReadFile(jsonFile)
 		assert.NoError(t, err)
-		var metadata map[string]interface{}
+		var metadata map[string]any
 		err = json.Unmarshal(jsonContent, &metadata)
 		assert.NoError(t, err)
 		assert.Equal(t, "user@example.com", metadata["send_to"])

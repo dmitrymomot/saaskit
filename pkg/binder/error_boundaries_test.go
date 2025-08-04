@@ -145,7 +145,7 @@ func testParserLimits(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(deepJSON))
 		req.Header.Set("Content-Type", "application/json")
 
-		var target interface{}
+		var target any
 
 		// Should either parse with reasonable depth or return controlled error
 		err := binder.JSON()(req, &target)
@@ -196,7 +196,7 @@ func testParserLimits(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(malformedJSON))
 		req.Header.Set("Content-Type", "application/json")
 
-		var target interface{}
+		var target any
 
 		err := binder.JSON()(req, &target)
 		if err != nil {

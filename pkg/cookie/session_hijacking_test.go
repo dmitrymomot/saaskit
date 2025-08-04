@@ -20,7 +20,7 @@ func TestSessionHijackingResistance(t *testing.T) {
 	m, _ := cookie.New([]string{"this-is-a-very-long-secret-key-32-chars-long"})
 
 	w := httptest.NewRecorder()
-	sessionData := map[string]interface{}{
+	sessionData := map[string]any{
 		"user_id":    12345,
 		"username":   "legitimate_user",
 		"role":       "admin",
@@ -106,7 +106,7 @@ func TestSessionHijackingResistance(t *testing.T) {
 				r.AddCookie(&http.Cookie{Name: "__flash_session", Value: tamperedValue})
 
 				w2 := httptest.NewRecorder()
-				var result map[string]interface{}
+				var result map[string]any
 
 				err := m.GetFlash(w2, r, "session", &result)
 
@@ -123,7 +123,7 @@ func TestSessionHijackingResistance(t *testing.T) {
 		r1.AddCookie(&http.Cookie{Name: "__flash_session", Value: cookieValue})
 
 		w1 := httptest.NewRecorder()
-		var result1 map[string]interface{}
+		var result1 map[string]any
 		err := m.GetFlash(w1, r1, "session", &result1)
 		assert.NoError(t, err, "First access should succeed")
 		assert.NotEmpty(t, result1, "Should get session data on first access")
@@ -133,7 +133,7 @@ func TestSessionHijackingResistance(t *testing.T) {
 		r2.AddCookie(&http.Cookie{Name: "__flash_session", Value: cookieValue})
 
 		w2 := httptest.NewRecorder()
-		var result2 map[string]interface{}
+		var result2 map[string]any
 		err = m.GetFlash(w2, r2, "session", &result2)
 
 		// Flash cookies are one-time use - implementation relies on browser honoring delete
@@ -282,7 +282,7 @@ func TestSessionFixationPrevention(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		w := httptest.NewRecorder()
-		sessionData := map[string]interface{}{
+		sessionData := map[string]any{
 			"session_id": i,
 			"created_at": time.Now().Unix(),
 		}
