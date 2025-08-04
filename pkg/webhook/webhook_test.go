@@ -784,20 +784,20 @@ func TestSender_Send_PayloadSizeLimit(t *testing.T) {
 	}{
 		{
 			name:           "payload within limit",
-			payloadSize:    1024,     // 1KB
+			payloadSize:    1024,      // 1KB
 			maxPayloadSize: 10 * 1024, // 10KB limit
 			expectError:    false,
 		},
 		{
 			name:           "payload exactly at limit",
-			payloadSize:    700,      // Less than 1KB to account for JSON overhead
-			maxPayloadSize: 1024,     // 1KB limit
+			payloadSize:    700,  // Less than 1KB to account for JSON overhead
+			maxPayloadSize: 1024, // 1KB limit
 			expectError:    false,
 		},
 		{
 			name:           "payload exceeds limit",
-			payloadSize:    2 * 1024,  // 2KB
-			maxPayloadSize: 1024,      // 1KB limit
+			payloadSize:    2 * 1024, // 2KB
+			maxPayloadSize: 1024,     // 1KB limit
 			expectError:    true,
 			errorContains:  "exceeds maximum allowed size",
 		},
@@ -928,7 +928,7 @@ func TestSender_Send_ResponseSizeLimit(t *testing.T) {
 			// Verify error message doesn't contain more than maxResponseSize of response body
 			// The error message should be truncated appropriately
 			assert.NotEmpty(t, capturedErrorMsg)
-			
+
 			// Extract the response body portion from error message
 			// Error format: "webhook returned status XXX: <body>"
 			parts := strings.SplitN(capturedErrorMsg, ": ", 2)
@@ -964,7 +964,7 @@ func BenchmarkSender_HighThroughput_Sequential(b *testing.B) {
 	payload := map[string]any{
 		"event": "high_throughput_test",
 		"data": map[string]string{
-			"id": "bench_123",
+			"id":        "bench_123",
 			"timestamp": time.Now().Format(time.RFC3339),
 		},
 	}
@@ -1024,7 +1024,7 @@ func BenchmarkSender_LargePayload(b *testing.B) {
 	defer server.Close()
 
 	sender := webhook.NewSender()
-	
+
 	// Create payloads of different sizes
 	sizes := []struct {
 		name string
