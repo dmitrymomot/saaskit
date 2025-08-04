@@ -21,6 +21,7 @@ type asyncStorage struct {
 	eventChan  chan eventBatch
 	done       chan struct{}
 	wg         sync.WaitGroup
+	options    AsyncOptions
 }
 
 type eventBatch struct {
@@ -29,11 +30,23 @@ type eventBatch struct {
 	result chan error
 }
 
-func newAsyncStorage(storage Storage, bufferSize int) Storage {
+func newAsyncStorage(storage Storage, bufferSize int, opts AsyncOptions) Storage {
 	as := &asyncStorage{
 		underlying: storage,
 		eventChan:  make(chan eventBatch, bufferSize),
 		done:       make(chan struct{}),
+		options:    opts,
+	}
+
+	// Apply defaults if not specified
+	if as.options.BatchSize == 0 {
+		as.options.BatchSize = defaultBatchSize
+	}
+	if as.options.BatchTimeout == 0 {
+		as.options.BatchTimeout = defaultBatchTimeout
+	}
+	if as.options.StorageTimeout == 0 {
+		as.options.StorageTimeout = defaultStorageTimeout
 	}
 
 	as.wg.Add(1)
@@ -71,11 +84,11 @@ func (as *asyncStorage) Query(ctx context.Context, criteria Criteria) ([]Event, 
 func (as *asyncStorage) worker() {
 	defer as.wg.Done()
 
-	batchEvents := make([]Event, 0, defaultBatchSize)
-	batchTimer := time.NewTicker(defaultBatchTimeout)
+	batchEvents := make([]Event, 0, as.options.BatchSize)
+	batchTimer := time.NewTicker(as.options.BatchTimeout)
 	defer batchTimer.Stop()
 
-	pendingResults := make([]chan error, 0, defaultBatchSize)
+	pendingResults := make([]chan error, 0, as.options.BatchSize)
 
 	flushBatch := func() {
 		if len(batchEvents) == 0 {
@@ -83,7 +96,7 @@ func (as *asyncStorage) worker() {
 		}
 
 		// Use background context for storage to avoid cascading timeouts
-		ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), as.options.StorageTimeout)
 		defer cancel()
 
 		err := as.underlying.Store(ctx, batchEvents...)
@@ -110,7 +123,7 @@ func (as *asyncStorage) worker() {
 			pendingResults = append(pendingResults, batch.result)
 
 			// Flush if batch is getting large
-			if len(batchEvents) >= defaultBatchSize {
+			if len(batchEvents) >= as.options.BatchSize {
 				flushBatch()
 			}
 

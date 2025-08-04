@@ -1,6 +1,15 @@
 package audit
 
+import "time"
+
 type Option func(*logger)
+
+// AsyncOptions configures async storage behavior
+type AsyncOptions struct {
+	BatchSize      int           // Number of events to batch before flushing
+	BatchTimeout   time.Duration // Duration to wait before flushing a partial batch
+	StorageTimeout time.Duration // Timeout for storing events to the underlying storage
+}
 
 func WithTenantIDExtractor(fn contextExtractor) Option {
 	return func(l *logger) {
@@ -41,5 +50,11 @@ func WithUserAgentExtractor(fn contextExtractor) Option {
 func WithAsync(bufferSize int) Option {
 	return func(l *logger) {
 		l.asyncBufferSize = bufferSize
+	}
+}
+
+func WithAsyncOptions(opts AsyncOptions) Option {
+	return func(l *logger) {
+		l.asyncOptions = opts
 	}
 }
