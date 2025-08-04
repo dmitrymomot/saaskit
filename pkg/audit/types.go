@@ -14,7 +14,8 @@ const (
 	ResultError   Result = "error"
 )
 
-// Event represents a single audit log entry
+// Event represents a single audit log entry with comprehensive context.
+// All fields except Action are optional, though TenantID/UserID are typically required for SaaS apps.
 type Event struct {
 	ID         string         `json:"id"`
 	TenantID   string         `json:"tenant_id"`
@@ -32,7 +33,8 @@ type Event struct {
 	CreatedAt  time.Time      `json:"created_at"`
 }
 
-// Validate checks if the event has all required fields
+// Validate ensures the event meets minimum requirements for storage.
+// Only Action is required - other validations are application-specific.
 func (e *Event) Validate() error {
 	if e.Action == "" {
 		return fmt.Errorf("%w: action is required", ErrEventValidation)

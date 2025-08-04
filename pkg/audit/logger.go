@@ -17,11 +17,13 @@ type Logger struct {
 	userAgentExtractor contextExtractor
 }
 
-// contextExtractor extracts string values from context.
-// It returns (value, found) where found indicates if extraction succeeded.
+// contextExtractor extracts string values from request context for audit events.
+// Returns (value, found) where found=false means extraction failed (field will be empty).
+// This pattern allows flexible integration with different context key conventions.
 type contextExtractor func(context.Context) (string, bool)
 
-// writer stores single audit events
+// writer provides the storage interface for individual audit events.
+// Implementations should be idempotent and handle storage failures gracefully.
 type writer interface {
 	Store(ctx context.Context, event Event) error
 }
@@ -79,7 +81,9 @@ func (l *Logger) LogError(ctx context.Context, action string, err error, opts ..
 	return l.writer.Store(ctx, event)
 }
 
-// eventFromContext extracts event data from context
+// eventFromContext populates an Event with contextual information using configured extractors.
+// Each extractor is optional - if nil or extraction fails, the corresponding field remains empty.
+// This pattern allows for flexible context integration without forcing specific context key conventions.
 func (l *Logger) eventFromContext(ctx context.Context) Event {
 	event := Event{}
 

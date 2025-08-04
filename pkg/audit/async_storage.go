@@ -6,12 +6,13 @@ import (
 	"time"
 )
 
-// AsyncOptions configures async writer behavior
+// AsyncOptions configures the batching and buffering behavior for optimal throughput.
+// These settings control the tradeoff between memory usage, latency, and storage efficiency.
 type AsyncOptions struct {
-	BufferSize     int           // Size of the event buffer
-	BatchSize      int           // Number of events to batch before flushing
-	BatchTimeout   time.Duration // Duration to wait before flushing a partial batch
-	StorageTimeout time.Duration // Timeout for storing events to the underlying storage
+	BufferSize     int           // Max events queued in memory before blocking/falling back to sync writes
+	BatchSize      int           // Target events per batch - optimize based on storage bulk insert performance
+	BatchTimeout   time.Duration // Max time to wait for partial batches - controls worst-case latency
+	StorageTimeout time.Duration // Per-batch storage timeout - prevents hanging on slow/failed storage
 }
 
 type AsyncWriter struct {
@@ -28,30 +29,33 @@ type eventBatch struct {
 	result chan error
 }
 
-// batchWriter stores multiple audit events efficiently
+// batchWriter provides efficient bulk storage for audit events.
+// Implementations should optimize for batch inserts (e.g., SQL bulk insert, batch APIs).
+// Must be idempotent and atomic - either all events succeed or all fail.
 type batchWriter interface {
 	StoreBatch(ctx context.Context, events []Event) error
 }
 
-// NewAsyncWriter creates an async writer that batches events
-// Only accepts BatchWriter since its purpose is to optimize batch operations
+// NewAsyncWriter creates an async writer that batches events for improved throughput.
+// Uses a background goroutine to collect events into batches, reducing storage I/O.
+// Only accepts BatchWriter since single-event writers would defeat the batching purpose.
 func NewAsyncWriter(bw batchWriter, opts AsyncOptions) (*AsyncWriter, func(context.Context) error) {
 	if bw == nil {
 		panic("audit: batch writer cannot be nil")
 	}
 
-	// Apply defaults if not specified
+	// Apply defaults optimized for typical SaaS audit workloads
 	if opts.BufferSize == 0 {
-		opts.BufferSize = 1000
+		opts.BufferSize = 1000 // Balance memory usage with burst capacity
 	}
 	if opts.BatchSize == 0 {
-		opts.BatchSize = 100
+		opts.BatchSize = 100 // Optimize for database bulk inserts
 	}
 	if opts.BatchTimeout == 0 {
-		opts.BatchTimeout = 100 * time.Millisecond
+		opts.BatchTimeout = 100 * time.Millisecond // Ensure low latency for small volumes
 	}
 	if opts.StorageTimeout == 0 {
-		opts.StorageTimeout = 5 * time.Second
+		opts.StorageTimeout = 5 * time.Second // Prevent hanging on slow storage
 	}
 
 	aw := &AsyncWriter{
@@ -77,6 +81,7 @@ func (aw *AsyncWriter) Store(ctx context.Context, event Event) error {
 
 	select {
 	case aw.eventChan <- eventBatch{ctx: ctx, events: []Event{event}, result: result}:
+		// Event queued successfully, wait for batch processing result
 		select {
 		case err := <-result:
 			return err
@@ -88,7 +93,8 @@ func (aw *AsyncWriter) Store(ctx context.Context, event Event) error {
 	case <-aw.done:
 		return ErrStorageNotAvailable
 	default:
-		// Buffer is full, fall back to synchronous write
+		// Buffer full - bypass async processing to prevent event loss
+		// This maintains audit completeness at the cost of synchronous I/O
 		return aw.batchWriter.StoreBatch(ctx, []Event{event})
 	}
 }
@@ -102,26 +108,29 @@ func (aw *AsyncWriter) worker() {
 
 	pendingResults := make([]chan error, 0, aw.options.BatchSize)
 
+	// flushBatch writes accumulated events to storage and notifies all waiting callers.
+	// Uses background context to prevent client timeouts from cascading to storage operations.
 	flushBatch := func() {
 		if len(batchEvents) == 0 {
 			return
 		}
 
-		// Use background context for storage to avoid cascading timeouts
+		// Isolate storage operations from client request contexts to prevent timeout cascades
 		ctx, cancel := context.WithTimeout(context.Background(), aw.options.StorageTimeout)
 		defer cancel()
 
 		err := aw.batchWriter.StoreBatch(ctx, batchEvents)
 
-		// Send result to all pending channels
+		// Notify all requests in this batch of the storage result
 		for _, resultChan := range pendingResults {
 			select {
 			case resultChan <- err:
 			default:
-				// Channel might be closed if request timed out
+				// Channel closed due to client timeout - safe to ignore
 			}
 		}
 
+		// Reset batch collectors for next iteration
 		clear(batchEvents)
 		clear(pendingResults)
 		batchEvents = batchEvents[:0]
@@ -134,16 +143,17 @@ func (aw *AsyncWriter) worker() {
 			batchEvents = append(batchEvents, batch.events...)
 			pendingResults = append(pendingResults, batch.result)
 
-			// Flush if batch is getting large
+			// Flush when batch reaches target size for optimal database performance
 			if len(batchEvents) >= aw.options.BatchSize {
 				flushBatch()
 			}
 
 		case <-batchTimer.C:
+			// Periodic flush ensures events don't sit in memory too long
 			flushBatch()
 
 		case <-aw.done:
-			// Drain remaining events
+			// Graceful shutdown: drain remaining events to prevent data loss
 			close(aw.eventChan)
 			for batch := range aw.eventChan {
 				batchEvents = append(batchEvents, batch.events...)
@@ -155,13 +165,14 @@ func (aw *AsyncWriter) worker() {
 	}
 }
 
-// Close gracefully shuts down the async writer
-// Respects context cancellation for timeouts
+// Close gracefully shuts down the async writer, ensuring no events are lost.
+// The context controls shutdown timeout - if exceeded, some events may remain unflushed.
+// Always call this during application shutdown to prevent audit event loss.
 func (aw *AsyncWriter) Close(ctx context.Context) error {
 	// Signal shutdown
 	close(aw.done)
 
-	// Wait for worker to finish or context to cancel
+	// Race between graceful shutdown completion and context timeout
 	doneChan := make(chan struct{})
 	go func() {
 		aw.wg.Wait()
@@ -170,10 +181,10 @@ func (aw *AsyncWriter) Close(ctx context.Context) error {
 
 	select {
 	case <-doneChan:
-		// Graceful shutdown completed
+		// All events successfully flushed
 		return nil
 	case <-ctx.Done():
-		// Context cancelled, shutdown may be incomplete
+		// Shutdown timeout exceeded - some events may be lost
 		return ctx.Err()
 	}
 }

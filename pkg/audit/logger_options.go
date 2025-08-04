@@ -1,6 +1,11 @@
 package audit
 
+// Option configures Logger behavior during initialization
 type Option func(*Logger)
+
+// Context extractors enable automatic population of audit events from request context.
+// These functions attempt to extract values and return (value, found) to indicate success.
+// If extraction fails, the corresponding event field will remain empty.
 
 func WithTenantIDExtractor(fn contextExtractor) Option {
 	return func(l *Logger) {

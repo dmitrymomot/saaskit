@@ -1,6 +1,5 @@
 package audit
 
-// WithResource sets the resource type and ID
 func WithResource(resource, id string) EventOption {
 	return func(e *Event) {
 		e.Resource = resource
@@ -8,7 +7,8 @@ func WithResource(resource, id string) EventOption {
 	}
 }
 
-// WithMetadata adds metadata to the event
+// WithMetadata initializes metadata map if needed before adding key-value pair.
+// Safe to call multiple times to build up metadata incrementally.
 func WithMetadata(key string, value any) EventOption {
 	return func(e *Event) {
 		if e.Metadata == nil {
@@ -18,7 +18,8 @@ func WithMetadata(key string, value any) EventOption {
 	}
 }
 
-// WithResult sets the event result
+// WithResult overrides the default result set by Log/LogError methods.
+// Typically used to mark a successful action as a failure based on business logic.
 func WithResult(result Result) EventOption {
 	return func(e *Event) {
 		e.Result = result
