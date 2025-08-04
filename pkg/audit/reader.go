@@ -21,33 +21,16 @@ func (r *reader) Find(ctx context.Context, criteria Criteria) ([]Event, error) {
 
 // FindWithCursor retrieves audit events based on the criteria with cursor-based pagination
 func (r *reader) FindWithCursor(ctx context.Context, criteria Criteria, cursor string) ([]Event, string, error) {
-	// For now, implement a basic cursor pagination using the ID field
-	// Storage implementations can provide more sophisticated cursor support
+	// Pass cursor to storage via Criteria
 	modifiedCriteria := criteria
+	modifiedCriteria.Cursor = cursor
 	if cursor != "" {
-		// For basic implementation, use cursor as an ID offset
-		// Storage implementations should handle cursor in their own way
 		modifiedCriteria.Offset = 0 // Reset offset when using cursor
 	}
 
 	events, err := r.storage.Query(ctx, modifiedCriteria)
 	if err != nil {
 		return nil, "", err
-	}
-
-	// Filter events after cursor ID if provided
-	if cursor != "" {
-		filtered := make([]Event, 0, len(events))
-		found := false
-		for _, e := range events {
-			if found {
-				filtered = append(filtered, e)
-			}
-			if e.ID == cursor {
-				found = true
-			}
-		}
-		events = filtered
 	}
 
 	// Generate next cursor from last event ID
