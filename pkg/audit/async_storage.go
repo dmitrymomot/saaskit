@@ -6,6 +6,25 @@ import (
 	"time"
 )
 
+// Default configuration values for AsyncOptions, optimized for typical SaaS audit workloads
+const (
+	// DefaultBufferSize defines the maximum number of events queued in memory
+	// before blocking or falling back to synchronous writes
+	DefaultBufferSize = 1000
+
+	// DefaultBatchSize defines the target number of events per batch,
+	// optimized for database bulk insert performance
+	DefaultBatchSize = 100
+
+	// DefaultBatchTimeout defines the maximum time to wait for partial batches,
+	// controlling worst-case latency for low-volume scenarios
+	DefaultBatchTimeout = 100 * time.Millisecond
+
+	// DefaultStorageTimeout defines the per-batch storage operation timeout,
+	// preventing hanging on slow or failed storage backends
+	DefaultStorageTimeout = 5 * time.Second
+)
+
 // AsyncOptions configures the batching and buffering behavior for optimal throughput.
 // These settings control the tradeoff between memory usage, latency, and storage efficiency.
 type AsyncOptions struct {
@@ -46,16 +65,16 @@ func NewAsyncWriter(bw batchWriter, opts AsyncOptions) (*AsyncWriter, func(conte
 
 	// Apply defaults optimized for typical SaaS audit workloads
 	if opts.BufferSize == 0 {
-		opts.BufferSize = 1000 // Balance memory usage with burst capacity
+		opts.BufferSize = DefaultBufferSize
 	}
 	if opts.BatchSize == 0 {
-		opts.BatchSize = 100 // Optimize for database bulk inserts
+		opts.BatchSize = DefaultBatchSize
 	}
 	if opts.BatchTimeout == 0 {
-		opts.BatchTimeout = 100 * time.Millisecond // Ensure low latency for small volumes
+		opts.BatchTimeout = DefaultBatchTimeout
 	}
 	if opts.StorageTimeout == 0 {
-		opts.StorageTimeout = 5 * time.Second // Prevent hanging on slow storage
+		opts.StorageTimeout = DefaultStorageTimeout
 	}
 
 	aw := &AsyncWriter{
@@ -131,8 +150,14 @@ func (aw *AsyncWriter) worker() {
 		}
 
 		// Reset batch collectors for next iteration
+		// clear() zeroes the slice elements to help garbage collection reclaim memory
+		// from any references held by the slice elements (e.g., event.Metadata maps).
+		// This is particularly important for long-running processes to prevent memory leaks.
 		clear(batchEvents)
 		clear(pendingResults)
+		// Truncate slices to zero length while preserving their underlying capacity.
+		// This allows reuse of the already-allocated arrays for the next batch,
+		// avoiding repeated allocations and improving performance.
 		batchEvents = batchEvents[:0]
 		pendingResults = pendingResults[:0]
 	}
