@@ -13,12 +13,33 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/audit"
 )
 
-// Use shared MockStorageCounter from extractor_test.go to avoid redeclaration
+// MockStorageCounter is a mock implementation of the StorageCounter interface
+type MockStorageCounter struct {
+	mock.Mock
+}
+
+func (m *MockStorageCounter) Store(ctx context.Context, events ...audit.Event) error {
+	args := m.Called(ctx, events)
+	return args.Error(0)
+}
+
+func (m *MockStorageCounter) Query(ctx context.Context, criteria audit.Criteria) ([]audit.Event, error) {
+	args := m.Called(ctx, criteria)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]audit.Event), args.Error(1)
+}
+
+func (m *MockStorageCounter) Count(ctx context.Context, criteria audit.Criteria) (int64, error) {
+	args := m.Called(ctx, criteria)
+	return args.Get(0).(int64), args.Error(1)
+}
 
 func TestReader_PaginationWithLargeOffset(t *testing.T) {
 	t.Parallel()
 
-	// BUSINESS LOGIC: Pagination must handle large offsets gracefully 
+	// BUSINESS LOGIC: Pagination must handle large offsets gracefully
 	// without performance degradation or errors
 	storage := new(MockStorage)
 	reader := audit.NewReader(storage)
@@ -90,7 +111,7 @@ func TestReader_OptimizedCountVsFallback(t *testing.T) {
 
 	// BUSINESS LOGIC: Count operations must work correctly whether storage
 	// implements optimized counting or requires fallback to query+count
-	
+
 	t.Run("optimized count available", func(t *testing.T) {
 		t.Parallel()
 		storage := new(MockStorageCounter)
@@ -124,7 +145,7 @@ func TestReader_OptimizedCountVsFallback(t *testing.T) {
 
 		// Should fall back to Query and count results
 		events := make([]audit.Event, 5)
-		for i := range events {
+		for i := range 5 {
 			events[i] = audit.Event{ID: string(rune(i))}
 		}
 		storage.On("Query", mock.Anything, criteria).Return(events, nil)

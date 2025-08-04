@@ -31,11 +31,11 @@ func TestAsyncLogger_ConcurrentLogging(t *testing.T) {
 	const goroutines = 5
 	const eventsPerGoroutine = 3
 
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
-			for j := 0; j < eventsPerGoroutine; j++ {
+			for j := range eventsPerGoroutine {
 				err := logger.Log(ctx, "concurrent.operation",
 					audit.WithMetadata("worker", workerID),
 					audit.WithMetadata("iteration", j),
@@ -99,7 +99,7 @@ func TestAsyncLogger_BasicFunctionality(t *testing.T) {
 	ctx := context.Background()
 
 	// Log a few events
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		err := logger.Log(ctx, "basic.test",
 			audit.WithMetadata("sequence", i),
 		)

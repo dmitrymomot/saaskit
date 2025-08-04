@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+const (
+	// defaultBatchSize is the default number of events to batch before flushing
+	defaultBatchSize = 100
+	// defaultBatchTimeout is the duration to wait before flushing a partial batch
+	defaultBatchTimeout = 100 * time.Millisecond
+	// defaultStorageTimeout is the timeout for storing events to the underlying storage
+	defaultStorageTimeout = 5 * time.Second
+)
+
 type asyncStorage struct {
 	underlying Storage
 	eventChan  chan eventBatch
@@ -35,7 +44,7 @@ func newAsyncStorage(storage Storage, bufferSize int) Storage {
 
 func (as *asyncStorage) Store(ctx context.Context, events ...Event) error {
 	result := make(chan error, 1)
-	
+
 	select {
 	case as.eventChan <- eventBatch{ctx: ctx, events: events, result: result}:
 		select {
@@ -62,11 +71,11 @@ func (as *asyncStorage) Query(ctx context.Context, criteria Criteria) ([]Event, 
 func (as *asyncStorage) worker() {
 	defer as.wg.Done()
 
-	batchEvents := make([]Event, 0, 100)
-	batchTimer := time.NewTicker(100 * time.Millisecond)
+	batchEvents := make([]Event, 0, defaultBatchSize)
+	batchTimer := time.NewTicker(defaultBatchTimeout)
 	defer batchTimer.Stop()
 
-	pendingResults := make([]chan error, 0, 100)
+	pendingResults := make([]chan error, 0, defaultBatchSize)
 
 	flushBatch := func() {
 		if len(batchEvents) == 0 {
@@ -74,11 +83,11 @@ func (as *asyncStorage) worker() {
 		}
 
 		// Use background context for storage to avoid cascading timeouts
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), defaultStorageTimeout)
 		defer cancel()
 
 		err := as.underlying.Store(ctx, batchEvents...)
-		
+
 		// Send result to all pending channels
 		for _, resultChan := range pendingResults {
 			select {
@@ -88,6 +97,8 @@ func (as *asyncStorage) worker() {
 			}
 		}
 
+		clear(batchEvents)
+		clear(pendingResults)
 		batchEvents = batchEvents[:0]
 		pendingResults = pendingResults[:0]
 	}
@@ -99,7 +110,7 @@ func (as *asyncStorage) worker() {
 			pendingResults = append(pendingResults, batch.result)
 
 			// Flush if batch is getting large
-			if len(batchEvents) >= 100 {
+			if len(batchEvents) >= defaultBatchSize {
 				flushBatch()
 			}
 
@@ -122,7 +133,7 @@ func (as *asyncStorage) worker() {
 func (as *asyncStorage) Close() error {
 	close(as.done)
 	as.wg.Wait()
-	
+
 	if closer, ok := as.underlying.(interface{ Close() error }); ok {
 		return closer.Close()
 	}

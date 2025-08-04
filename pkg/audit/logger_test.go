@@ -226,10 +226,10 @@ func TestLogger_ConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
 
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < logsPerGoroutine; j++ {
+			for j := range logsPerGoroutine {
 				err := logger.Log(context.Background(), "concurrent.test",
 					audit.WithMetadata("goroutine", id),
 					audit.WithMetadata("iteration", j),
