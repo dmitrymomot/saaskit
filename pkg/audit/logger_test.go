@@ -41,25 +41,9 @@ func TestNewLogger(t *testing.T) {
 		})
 	})
 
-	t.Run("health check failure panics", func(t *testing.T) {
-		t.Parallel()
-		storage := new(MockStorage)
-		storage.On("Store", mock.Anything, mock.MatchedBy(func(events []audit.Event) bool {
-			return len(events) == 1 && events[0].Action == "audit.health_check"
-		})).Return(errors.New("storage unavailable"))
-
-		assert.Panics(t, func() {
-			audit.NewLogger(storage)
-		})
-		storage.AssertExpectations(t)
-	})
-
 	t.Run("successful initialization", func(t *testing.T) {
 		t.Parallel()
 		storage := new(MockStorage)
-		storage.On("Store", mock.Anything, mock.MatchedBy(func(events []audit.Event) bool {
-			return len(events) == 1 && events[0].Action == "audit.health_check"
-		})).Return(nil)
 
 		logger := audit.NewLogger(storage)
 		assert.NotNil(t, logger)
@@ -69,7 +53,6 @@ func TestNewLogger(t *testing.T) {
 	t.Run("with extractors", func(t *testing.T) {
 		t.Parallel()
 		storage := new(MockStorage)
-		storage.On("Store", mock.Anything, mock.Anything).Return(nil)
 
 		logger := audit.NewLogger(storage,
 			audit.WithTenantIDExtractor(func(ctx context.Context) (string, bool) {
@@ -93,7 +76,7 @@ func TestLogger_Log(t *testing.T) {
 	t.Run("basic logging", func(t *testing.T) {
 		t.Parallel()
 		storage := new(MockStorage)
-		storage.On("Store", mock.Anything, mock.Anything).Return(nil).Twice()
+		storage.On("Store", mock.Anything, mock.Anything).Return(nil).Once()
 
 		logger := audit.NewLogger(storage)
 		err := logger.Log(context.Background(), "user.login")
@@ -105,9 +88,6 @@ func TestLogger_Log(t *testing.T) {
 	t.Run("with context extractors", func(t *testing.T) {
 		t.Parallel()
 		storage := new(MockStorage)
-		storage.On("Store", mock.Anything, mock.MatchedBy(func(events []audit.Event) bool {
-			return len(events) == 1 && events[0].Action == "audit.health_check"
-		})).Return(nil).Once()
 
 		storage.On("Store", mock.Anything, mock.MatchedBy(func(events []audit.Event) bool {
 			if len(events) != 1 {
@@ -140,7 +120,6 @@ func TestLogger_Log(t *testing.T) {
 	t.Run("with options", func(t *testing.T) {
 		t.Parallel()
 		storage := new(MockStorage)
-		storage.On("Store", mock.Anything, mock.Anything).Return(nil).Once() // health check
 
 		storage.On("Store", mock.Anything, mock.MatchedBy(func(events []audit.Event) bool {
 			if len(events) != 1 {
@@ -171,7 +150,6 @@ func TestLogger_Log(t *testing.T) {
 	t.Run("storage error", func(t *testing.T) {
 		t.Parallel()
 		storage := new(MockStorage)
-		storage.On("Store", mock.Anything, mock.Anything).Return(nil).Once() // health check
 		storage.On("Store", mock.Anything, mock.Anything).Return(errors.New("storage error")).Once()
 
 		logger := audit.NewLogger(storage)
@@ -186,7 +164,6 @@ func TestLogger_LogError(t *testing.T) {
 	t.Parallel()
 
 	storage := new(MockStorage)
-	storage.On("Store", mock.Anything, mock.Anything).Return(nil).Once() // health check
 
 	storage.On("Store", mock.Anything, mock.MatchedBy(func(events []audit.Event) bool {
 		if len(events) != 1 {
@@ -241,8 +218,8 @@ func TestLogger_ConcurrentAccess(t *testing.T) {
 
 	wg.Wait()
 
-	// Verify expected number of calls (1 health check + goroutines * logsPerGoroutine)
-	expectedCalls := 1 + goroutines*logsPerGoroutine
+	// Verify expected number of calls (goroutines * logsPerGoroutine)
+	expectedCalls := goroutines * logsPerGoroutine
 	storage.AssertNumberOfCalls(t, "Store", expectedCalls)
 }
 

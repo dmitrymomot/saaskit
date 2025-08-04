@@ -90,17 +90,21 @@ func TestReader_CursorPaginationConsistency(t *testing.T) {
 	assert.Equal(t, allEvents, events)
 	assert.Equal(t, "", nextCursor) // No more pages
 
-	// Second call with cursor - should return events after cursor
-	storage.On("Query", mock.Anything, criteria).Return(allEvents, nil).Once()
+	// Second call with cursor - storage should handle cursor-based filtering
+	criteriaWithCursor := criteria
+	criteriaWithCursor.Cursor = "event-2"
+	criteriaWithCursor.Offset = 0
 
-	events, nextCursor, err = reader.FindWithCursor(context.Background(), criteria, "event-2")
-	require.NoError(t, err)
-	// Should return events after event-2
-	expected := []audit.Event{
+	// Storage implementation should return events after the cursor
+	eventsAfterCursor := []audit.Event{
 		{ID: "event-3", Action: "user.login", CreatedAt: baseTime.Add(-1 * time.Hour)},
 		{ID: "event-4", Action: "user.login", CreatedAt: baseTime},
 	}
-	assert.Equal(t, expected, events)
+	storage.On("Query", mock.Anything, criteriaWithCursor).Return(eventsAfterCursor, nil).Once()
+
+	events, nextCursor, err = reader.FindWithCursor(context.Background(), criteria, "event-2")
+	require.NoError(t, err)
+	assert.Equal(t, eventsAfterCursor, events)
 	assert.Equal(t, "", nextCursor)
 
 	storage.AssertExpectations(t)

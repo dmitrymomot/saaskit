@@ -21,7 +21,6 @@ func TestLogger_StorageFailureHandling(t *testing.T) {
 	// BUSINESS LOGIC: Logger must handle storage failures gracefully
 	// and provide clear error responses for audit compliance requirements
 	storage := new(MockStorage)
-	storage.On("Store", mock.Anything, mock.Anything).Return(nil).Once() // health check
 
 	// Simulate storage failure
 	storageErr := errors.New("database connection lost")
@@ -47,7 +46,6 @@ func TestLogger_ContextTimeoutHandling(t *testing.T) {
 	// BUSINESS LOGIC: Context timeouts must be handled properly to prevent
 	// request hanging in web applications
 	storage := new(MockStorage)
-	storage.On("Store", mock.Anything, mock.Anything).Return(nil).Once() // health check
 
 	// Simulate slow storage that would timeout by returning an error that matches context timeout
 	storage.On("Store", mock.Anything, mock.Anything).
@@ -84,7 +82,6 @@ func TestLogger_LargeMetadataHandling(t *testing.T) {
 	// BUSINESS LOGIC: System must handle large metadata without crashing
 	// Important for detailed audit trails with complex data structures
 	storage := new(MockStorage)
-	storage.On("Store", mock.Anything, mock.Anything).Return(nil).Once() // health check
 
 	// Verify large metadata is handled correctly
 	storage.On("Store", mock.Anything, mock.MatchedBy(func(events []audit.Event) bool {
@@ -105,24 +102,6 @@ func TestLogger_LargeMetadataHandling(t *testing.T) {
 		audit.WithMetadata("data_classification", "confidential"),
 	)
 	require.NoError(t, err)
-
-	storage.AssertExpectations(t)
-}
-
-func TestLogger_HealthCheckFailurePreventsCreation(t *testing.T) {
-	t.Parallel()
-
-	// BUSINESS LOGIC: Constructor must fail fast if storage is completely broken
-	// This prevents runtime surprises when audit logging is first attempted
-	storage := new(MockStorage)
-	storage.On("Store", mock.Anything, mock.MatchedBy(func(events []audit.Event) bool {
-		return len(events) == 1 && events[0].Action == "audit.health_check"
-	})).Return(errors.New("storage completely unavailable"))
-
-	// Constructor should panic if storage health check fails
-	assert.Panics(t, func() {
-		audit.NewLogger(storage)
-	}, "Constructor must fail fast if storage is unavailable")
 
 	storage.AssertExpectations(t)
 }

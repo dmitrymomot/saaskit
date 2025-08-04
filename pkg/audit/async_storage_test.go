@@ -61,7 +61,6 @@ func TestAsyncLogger_ContextCancellation(t *testing.T) {
 	// BUSINESS LOGIC: Context cancellation must be respected even in async mode
 	// to prevent resource leaks during request timeouts
 	storage := new(MockStorage)
-	storage.On("Store", mock.Anything, mock.Anything).Return(nil).Once() // health check
 
 	// Simulate slow storage that would cause timeout
 	storage.On("Store", mock.Anything, mock.Anything).
@@ -109,6 +108,6 @@ func TestAsyncLogger_BasicFunctionality(t *testing.T) {
 	// Wait for async processing
 	time.Sleep(100 * time.Millisecond)
 
-	// Verify storage was called (health check + events)
+	// Verify storage was called
 	storage.AssertCalled(t, "Store", mock.Anything, mock.Anything)
 }
