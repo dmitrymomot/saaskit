@@ -13,7 +13,6 @@ type SensitiveDataHasher interface {
 	Hash(data string) string
 }
 
-// logger implements the Logger interface
 type logger struct {
 	storage            Storage
 	tenantIDExtractor  func(context.Context) (string, bool)
@@ -22,31 +21,26 @@ type logger struct {
 	sensitiveHasher    SensitiveDataHasher
 }
 
-// Option configures the logger
 type Option func(*logger)
 
-// WithTenantIDExtractor sets the tenant ID extractor function
 func WithTenantIDExtractor(fn func(context.Context) (string, bool)) Option {
 	return func(l *logger) {
 		l.tenantIDExtractor = fn
 	}
 }
 
-// WithUserIDExtractor sets the user ID extractor function
 func WithUserIDExtractor(fn func(context.Context) (string, bool)) Option {
 	return func(l *logger) {
 		l.userIDExtractor = fn
 	}
 }
 
-// WithSessionIDExtractor sets the session ID extractor function
 func WithSessionIDExtractor(fn func(context.Context) (string, bool)) Option {
 	return func(l *logger) {
 		l.sessionIDExtractor = fn
 	}
 }
 
-// WithSensitiveDataHasher sets the hasher for sensitive data
 func WithSensitiveDataHasher(h SensitiveDataHasher) Option {
 	return func(l *logger) {
 		l.sensitiveHasher = h
@@ -67,7 +61,8 @@ func NewLogger(storage Storage, opts ...Option) Logger {
 		opt(l)
 	}
 
-	// Health check
+	// Verify storage connectivity at initialization to fail fast if backend is unavailable
+	// This prevents runtime surprises when audit logging is first attempted
 	healthEvent := Event{
 		ID:        uuid.New().String(),
 		CreatedAt: time.Now(),
@@ -117,12 +112,12 @@ func (l *logger) Log(ctx context.Context, action string, opts ...EventOption) er
 	event.Action = action
 	event.Result = ResultSuccess
 
-	// Apply options
 	for _, opt := range opts {
 		opt(&event)
 	}
 
-	// Hash sensitive data if hasher is configured
+	// Apply one-way hashing to sensitive identifiers for privacy compliance
+	// This allows correlation analysis while preventing PII exposure in audit logs
 	if l.sensitiveHasher != nil {
 		if event.UserID != "" {
 			event.UserID = l.sensitiveHasher.Hash(event.UserID)
@@ -144,12 +139,12 @@ func (l *logger) LogError(ctx context.Context, action string, err error, opts ..
 	event.Error = err.Error()
 	event.CreatedAt = time.Now()
 
-	// Apply options
 	for _, opt := range opts {
 		opt(&event)
 	}
 
-	// Apply sensitive data hashing if configured
+	// Apply one-way hashing to sensitive identifiers for privacy compliance
+	// This allows correlation analysis while preventing PII exposure in audit logs
 	if l.sensitiveHasher != nil {
 		if event.UserID != "" {
 			event.UserID = l.sensitiveHasher.Hash(event.UserID)
@@ -187,7 +182,6 @@ func (l *logger) eventFromContext(ctx context.Context) Event {
 	return event
 }
 
-// reader implements the Reader interface
 type reader struct {
 	storage Storage
 }
@@ -205,10 +199,10 @@ func (r *reader) Find(ctx context.Context, criteria Criteria) ([]Event, error) {
 	return r.storage.Query(ctx, criteria)
 }
 
-// Count returns the count of audit events matching the criteria
+// Count returns the count of audit events matching the criteria.
+// WARNING: This implementation loads all matching records into memory for counting.
+// Production storage implementations should override with optimized COUNT queries.
 func (r *reader) Count(ctx context.Context, criteria Criteria) (int64, error) {
-	// Get all matching events and count them
-	// In a real implementation, this would be optimized with a COUNT query
 	events, err := r.storage.Query(ctx, criteria)
 	if err != nil {
 		return 0, err

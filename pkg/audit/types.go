@@ -37,7 +37,8 @@ type Storage interface {
 	Query(ctx context.Context, criteria Criteria) ([]Event, error)
 }
 
-// EventOption is a functional option for configuring an Event
+// EventOption applies configuration to an Event during creation.
+// Used with Log and LogError methods to add metadata, resources, etc.
 type EventOption func(*Event)
 
 // Logger defines the interface for recording audit events

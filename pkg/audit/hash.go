@@ -16,6 +16,10 @@ func NewSHA256Hasher() Hasher {
 	return &sha256Hasher{}
 }
 
+// Hash creates a deterministic SHA-256 hash of the event's core fields.
+// Excludes ID, Hash, PrevHash, and Metadata to ensure hash stability across
+// different contexts while including all tamper-sensitive audit data.
+// Uses pipe-delimited format: TenantID|UserID|SessionID|Action|Resource|ResourceID|Result|UnixTimestamp|Error
 func (h *sha256Hasher) Hash(event Event) string {
 	data := fmt.Sprintf(
 		"%s|%s|%s|%s|%s|%s|%s|%d|%s",
