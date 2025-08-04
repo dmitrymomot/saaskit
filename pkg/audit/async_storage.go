@@ -2,26 +2,24 @@ package audit
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 )
 
-const (
-	// defaultBatchSize is the default number of events to batch before flushing
-	defaultBatchSize = 100
-	// defaultBatchTimeout is the duration to wait before flushing a partial batch
-	defaultBatchTimeout = 100 * time.Millisecond
-	// defaultStorageTimeout is the timeout for storing events to the underlying storage
-	defaultStorageTimeout = 5 * time.Second
-)
+// AsyncOptions configures async writer behavior
+type AsyncOptions struct {
+	BufferSize     int           // Size of the event buffer
+	BatchSize      int           // Number of events to batch before flushing
+	BatchTimeout   time.Duration // Duration to wait before flushing a partial batch
+	StorageTimeout time.Duration // Timeout for storing events to the underlying storage
+}
 
-type asyncStorage struct {
-	underlying Storage
-	eventChan  chan eventBatch
-	done       chan struct{}
-	wg         sync.WaitGroup
-	options    AsyncOptions
+type AsyncWriter struct {
+	batchWriter batchWriter
+	eventChan   chan eventBatch
+	done        chan struct{}
+	wg          sync.WaitGroup
+	options     AsyncOptions
 }
 
 type eventBatch struct {
@@ -30,36 +28,55 @@ type eventBatch struct {
 	result chan error
 }
 
-func newAsyncStorage(storage Storage, bufferSize int, opts AsyncOptions) Storage {
-	as := &asyncStorage{
-		underlying: storage,
-		eventChan:  make(chan eventBatch, bufferSize),
-		done:       make(chan struct{}),
-		options:    opts,
+// batchWriter stores multiple audit events efficiently
+type batchWriter interface {
+	StoreBatch(ctx context.Context, events []Event) error
+}
+
+// NewAsyncWriter creates an async writer that batches events
+// Only accepts BatchWriter since its purpose is to optimize batch operations
+func NewAsyncWriter(bw batchWriter, opts AsyncOptions) (*AsyncWriter, func(context.Context) error) {
+	if bw == nil {
+		panic("audit: batch writer cannot be nil")
 	}
 
 	// Apply defaults if not specified
-	if as.options.BatchSize == 0 {
-		as.options.BatchSize = defaultBatchSize
+	if opts.BufferSize == 0 {
+		opts.BufferSize = 1000
 	}
-	if as.options.BatchTimeout == 0 {
-		as.options.BatchTimeout = defaultBatchTimeout
+	if opts.BatchSize == 0 {
+		opts.BatchSize = 100
 	}
-	if as.options.StorageTimeout == 0 {
-		as.options.StorageTimeout = defaultStorageTimeout
+	if opts.BatchTimeout == 0 {
+		opts.BatchTimeout = 100 * time.Millisecond
+	}
+	if opts.StorageTimeout == 0 {
+		opts.StorageTimeout = 5 * time.Second
 	}
 
-	as.wg.Add(1)
-	go as.worker()
+	aw := &AsyncWriter{
+		batchWriter: bw,
+		eventChan:   make(chan eventBatch, opts.BufferSize),
+		done:        make(chan struct{}),
+		options:     opts,
+	}
 
-	return as
+	aw.wg.Add(1)
+	go aw.worker()
+
+	closeFunc := func(ctx context.Context) error {
+		return aw.Close(ctx)
+	}
+
+	return aw, closeFunc
 }
 
-func (as *asyncStorage) Store(ctx context.Context, events ...Event) error {
+// Store implements Writer interface
+func (aw *AsyncWriter) Store(ctx context.Context, event Event) error {
 	result := make(chan error, 1)
 
 	select {
-	case as.eventChan <- eventBatch{ctx: ctx, events: events, result: result}:
+	case aw.eventChan <- eventBatch{ctx: ctx, events: []Event{event}, result: result}:
 		select {
 		case err := <-result:
 			return err
@@ -68,27 +85,22 @@ func (as *asyncStorage) Store(ctx context.Context, events ...Event) error {
 		}
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-as.done:
+	case <-aw.done:
 		return ErrStorageNotAvailable
 	default:
 		// Buffer is full, fall back to synchronous write
-		return as.underlying.Store(ctx, events...)
+		return aw.batchWriter.StoreBatch(ctx, []Event{event})
 	}
 }
 
-func (as *asyncStorage) Query(ctx context.Context, criteria Criteria) ([]Event, error) {
-	// Queries are always synchronous
-	return as.underlying.Query(ctx, criteria)
-}
+func (aw *AsyncWriter) worker() {
+	defer aw.wg.Done()
 
-func (as *asyncStorage) worker() {
-	defer as.wg.Done()
-
-	batchEvents := make([]Event, 0, as.options.BatchSize)
-	batchTimer := time.NewTicker(as.options.BatchTimeout)
+	batchEvents := make([]Event, 0, aw.options.BatchSize)
+	batchTimer := time.NewTicker(aw.options.BatchTimeout)
 	defer batchTimer.Stop()
 
-	pendingResults := make([]chan error, 0, as.options.BatchSize)
+	pendingResults := make([]chan error, 0, aw.options.BatchSize)
 
 	flushBatch := func() {
 		if len(batchEvents) == 0 {
@@ -96,10 +108,10 @@ func (as *asyncStorage) worker() {
 		}
 
 		// Use background context for storage to avoid cascading timeouts
-		ctx, cancel := context.WithTimeout(context.Background(), as.options.StorageTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), aw.options.StorageTimeout)
 		defer cancel()
 
-		err := as.underlying.Store(ctx, batchEvents...)
+		err := aw.batchWriter.StoreBatch(ctx, batchEvents)
 
 		// Send result to all pending channels
 		for _, resultChan := range pendingResults {
@@ -118,22 +130,22 @@ func (as *asyncStorage) worker() {
 
 	for {
 		select {
-		case batch := <-as.eventChan:
+		case batch := <-aw.eventChan:
 			batchEvents = append(batchEvents, batch.events...)
 			pendingResults = append(pendingResults, batch.result)
 
 			// Flush if batch is getting large
-			if len(batchEvents) >= as.options.BatchSize {
+			if len(batchEvents) >= aw.options.BatchSize {
 				flushBatch()
 			}
 
 		case <-batchTimer.C:
 			flushBatch()
 
-		case <-as.done:
+		case <-aw.done:
 			// Drain remaining events
-			close(as.eventChan)
-			for batch := range as.eventChan {
+			close(aw.eventChan)
+			for batch := range aw.eventChan {
 				batchEvents = append(batchEvents, batch.events...)
 				pendingResults = append(pendingResults, batch.result)
 			}
@@ -143,20 +155,25 @@ func (as *asyncStorage) worker() {
 	}
 }
 
-func (as *asyncStorage) Close() error {
-	close(as.done)
-	as.wg.Wait()
+// Close gracefully shuts down the async writer
+// Respects context cancellation for timeouts
+func (aw *AsyncWriter) Close(ctx context.Context) error {
+	// Signal shutdown
+	close(aw.done)
 
-	if closer, ok := as.underlying.(interface{ Close() error }); ok {
-		return closer.Close()
-	}
-	return nil
-}
+	// Wait for worker to finish or context to cancel
+	doneChan := make(chan struct{})
+	go func() {
+		aw.wg.Wait()
+		close(doneChan)
+	}()
 
-// Ensure asyncStorage implements StorageCounter if underlying storage does
-func (as *asyncStorage) Count(ctx context.Context, criteria Criteria) (int64, error) {
-	if counter, ok := as.underlying.(StorageCounter); ok {
-		return counter.Count(ctx, criteria)
+	select {
+	case <-doneChan:
+		// Graceful shutdown completed
+		return nil
+	case <-ctx.Done():
+		// Context cancelled, shutdown may be incomplete
+		return ctx.Err()
 	}
-	return 0, fmt.Errorf("underlying storage does not implement StorageCounter")
 }
