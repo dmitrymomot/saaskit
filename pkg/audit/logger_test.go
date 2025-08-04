@@ -5,7 +5,6 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -247,77 +246,5 @@ func TestLogger_ConcurrentAccess(t *testing.T) {
 	storage.AssertNumberOfCalls(t, "Store", expectedCalls)
 }
 
-func TestNewReader(t *testing.T) {
-	t.Parallel()
-
-	t.Run("nil storage panics", func(t *testing.T) {
-		t.Parallel()
-		assert.Panics(t, func() {
-			audit.NewReader(nil)
-		})
-	})
-
-	t.Run("successful initialization", func(t *testing.T) {
-		t.Parallel()
-		storage := new(MockStorage)
-		reader := audit.NewReader(storage)
-		assert.NotNil(t, reader)
-	})
-}
-
-func TestReader_Find(t *testing.T) {
-	t.Parallel()
-
-	storage := new(MockStorage)
-	reader := audit.NewReader(storage)
-
-	criteria := audit.Criteria{
-		Action:    "user.login",
-		TenantID:  "tenant-123",
-		StartTime: time.Now().Add(-24 * time.Hour),
-		EndTime:   time.Now(),
-		Limit:     10,
-	}
-
-	expectedEvents := []audit.Event{
-		{
-			ID:       "event-1",
-			Action:   "user.login",
-			TenantID: "tenant-123",
-		},
-		{
-			ID:       "event-2",
-			Action:   "user.login",
-			TenantID: "tenant-123",
-		},
-	}
-
-	storage.On("Query", mock.Anything, criteria).Return(expectedEvents, nil)
-
-	events, err := reader.Find(context.Background(), criteria)
-	require.NoError(t, err)
-	assert.Equal(t, expectedEvents, events)
-	storage.AssertExpectations(t)
-}
-
-func TestReader_Count(t *testing.T) {
-	t.Parallel()
-
-	storage := new(MockStorage)
-	reader := audit.NewReader(storage)
-
-	criteria := audit.Criteria{
-		Action:   "user.login",
-		TenantID: "tenant-123",
-	}
-
-	// Return 5 events to count
-	storage.On("Query", mock.Anything, criteria).Return([]audit.Event{
-		{}, {}, {}, {}, {},
-	}, nil)
-
-	count, err := reader.Count(context.Background(), criteria)
-	require.NoError(t, err)
-	assert.Equal(t, int64(5), count)
-	storage.AssertExpectations(t)
-}
+// Reader tests moved to reader_test.go to avoid duplication
+// and maintain focused test organization

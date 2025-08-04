@@ -8,7 +8,4 @@ var (
 
 	// ErrInvalidEvent indicates the event data is invalid
 	ErrInvalidEvent = errors.New("invalid event data")
-
-	// ErrHashVerificationFailed indicates the hash chain verification failed
-	ErrHashVerificationFailed = errors.New("hash chain verification failed")
 )

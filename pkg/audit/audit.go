@@ -8,17 +8,15 @@ import (
 	"github.com/google/uuid"
 )
 
-// SensitiveDataHasher defines the interface for hashing sensitive data
-type SensitiveDataHasher interface {
-	Hash(data string) string
-}
-
 type logger struct {
-	storage            Storage
-	tenantIDExtractor  func(context.Context) (string, bool)
-	userIDExtractor    func(context.Context) (string, bool)
-	sessionIDExtractor func(context.Context) (string, bool)
-	sensitiveHasher    SensitiveDataHasher
+	storage              Storage
+	tenantIDExtractor    func(context.Context) (string, bool)
+	userIDExtractor      func(context.Context) (string, bool)
+	sessionIDExtractor   func(context.Context) (string, bool)
+	requestIDExtractor   func(context.Context) (string, bool)
+	ipExtractor          func(context.Context) (string, bool)
+	userAgentExtractor   func(context.Context) (string, bool)
+	asyncBufferSize      int
 }
 
 type Option func(*logger)
@@ -41,9 +39,27 @@ func WithSessionIDExtractor(fn func(context.Context) (string, bool)) Option {
 	}
 }
 
-func WithSensitiveDataHasher(h SensitiveDataHasher) Option {
+func WithRequestIDExtractor(fn func(context.Context) (string, bool)) Option {
 	return func(l *logger) {
-		l.sensitiveHasher = h
+		l.requestIDExtractor = fn
+	}
+}
+
+func WithIPExtractor(fn func(context.Context) (string, bool)) Option {
+	return func(l *logger) {
+		l.ipExtractor = fn
+	}
+}
+
+func WithUserAgentExtractor(fn func(context.Context) (string, bool)) Option {
+	return func(l *logger) {
+		l.userAgentExtractor = fn
+	}
+}
+
+func WithAsync(bufferSize int) Option {
+	return func(l *logger) {
+		l.asyncBufferSize = bufferSize
 	}
 }
 
@@ -59,6 +75,10 @@ func NewLogger(storage Storage, opts ...Option) Logger {
 
 	for _, opt := range opts {
 		opt(l)
+	}
+
+	if l.asyncBufferSize > 0 {
+		l.storage = newAsyncStorage(l.storage, l.asyncBufferSize)
 	}
 
 	// Verify storage connectivity at initialization to fail fast if backend is unavailable
@@ -88,10 +108,10 @@ func WithResource(resource, id string) EventOption {
 }
 
 // WithMetadata adds metadata to the event
-func WithMetadata(key string, value interface{}) EventOption {
+func WithMetadata(key string, value any) EventOption {
 	return func(e *Event) {
 		if e.Metadata == nil {
-			e.Metadata = make(map[string]interface{})
+			e.Metadata = make(map[string]any)
 		}
 		e.Metadata[key] = value
 	}
@@ -116,16 +136,6 @@ func (l *logger) Log(ctx context.Context, action string, opts ...EventOption) er
 		opt(&event)
 	}
 
-	// Apply one-way hashing to sensitive identifiers for privacy compliance
-	// This allows correlation analysis while preventing PII exposure in audit logs
-	if l.sensitiveHasher != nil {
-		if event.UserID != "" {
-			event.UserID = l.sensitiveHasher.Hash(event.UserID)
-		}
-		if event.SessionID != "" {
-			event.SessionID = l.sensitiveHasher.Hash(event.SessionID)
-		}
-	}
 
 	return l.storage.Store(ctx, event)
 }
@@ -143,16 +153,6 @@ func (l *logger) LogError(ctx context.Context, action string, err error, opts ..
 		opt(&event)
 	}
 
-	// Apply one-way hashing to sensitive identifiers for privacy compliance
-	// This allows correlation analysis while preventing PII exposure in audit logs
-	if l.sensitiveHasher != nil {
-		if event.UserID != "" {
-			event.UserID = l.sensitiveHasher.Hash(event.UserID)
-		}
-		if event.SessionID != "" {
-			event.SessionID = l.sensitiveHasher.Hash(event.SessionID)
-		}
-	}
 
 	return l.storage.Store(ctx, event)
 }
@@ -179,6 +179,24 @@ func (l *logger) eventFromContext(ctx context.Context) Event {
 		}
 	}
 
+	if l.requestIDExtractor != nil {
+		if requestID, ok := l.requestIDExtractor(ctx); ok {
+			event.RequestID = requestID
+		}
+	}
+
+	if l.ipExtractor != nil {
+		if ip, ok := l.ipExtractor(ctx); ok {
+			event.IP = ip
+		}
+	}
+
+	if l.userAgentExtractor != nil {
+		if userAgent, ok := l.userAgentExtractor(ctx); ok {
+			event.UserAgent = userAgent
+		}
+	}
+
 	return event
 }
 
@@ -199,10 +217,55 @@ func (r *reader) Find(ctx context.Context, criteria Criteria) ([]Event, error) {
 	return r.storage.Query(ctx, criteria)
 }
 
+// FindWithCursor retrieves audit events based on the criteria with cursor-based pagination
+func (r *reader) FindWithCursor(ctx context.Context, criteria Criteria, cursor string) ([]Event, string, error) {
+	// For now, implement a basic cursor pagination using the ID field
+	// Storage implementations can provide more sophisticated cursor support
+	modifiedCriteria := criteria
+	if cursor != "" {
+		// For basic implementation, use cursor as an ID offset
+		// Storage implementations should handle cursor in their own way
+		modifiedCriteria.Offset = 0 // Reset offset when using cursor
+	}
+	
+	events, err := r.storage.Query(ctx, modifiedCriteria)
+	if err != nil {
+		return nil, "", err
+	}
+	
+	// Filter events after cursor ID if provided
+	if cursor != "" {
+		filtered := make([]Event, 0, len(events))
+		found := false
+		for _, e := range events {
+			if found {
+				filtered = append(filtered, e)
+			}
+			if e.ID == cursor {
+				found = true
+			}
+		}
+		events = filtered
+	}
+	
+	// Generate next cursor from last event ID
+	nextCursor := ""
+	if len(events) > 0 && len(events) == criteria.Limit {
+		nextCursor = events[len(events)-1].ID
+	}
+	
+	return events, nextCursor, nil
+}
+
 // Count returns the count of audit events matching the criteria.
-// WARNING: This implementation loads all matching records into memory for counting.
-// Production storage implementations should override with optimized COUNT queries.
+// If the storage implements StorageCounter, it uses the optimized Count method.
+// Otherwise, it falls back to loading all records and counting them in memory.
 func (r *reader) Count(ctx context.Context, criteria Criteria) (int64, error) {
+	if counter, ok := r.storage.(StorageCounter); ok {
+		return counter.Count(ctx, criteria)
+	}
+
+	// Fallback: load all events and count them
 	events, err := r.storage.Query(ctx, criteria)
 	if err != nil {
 		return 0, err

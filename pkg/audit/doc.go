@@ -1,7 +1,7 @@
 // Package audit provides comprehensive audit logging capabilities for tracking
 // user actions and system events in SaaS applications. It supports compliance,
 // security monitoring, and forensic analysis through structured logging with
-// optional tamper detection via hash chaining.
+// async support and cursor-based pagination.
 //
 // The package is designed as a pure utility with no infrastructure dependencies,
 // using pluggable storage backends and configurable context extractors for
@@ -18,7 +18,7 @@
 //
 //   - Extractor – context-aware functions for extracting metadata
 //
-//   - Record – immutable audit event structure with optional hash chaining
+//   - Event – immutable audit event structure with common request metadata
 //
 //   - Query – flexible interface for retrieving historical audit data
 //
@@ -33,7 +33,7 @@
 //     │   create/store
 //     ▼
 //     ┌─────────────┐   persist   ┌─────────────┐
-//     │   Record    │ ──────────► │   Storage   │
+//     │   Event     │ ──────────► │   Storage   │
 //     └─────────────┘             └─────────────┘
 //
 // # Usage
@@ -44,44 +44,53 @@
 //	)
 //
 //	// Basic logger setup
-//	logger := audit.New(
-//	    storage,  // implements audit.Storage interface
-//	    audit.WithTenantExtractor(extractTenantID),
-//	    audit.WithUserExtractor(extractUserID),
-//	    audit.WithSessionExtractor(extractSessionID),
+//	logger := audit.NewLogger(storage,
+//	    audit.WithTenantIDExtractor(extractTenantID),
+//	    audit.WithUserIDExtractor(extractUserID),
+//	    audit.WithSessionIDExtractor(extractSessionID),
+//	    audit.WithRequestIDExtractor(extractRequestID),
+//	    audit.WithIPExtractor(extractIP),
+//	    audit.WithUserAgentExtractor(extractUserAgent),
+//	    audit.WithAsync(1000), // Enable async with 1000 event buffer
 //	)
 //
 //	// Log successful actions
 //	ctx := context.WithValue(context.Background(), "user_id", "user-123")
-//	err := logger.LogSuccess(ctx, "user.login", "User logged in successfully",
-//	    audit.WithIP("192.168.1.1"),
-//	    audit.WithUserAgent("Mozilla/5.0..."),
+//	err := logger.Log(ctx, "user.login",
 //	    audit.WithResource("users", "user-123"),
+//	    audit.WithMetadata("method", "oauth"),
 //	)
 //
 //	// Log failures with error details
-//	err = logger.LogError(ctx, "user.login", "Invalid credentials",
-//	    someError,
-//	    audit.WithIP("192.168.1.1"),
-//	    audit.WithAttemptCount(3),
+//	err = logger.LogError(ctx, "user.login", someError,
+//	    audit.WithResource("users", "user-123"),
+//	    audit.WithMetadata("attempt_count", 3),
 //	)
 //
 //	// Query audit logs
-//	records, err := storage.Query(ctx, audit.QueryOptions{
-//	    TenantID: "tenant-123",
-//	    UserID:   "user-456",
-//	    Action:   "user.login",
-//	    Since:    time.Now().Add(-24 * time.Hour),
-//	    Limit:    100,
+//	reader := audit.NewReader(storage)
+//	events, err := reader.Find(ctx, audit.Criteria{
+//	    TenantID:  "tenant-123",
+//	    UserID:    "user-456",
+//	    Action:    "user.login",
+//	    StartTime: time.Now().Add(-24 * time.Hour),
+//	    EndTime:   time.Now(),
+//	    Limit:     100,
 //	})
+//
+//	// Query with cursor pagination
+//	events, nextCursor, err := reader.FindWithCursor(ctx, audit.Criteria{
+//	    TenantID: "tenant-123",
+//	    Limit:    20,
+//	}, cursor)
 //
 // # Storage Interface
 //
 // Custom storage implementations must satisfy the Storage interface:
 //
 //	type Storage interface {
-//	    Store(ctx context.Context, record Record) error
-//	    Query(ctx context.Context, opts QueryOptions) ([]Record, error)
+//	    Store(ctx context.Context, events ...Event) error
+//	    Query(ctx context.Context, criteria Criteria) ([]Event, error)
 //	}
 //
 // Example in-memory storage:
@@ -91,10 +100,10 @@
 //	    mu      sync.RWMutex
 //	}
 //
-//	func (s *MemoryStorage) Store(ctx context.Context, record audit.Record) error {
+//	func (s *MemoryStorage) Store(ctx context.Context, events ...audit.Event) error {
 //	    s.mu.Lock()
 //	    defer s.mu.Unlock()
-//	    s.records = append(s.records, record)
+//	    s.records = append(s.records, events...)
 //	    return nil
 //	}
 //
@@ -102,66 +111,59 @@
 //
 // Extractors pull metadata from request context for automatic inclusion:
 //
-//	func extractTenantID(ctx context.Context) string {
+//	func extractTenantID(ctx context.Context) (string, bool) {
 //	    if tenantID, ok := ctx.Value("tenant_id").(string); ok {
-//	        return tenantID
+//	        return tenantID, true
 //	    }
-//	    return ""
+//	    return "", false
 //	}
 //
-//	logger := audit.New(storage,
-//	    audit.WithTenantExtractor(extractTenantID),
-//	    audit.WithUserExtractor(extractUserID),
-//	    audit.WithSessionExtractor(extractSessionID),
+//	logger := audit.NewLogger(storage,
+//	    audit.WithTenantIDExtractor(extractTenantID),
+//	    audit.WithUserIDExtractor(extractUserID),
+//	    audit.WithSessionIDExtractor(extractSessionID),
 //	)
 //
-// # Hash Chaining for Tamper Detection
+// # Async Storage
 //
-// Optional hash chaining creates cryptographic links between audit records:
+// Enable async storage for high-throughput scenarios:
 //
-//	logger := audit.New(storage,
-//	    audit.WithHashChaining(true),
+//	logger := audit.NewLogger(storage,
+//	    audit.WithAsync(5000), // 5000 event buffer
 //	)
 //
-// Each record includes the hash of the previous record, enabling detection
-// of missing or modified entries. The chain uses SHA-256 for cryptographic
-// integrity.
+// Events are batched and written asynchronously to improve performance.
+// When the buffer is full, the system falls back to synchronous writes
+// to prevent event loss.
 //
 // # Functional Options for Metadata
 //
 // Rich metadata can be attached to audit records using functional options:
 //
-//	err := logger.LogSuccess(ctx, "document.update", "Document updated",
+//	err := logger.Log(ctx, "document.update",
 //	    audit.WithResource("documents", "doc-789"),
-//	    audit.WithIP("203.0.113.1"),
-//	    audit.WithUserAgent("API-Client/1.0"),
-//	    audit.WithMetadata(map[string]interface{}{
-//	        "fields_changed": []string{"title", "content"},
-//	        "previous_version": 3,
-//	        "new_version": 4,
-//	    }),
+//	    audit.WithMetadata("fields_changed", []string{"title", "content"}),
+//	    audit.WithMetadata("previous_version", 3),
+//	    audit.WithMetadata("new_version", 4),
 //	)
 //
 // # Error Handling
 //
 // The package defines specific error types for different failure modes:
 //
-//   - ErrStorageUnavailable – storage backend is unreachable
-//   - ErrInvalidRecord      – record validation failed
-//   - ErrHashChainBroken    – tamper detection found inconsistency
-//   - ErrQueryLimitExceeded – query would return too many results
+//   - ErrStorageNotAvailable – storage backend is unavailable
+//   - ErrInvalidEvent        – event data is invalid
 //
 // # Performance Considerations
 //
 // The logger is optimized for high-throughput environments:
 //
 //   - Context extraction happens once per log call
-//   - Record creation uses struct literals to minimize allocations
-//   - Storage operations can be made asynchronous via background workers
-//   - Hash computation uses efficient SHA-256 implementation
+//   - Event creation uses struct literals to minimize allocations
+//   - Async storage batches writes for improved throughput
+//   - Cursor pagination enables efficient large dataset navigation
 //
-// For maximum performance, consider batching storage operations or using
-// an asynchronous storage implementation that buffers writes.
+// For maximum performance, use WithAsync option to enable batched writes.
 //
 // # Compliance Features
 //
@@ -172,13 +174,13 @@
 //   - Resource identification (type and ID)
 //   - Action classification (success/failure/error)
 //   - Detailed context and metadata
-//   - Optional tamper detection via hash chaining
+//   - Request tracking via RequestID, IP, and UserAgent fields
 //
 // # Security Considerations
 //
 // - Audit records should be stored in append-only systems when possible
 // - Consider encrypting audit storage for sensitive environments
-// - Hash chaining provides tamper detection but not prevention
+// - Async storage may lose events on ungraceful shutdown - use sync for critical logs
 // - IP addresses and user agents may contain personally identifiable information
 // - Implement retention policies to comply with data protection regulations
 //

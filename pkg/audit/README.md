@@ -1,6 +1,6 @@
 # audit
 
-Comprehensive audit logging for SaaS applications with tamper detection, compliance features, and pluggable storage backends.
+Comprehensive audit logging for SaaS applications with compliance features, pluggable storage backends, and async support.
 
 ## Installation
 
@@ -11,10 +11,11 @@ go get github.com/dmitrymomot/saaskit/pkg/audit
 ## Key Features
 
 - **Pluggable Storage**: Interface-based design supports any storage backend
-- **Context Extractors**: Automatic tenant, user, and session identification from request context
-- **Hash Chaining**: Optional cryptographic tamper detection using SHA-256
+- **Context Extractors**: Automatic tenant, user, session, request ID, IP, and user agent extraction
+- **Async Support**: Optional async storage with configurable buffer sizes
+- **Cursor Pagination**: Efficient pagination with cursor-based navigation
 - **Compliance Ready**: Immutable timestamps, actor identification, and structured metadata
-- **High Performance**: Goroutine-safe with minimal allocations and async-friendly design
+- **High Performance**: Goroutine-safe with minimal allocations and batch processing
 - **Functional Options**: Rich metadata attachment using type-safe option patterns
 
 ## Architecture Overview
@@ -22,25 +23,25 @@ go get github.com/dmitrymomot/saaskit/pkg/audit
 The audit system uses clean separation of concerns across four main components:
 
 ```
-┌─────────────┐   extract   ┌─────────────┐
-│   Context   │ ──────────► │ Extractors  │
-└─────────────┘             └─────────────┘
+┌────────┐   extract   ┌────────┐
+│   Context   │ ──────► │  Extractors │
+└────────┘             └────────┘
        │                           │
        ▼                           ▼
-┌─────────────────────────────────────────┐
-│               Logger                    │
-└─────────────────────────────────────────┘
+┌─────────────────────────┐
+│                   Logger                 │
+└─────────────────────────┘
        │   create/store
        ▼
-┌─────────────┐   persist   ┌─────────────┐
-│    Event    │ ──────────► │   Storage   │
-└─────────────┘             └─────────────┘
+┌────────┐   persist   ┌────────┐
+│    Event    │ ──────► │   Storage   │
+└────────┘             └────────┘
 ```
 
 - **Logger**: Orchestrates audit logging with configurable context extractors
 - **Storage**: Pluggable interface for persisting audit events to any backend
 - **Extractors**: Context-aware functions for extracting tenant, user, and session IDs
-- **Event**: Immutable audit record structure with optional hash chaining support
+- **Event**: Immutable audit record structure with common fields (RequestID, IP, UserAgent)
 
 ## Usage
 
@@ -57,17 +58,21 @@ import (
 func main() {
     // Create storage (implement audit.Storage interface)
     storage := NewMemoryStorage() // your storage implementation
-    
+
     // Configure logger with context extractors
     logger := audit.NewLogger(storage,
         audit.WithTenantIDExtractor(extractTenantID),
         audit.WithUserIDExtractor(extractUserID),
         audit.WithSessionIDExtractor(extractSessionID),
+        audit.WithRequestIDExtractor(extractRequestID),
+        audit.WithIPExtractor(extractIP),
+        audit.WithUserAgentExtractor(extractUserAgent),
+        audit.WithAsync(1000), // Enable async with 1000 event buffer
     )
-    
+
     // Context with user information
     ctx := context.WithValue(context.Background(), "user_id", "user-123")
-    
+
     // Log successful action
     err := logger.Log(ctx, "user.login",
         audit.WithResource("users", "user-123"),
@@ -103,6 +108,30 @@ func extractUserID(ctx context.Context) (string, bool) {
 func extractSessionID(ctx context.Context) (string, bool) {
     if sessionID, ok := ctx.Value("session_id").(string); ok {
         return sessionID, true
+    }
+    return "", false
+}
+
+// Extract request ID for tracing
+func extractRequestID(ctx context.Context) (string, bool) {
+    if reqID, ok := ctx.Value("request_id").(string); ok {
+        return reqID, true
+    }
+    return "", false
+}
+
+// Extract client IP address
+func extractIP(ctx context.Context) (string, bool) {
+    if ip, ok := ctx.Value("client_ip").(string); ok {
+        return ip, true
+    }
+    return "", false
+}
+
+// Extract user agent string
+func extractUserAgent(ctx context.Context) (string, bool) {
+    if ua, ok := ctx.Value("user_agent").(string); ok {
+        return ua, true
     }
     return "", false
 }
@@ -147,7 +176,7 @@ err := logger.Log(ctx, "api.access",
 reader := audit.NewReader(storage)
 
 // Query with filters
-events, err := reader.Query(ctx, audit.Criteria{
+events, err := reader.Find(ctx, audit.Criteria{
     TenantID:  "tenant-123",
     UserID:    "user-456",
     Action:    "user.login",
@@ -156,31 +185,57 @@ events, err := reader.Query(ctx, audit.Criteria{
     Limit:     100,
 })
 
+// Query with cursor-based pagination
+events, nextCursor, err := reader.FindWithCursor(ctx, audit.Criteria{
+    TenantID: "tenant-123",
+    Limit:    20,
+}, cursor)
+
+// Get count of matching events
+count, err := reader.Count(ctx, audit.Criteria{
+    TenantID: "tenant-123",
+    Action:   "user.login",
+})
+
 if err != nil {
     // handle error
 }
 
 for _, event := range events {
-    fmt.Printf("Action: %s, Result: %s, Time: %v\n", 
+    fmt.Printf("Action: %s, Result: %s, Time: %v\n",
         event.Action, event.Result, event.CreatedAt)
 }
 ```
 
-### Hash Chaining Example
+### Async Storage
 
 ```go
-// Enable tamper detection with hash chaining
-hasher := audit.NewSHA256Hasher()
+// Enable async storage with a 5000 event buffer
 logger := audit.NewLogger(storage,
-    audit.WithHasher(hasher),
+    audit.WithAsync(5000),
     audit.WithTenantIDExtractor(extractTenantID),
 )
 
-// Each logged event will include hash of previous event
-err := logger.Log(ctx, "sensitive.operation",
-    audit.WithResource("accounts", "acc-123"),
-    audit.WithMetadata("balance_change", 10000),
+// Events are written asynchronously in batches
+err := logger.Log(ctx, "high.volume.operation",
+    audit.WithResource("requests", "req-123"),
+    audit.WithMetadata("processing_time_ms", 15),
 )
+
+// Note: Async storage falls back to synchronous writes
+
+// Remember to close the logger for graceful shutdown
+if closer, ok := logger.(io.Closer); ok {
+    defer closer.Close()
+}
+```
+
+**Important Async Behavior**: 
+- When the async buffer is full, the logger automatically falls back to synchronous writes to prevent event loss
+- Events are never dropped - reliability is prioritized over performance
+- Events are batched (up to 100 events or 100ms timeout) for efficient database writes
+- Always close the logger to ensure pending events are flushed
+// when the buffer is full to prevent event loss
 ```
 
 ## Storage Implementation Guide
@@ -193,30 +248,32 @@ type MemoryStorage struct {
     mu     sync.RWMutex
 }
 
-func (s *MemoryStorage) Store(ctx context.Context, event *audit.Event) error {
+func (s *MemoryStorage) Store(ctx context.Context, events ...audit.Event) error {
     s.mu.Lock()
     defer s.mu.Unlock()
-    
-    // Generate ID and timestamp if not set
-    if event.ID == "" {
-        event.ID = uuid.New().String()
+
+    for _, event := range events {
+        // Events already have ID and timestamp from logger
+        s.events = append(s.events, event)
     }
-    if event.CreatedAt.IsZero() {
-        event.CreatedAt = time.Now()
-    }
-    
-    s.events = append(s.events, *event)
     return nil
 }
 
-func (s *MemoryStorage) Query(ctx context.Context, criteria audit.Criteria) ([]*audit.Event, error) {
+func (s *MemoryStorage) Query(ctx context.Context, criteria audit.Criteria) ([]audit.Event, error) {
     s.mu.RLock()
     defer s.mu.RUnlock()
+
+    var results []audit.Event
     
-    var results []*audit.Event
-    for i := range s.events {
-        event := &s.events[i]
-        
+    // Apply offset
+    start := criteria.Offset
+    if start >= len(s.events) {
+        return results, nil
+    }
+    
+    for i := start; i < len(s.events); i++ {
+        event := s.events[i]
+
         // Apply filters
         if criteria.TenantID != "" && event.TenantID != criteria.TenantID {
             continue
@@ -227,15 +284,22 @@ func (s *MemoryStorage) Query(ctx context.Context, criteria audit.Criteria) ([]*
         if criteria.Action != "" && event.Action != criteria.Action {
             continue
         }
-        
+        // Apply time filters
+        if !criteria.StartTime.IsZero() && event.CreatedAt.Before(criteria.StartTime) {
+            continue
+        }
+        if !criteria.EndTime.IsZero() && event.CreatedAt.After(criteria.EndTime) {
+            continue
+        }
+
         results = append(results, event)
-        
+
         // Apply limit
         if criteria.Limit > 0 && len(results) >= criteria.Limit {
             break
         }
     }
-    
+
     return results, nil
 }
 ```
@@ -249,16 +313,16 @@ The audit package integrates seamlessly with Go's context system:
 func auditMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         ctx := r.Context()
-        
+
         // Extract from JWT, session, headers, etc.
         if tenantID := extractFromJWT(r); tenantID != "" {
             ctx = context.WithValue(ctx, "tenant_id", tenantID)
         }
-        
+
         if userID := extractFromSession(r); userID != "" {
             ctx = context.WithValue(ctx, "user_id", userID)
         }
-        
+
         next.ServeHTTP(w, r.WithContext(ctx))
     })
 }
@@ -279,9 +343,6 @@ if err := logger.Log(ctx, "action"); err != nil {
     } else if errors.Is(err, audit.ErrInvalidEvent) {
         // Event validation failed
         log.Error("invalid audit event data")
-    } else if errors.Is(err, audit.ErrHashVerificationFailed) {
-        // Hash chain integrity compromised
-        log.Critical("audit hash chain verification failed - possible tampering")
     }
 }
 ```
@@ -295,9 +356,10 @@ go test ./pkg/audit -v -race -cover
 ```
 
 Key testing patterns:
+
 - Mock storage implementations for unit tests
 - Context extractor testing with various context values
-- Hash chaining verification across multiple events
+- Async storage behavior with buffer overflow scenarios
 - Concurrent logging stress tests
 - Error condition simulation
 
