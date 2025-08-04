@@ -7,45 +7,41 @@ import (
 	"github.com/google/uuid"
 )
 
-// contextExtractor extracts string values from context.
-// It returns (value, found) where found indicates if extraction succeeded.
-type contextExtractor func(context.Context) (string, bool)
-
-type logger struct {
-	storage            Storage
+type Logger struct {
+	writer             Writer
 	tenantIDExtractor  contextExtractor
 	userIDExtractor    contextExtractor
 	sessionIDExtractor contextExtractor
 	requestIDExtractor contextExtractor
 	ipExtractor        contextExtractor
 	userAgentExtractor contextExtractor
-	asyncBufferSize    int
-	asyncOptions       AsyncOptions
 }
 
-// NewLogger creates a new audit logger
-func NewLogger(storage Storage, opts ...Option) Logger {
-	if storage == nil {
-		panic("audit: storage cannot be nil")
+// contextExtractor extracts string values from context.
+// It returns (value, found) where found indicates if extraction succeeded.
+type contextExtractor func(context.Context) (string, bool)
+
+// Writer stores single audit events
+type Writer interface {
+	Store(ctx context.Context, event Event) error
+}
+
+// NewLogger creates a new audit Logger
+func NewLogger(writer Writer, opts ...Option) *Logger {
+	if writer == nil {
+		panic("audit: writer cannot be nil")
 	}
 
-	l := &logger{
-		storage: storage,
-	}
-
+	l := &Logger{writer: writer}
 	for _, opt := range opts {
 		opt(l)
-	}
-
-	if l.asyncBufferSize > 0 {
-		l.storage = newAsyncStorage(l.storage, l.asyncBufferSize, l.asyncOptions)
 	}
 
 	return l
 }
 
 // Log records a successful action
-func (l *logger) Log(ctx context.Context, action string, opts ...EventOption) error {
+func (l *Logger) Log(ctx context.Context, action string, opts ...EventOption) error {
 	event := l.eventFromContext(ctx)
 	event.ID = uuid.New().String()
 	event.CreatedAt = time.Now()
@@ -60,11 +56,11 @@ func (l *logger) Log(ctx context.Context, action string, opts ...EventOption) er
 		return err
 	}
 
-	return l.storage.Store(ctx, event)
+	return l.writer.Store(ctx, event)
 }
 
 // LogError records a failed action
-func (l *logger) LogError(ctx context.Context, action string, err error, opts ...EventOption) error {
+func (l *Logger) LogError(ctx context.Context, action string, err error, opts ...EventOption) error {
 	event := l.eventFromContext(ctx)
 	event.ID = uuid.New().String()
 	event.Action = action
@@ -80,11 +76,11 @@ func (l *logger) LogError(ctx context.Context, action string, err error, opts ..
 		return err
 	}
 
-	return l.storage.Store(ctx, event)
+	return l.writer.Store(ctx, event)
 }
 
 // eventFromContext extracts event data from context
-func (l *logger) eventFromContext(ctx context.Context) Event {
+func (l *Logger) eventFromContext(ctx context.Context) Event {
 	event := Event{}
 
 	if l.tenantIDExtractor != nil {
