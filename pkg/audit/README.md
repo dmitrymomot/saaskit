@@ -8,6 +8,7 @@ Comprehensive audit logging system for SaaS applications with flexible storage b
 - Automatic context extraction from HTTP requests and other sources
 - Pluggable storage backends via Writer and BatchWriter interfaces
 - Complete event metadata capture (tenant, user, session, IP, user agent)
+- Built-in PII filtering with customizable rules for sensitive data protection
 - Structured error handling with domain-specific error types
 
 ## Installation
@@ -147,6 +148,33 @@ err := logger.Log(ctx, "data.export",
 )
 ```
 
+### PII Data Filtering
+
+```go
+// Create filter with custom rules
+filter := audit.NewMetadataFilter(
+	audit.WithCustomField("api_token", audit.FilterActionRemove),
+	audit.WithCustomField("user_email", audit.FilterActionHash),
+	audit.WithCustomField("phone", audit.FilterActionMask),
+	audit.WithAllowedField("user_id"), // Explicitly allow this field
+)
+
+// Apply filter to logger
+logger := audit.NewLogger(writer,
+	audit.WithMetadataFilter(filter),
+	audit.WithUserIDExtractor(userIDExtractor),
+)
+
+// Sensitive data will be automatically filtered
+err := logger.Log(ctx, "user.update",
+	audit.WithResource("user", userID),
+	audit.WithMetadata("password", "secret123"),     // Removed
+	audit.WithMetadata("user_email", "user@example.com"), // Hashed
+	audit.WithMetadata("phone", "555-1234"),        // Masked as "5****234"
+	audit.WithMetadata("user_id", "123"),           // Kept as-is (allowed)
+)
+```
+
 ## Error Handling
 
 ```go
@@ -159,6 +187,8 @@ if err != nil {
 		log.Printf("Audit storage unavailable: %v", err)
 	case errors.Is(err, audit.ErrStorageTimeout):
 		log.Printf("Audit storage timeout: %v", err)
+	case errors.Is(err, audit.ErrBufferFull):
+		log.Printf("Async buffer full, using sync fallback: %v", err)
 	default:
 		log.Printf("Audit logging failed: %v", err)
 	}
@@ -190,13 +220,56 @@ asyncWriter, cleanup := audit.NewAsyncWriter(batchWriter, audit.AsyncOptions{
 ### Event Customization
 
 ```go
-// Multiple metadata entries
+// Multiple metadata entries with result override
 err := logger.Log(ctx, "api.request",
 	audit.WithResource("endpoint", "/api/v1/users"),
 	audit.WithMetadata("method", "POST"),
 	audit.WithMetadata("response_time_ms", 234),
 	audit.WithMetadata("status_code", 201),
 	audit.WithResult(audit.ResultSuccess), // Override default result
+)
+```
+
+### Context Extractors
+
+```go
+logger := audit.NewLogger(writer,
+	audit.WithTenantIDExtractor(func(ctx context.Context) (string, bool) {
+		if val := ctx.Value("tenant_id"); val != nil {
+			return val.(string), true
+		}
+		return "", false
+	}),
+	audit.WithUserIDExtractor(func(ctx context.Context) (string, bool) {
+		if val := ctx.Value("user_id"); val != nil {
+			return val.(string), true
+		}
+		return "", false
+	}),
+	audit.WithSessionIDExtractor(func(ctx context.Context) (string, bool) {
+		if val := ctx.Value("session_id"); val != nil {
+			return val.(string), true
+		}
+		return "", false
+	}),
+	audit.WithRequestIDExtractor(func(ctx context.Context) (string, bool) {
+		if val := ctx.Value("request_id"); val != nil {
+			return val.(string), true
+		}
+		return "", false
+	}),
+	audit.WithIPExtractor(func(ctx context.Context) (string, bool) {
+		if val := ctx.Value("ip"); val != nil {
+			return val.(string), true
+		}
+		return "", false
+	}),
+	audit.WithUserAgentExtractor(func(ctx context.Context) (string, bool) {
+		if val := ctx.Value("user_agent"); val != nil {
+			return val.(string), true
+		}
+		return "", false
+	}),
 )
 ```
 
@@ -217,3 +290,5 @@ Or visit [pkg.go.dev](https://pkg.go.dev/github.com/dmitrymomot/saaskit/pkg/audi
 - Always call the cleanup function returned by NewAsyncLogger during application shutdown
 - Storage operations in async mode use background context to prevent client timeout cascades
 - Events are JSON-serializable for compliance reporting and analysis
+- PII filtering is enabled by default and automatically removes/masks sensitive fields like passwords, tokens, and personal data
+- Custom filter rules support wildcard patterns (e.g., "*_token", "secret_*", "*password*")

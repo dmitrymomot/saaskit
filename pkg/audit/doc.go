@@ -10,7 +10,10 @@
 //   - Event: Core audit event structure with comprehensive metadata
 //   - Logger: Synchronous logger with context extraction capabilities
 //   - AsyncLogger: High-throughput asynchronous logger with batching
-//   - Writer interfaces: Pluggable storage backends for different use cases
+//   - Writer interfaces: Pluggable storage backends (writer, batchWriter)
+//   - MetadataFilter: Configurable PII and sensitive data filtering system
+//   - AsyncOptions: Configuration for batching and buffering behavior
+//   - Result constants: Standard result values (ResultSuccess, ResultFailure, ResultError)
 //
 // The design emphasizes flexibility and performance while maintaining audit integrity.
 // Only the Action field is required for events, allowing applications to adopt audit
@@ -202,6 +205,34 @@
 //		audit.WithMetadata("response_time_ms", 234),
 //		audit.WithMetadata("status_code", 201),
 //	)
+//
+// # Metadata Filtering and Security
+//
+// The package provides built-in protection against logging sensitive data through the
+// MetadataFilter system. By default, common PII and security-sensitive fields are
+// automatically filtered using configurable actions:
+//
+//	// Create filter with default PII protection
+//	filter := audit.NewMetadataFilter()
+//
+//	// Customize filtering behavior
+//	filter := audit.NewMetadataFilter(
+//		audit.WithCustomField("internal_id", audit.FilterActionHash),
+//		audit.WithAllowedField("email"), // Override default email hashing
+//		audit.WithoutPIIDefaults(),     // Disable all default filtering
+//	)
+//
+//	// Apply filter to logger
+//	logger := audit.NewLogger(writer, audit.WithMetadataFilter(filter))
+//
+// The filter supports three actions:
+//
+//   - FilterActionRemove: Completely removes the field (for secrets, passwords)
+//   - FilterActionHash: SHA-256 hashes the value (for searchable PII like emails)
+//   - FilterActionMask: Masks the value with asterisks (for display purposes)
+//
+// Default PII fields include passwords, tokens, SSNs, credit cards, and other
+// sensitive data commonly found in application logs.
 //
 // # Error Handling
 //
