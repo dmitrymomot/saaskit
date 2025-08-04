@@ -42,3 +42,12 @@ func WithUserAgentExtractor(fn contextExtractor) Option {
 		l.userAgentExtractor = fn
 	}
 }
+
+// WithMetadataFilter applies filtering rules to audit event metadata.
+// This enables automatic removal, hashing, or masking of sensitive fields.
+// By default, common PII fields are filtered according to security best practices.
+func WithMetadataFilter(filter *MetadataFilter) Option {
+	return func(l *Logger) {
+		l.metadataFilter = filter
+	}
+}

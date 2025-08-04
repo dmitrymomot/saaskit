@@ -15,6 +15,7 @@ type Logger struct {
 	requestIDExtractor contextExtractor
 	ipExtractor        contextExtractor
 	userAgentExtractor contextExtractor
+	metadataFilter     *MetadataFilter
 }
 
 // contextExtractor extracts string values from request context for audit events.
@@ -54,6 +55,11 @@ func (l *Logger) Log(ctx context.Context, action string, opts ...EventOption) er
 		opt(&event)
 	}
 
+	// Apply metadata filtering if configured
+	if l.metadataFilter != nil && event.Metadata != nil {
+		event.Metadata = l.metadataFilter.Filter(event.Metadata)
+	}
+
 	if err := event.Validate(); err != nil {
 		return err
 	}
@@ -72,6 +78,11 @@ func (l *Logger) LogError(ctx context.Context, action string, err error, opts ..
 
 	for _, opt := range opts {
 		opt(&event)
+	}
+
+	// Apply metadata filtering if configured
+	if l.metadataFilter != nil && event.Metadata != nil {
+		event.Metadata = l.metadataFilter.Filter(event.Metadata)
 	}
 
 	if err := event.Validate(); err != nil {
