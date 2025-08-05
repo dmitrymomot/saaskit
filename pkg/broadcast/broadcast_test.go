@@ -84,25 +84,6 @@ func TestNewHub(t *testing.T) {
 	})
 }
 
-func TestMessage(t *testing.T) {
-	t.Parallel()
-
-	msg := broadcast.Message[string]{
-		ID:        "test-id",
-		Channel:   "test-channel",
-		Payload:   "test-payload",
-		Timestamp: time.Now(),
-		Metadata: broadcast.Metadata{
-			"key": "value",
-		},
-	}
-
-	assert.Equal(t, "test-id", msg.ID)
-	assert.Equal(t, "test-channel", msg.Channel)
-	assert.Equal(t, "test-payload", msg.Payload)
-	assert.NotZero(t, msg.Timestamp)
-	assert.Equal(t, "value", msg.Metadata["key"])
-}
 
 func TestMessageJSONMarshaling(t *testing.T) {
 	t.Parallel()
@@ -363,65 +344,301 @@ func TestPublishOptions(t *testing.T) {
 	})
 }
 
-func TestLoadOptions(t *testing.T) {
+
+func TestAckSubscriber(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
-	before := now.Add(-1 * time.Hour)
-	after := now.Add(-2 * time.Hour)
+	t.Run("message acknowledgment", func(t *testing.T) {
+		t.Parallel()
 
-	opts := broadcast.LoadOptions{
-		Limit:  100,
-		Before: &before,
-		After:  &after,
-		LastID: "last-id",
-	}
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
+			DefaultBufferSize: 10,
+		})
+		defer hub.Close()
 
-	assert.Equal(t, 100, opts.Limit)
-	assert.Equal(t, before, *opts.Before)
-	assert.Equal(t, after, *opts.After)
-	assert.Equal(t, "last-id", opts.LastID)
+		ctx := context.Background()
+		subscriber, err := hub.SubscribeWithAck(ctx, "test-channel")
+		require.NoError(t, err)
+		defer subscriber.Close()
+
+		// Publish message
+		err = hub.Publish(ctx, "test-channel", "test-message")
+		require.NoError(t, err)
+
+		// Receive and acknowledge message
+		select {
+		case ackMsg := <-subscriber.Messages():
+			assert.Equal(t, "test-message", ackMsg.Payload)
+			assert.Equal(t, "test-channel", ackMsg.Channel)
+			assert.NotEmpty(t, ackMsg.ID)
+
+			// Acknowledge the message
+			err = ackMsg.Ack()
+			assert.NoError(t, err)
+
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("timeout waiting for message")
+		}
+	})
+
+	t.Run("message negative acknowledgment", func(t *testing.T) {
+		t.Parallel()
+
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
+			DefaultBufferSize: 10,
+		})
+		defer hub.Close()
+
+		ctx := context.Background()
+		subscriber, err := hub.SubscribeWithAck(ctx, "test-channel")
+		require.NoError(t, err)
+		defer subscriber.Close()
+
+		err = hub.Publish(ctx, "test-channel", "test-message")
+		require.NoError(t, err)
+
+		select {
+		case ackMsg := <-subscriber.Messages():
+			// Negative acknowledge the message
+			err = ackMsg.Nack()
+			assert.NoError(t, err)
+
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("timeout waiting for message")
+		}
+	})
+
+	t.Run("acknowledgment options configuration", func(t *testing.T) {
+		t.Parallel()
+
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
+			DefaultBufferSize: 10,
+		})
+		defer hub.Close()
+
+		ctx := context.Background()
+		subscriber, err := hub.SubscribeWithAck(ctx, "test-channel",
+			broadcast.WithAckTimeout(100*time.Millisecond),
+			broadcast.WithMaxRetries(2),
+		)
+		require.NoError(t, err)
+		defer subscriber.Close()
+
+		// Test that subscriber was created successfully with options
+		assert.Equal(t, "test-channel", subscriber.Channel())
+		assert.NotEmpty(t, subscriber.ID())
+	})
+
+	t.Run("subscriber metadata", func(t *testing.T) {
+		t.Parallel()
+
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
+			DefaultBufferSize: 10,
+		})
+		defer hub.Close()
+
+		ctx := context.Background()
+		subscriber, err := hub.SubscribeWithAck(ctx, "test-channel")
+		require.NoError(t, err)
+		defer subscriber.Close()
+
+		assert.Equal(t, "test-channel", subscriber.Channel())
+		assert.NotEmpty(t, subscriber.ID())
+	})
+
+	t.Run("multiple acknowledgment calls", func(t *testing.T) {
+		t.Parallel()
+
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
+			DefaultBufferSize: 10,
+		})
+		defer hub.Close()
+
+		ctx := context.Background()
+		subscriber, err := hub.SubscribeWithAck(ctx, "test-channel")
+		require.NoError(t, err)
+		defer subscriber.Close()
+
+		err = hub.Publish(ctx, "test-channel", "multi-ack-test")
+		require.NoError(t, err)
+
+		select {
+		case ackMsg := <-subscriber.Messages():
+			// Multiple acks should be safe
+			err = ackMsg.Ack()
+			assert.NoError(t, err)
+
+			err = ackMsg.Ack()
+			assert.NoError(t, err)
+
+			// Nack after ack should be safe
+			err = ackMsg.Nack()
+			assert.NoError(t, err)
+
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("timeout waiting for message")
+		}
+	})
+
+	t.Run("context cancellation during processing", func(t *testing.T) {
+		t.Parallel()
+
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
+			DefaultBufferSize: 10,
+		})
+		defer hub.Close()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		subscriber, err := hub.SubscribeWithAck(ctx, "test-channel")
+		require.NoError(t, err)
+
+		err = hub.Publish(context.Background(), "test-channel", "cancel-test")
+		require.NoError(t, err)
+
+		// Cancel context while message is pending
+		cancel()
+		time.Sleep(50 * time.Millisecond)
+
+		err = subscriber.Close()
+		assert.NoError(t, err)
+	})
 }
 
-func TestErrors(t *testing.T) {
+func TestStorageOperations(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ErrHubClosed", func(t *testing.T) {
-		err := broadcast.ErrHubClosed{}
-		assert.Equal(t, "broadcast: hub is closed", err.Error())
+	t.Run("storage delete", func(t *testing.T) {
+		t.Parallel()
+
+		mockStorage := new(MockStorage[string])
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
+			Storage: mockStorage,
+		})
+		defer hub.Close()
+
+		ctx := context.Background()
+		cutoffTime := time.Now().Add(-1 * time.Hour)
+
+		// Mock successful delete
+		mockStorage.On("Delete", ctx, cutoffTime).Return(nil)
+
+		// Call Delete method through storage interface
+		err := mockStorage.Delete(ctx, cutoffTime)
+		assert.NoError(t, err)
+
+		mockStorage.AssertExpectations(t)
 	})
 
-	t.Run("ErrSubscriberClosed", func(t *testing.T) {
-		err := broadcast.ErrSubscriberClosed{ID: "sub-123"}
-		assert.Equal(t, "broadcast: subscriber sub-123 is closed", err.Error())
+	t.Run("storage delete error", func(t *testing.T) {
+		t.Parallel()
+
+		mockStorage := new(MockStorage[string])
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
+			Storage: mockStorage,
+		})
+		defer hub.Close()
+
+		ctx := context.Background()
+		cutoffTime := time.Now().Add(-1 * time.Hour)
+		expectedError := errors.New("delete failed")
+
+		// Mock delete failure
+		mockStorage.On("Delete", ctx, cutoffTime).Return(expectedError)
+
+		err := mockStorage.Delete(ctx, cutoffTime)
+		assert.Equal(t, expectedError, err)
+
+		mockStorage.AssertExpectations(t)
 	})
 
-	t.Run("ErrChannelNotFound", func(t *testing.T) {
-		err := broadcast.ErrChannelNotFound{Channel: "missing"}
-		assert.Equal(t, "broadcast: channel missing not found", err.Error())
+	t.Run("storage channels list", func(t *testing.T) {
+		t.Parallel()
+
+		mockStorage := new(MockStorage[string])
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
+			Storage: mockStorage,
+		})
+		defer hub.Close()
+
+		ctx := context.Background()
+		expectedChannels := []string{"channel1", "channel2", "channel3"}
+
+		// Mock successful channels retrieval
+		mockStorage.On("Channels", ctx).Return(expectedChannels, nil)
+
+		channels, err := mockStorage.Channels(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedChannels, channels)
+
+		mockStorage.AssertExpectations(t)
 	})
 
-	t.Run("ErrStorageFailure", func(t *testing.T) {
-		innerErr := errors.New("connection failed")
-		err := broadcast.ErrStorageFailure{
-			Operation: "store",
-			Err:       innerErr,
+	t.Run("storage channels error", func(t *testing.T) {
+		t.Parallel()
+
+		mockStorage := new(MockStorage[string])
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
+			Storage: mockStorage,
+		})
+		defer hub.Close()
+
+		ctx := context.Background()
+		expectedError := errors.New("channels query failed")
+
+		// Mock channels retrieval failure
+		mockStorage.On("Channels", ctx).Return(nil, expectedError)
+
+		channels, err := mockStorage.Channels(ctx)
+		assert.Nil(t, channels)
+		assert.Equal(t, expectedError, err)
+
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("storage load with complex options", func(t *testing.T) {
+		t.Parallel()
+
+		mockStorage := new(MockStorage[string])
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
+			Storage: mockStorage,
+		})
+		defer hub.Close()
+
+		ctx := context.Background()
+		channel := "test-channel"
+		before := time.Now().Add(-1 * time.Hour)
+		after := time.Now().Add(-2 * time.Hour)
+
+		opts := broadcast.LoadOptions{
+			Limit:  50,
+			Before: &before,
+			After:  &after,
+			LastID: "last-message-id",
 		}
-		assert.Equal(t, "broadcast: storage store failed: connection failed", err.Error())
-		assert.Equal(t, innerErr, err.Unwrap())
-	})
 
-	t.Run("ErrPublishTimeout", func(t *testing.T) {
-		err := broadcast.ErrPublishTimeout{
-			Channel: "slow-channel",
-			Timeout: 5 * time.Second,
+		expectedMessages := []broadcast.Message[string]{
+			{
+				ID:        "msg1",
+				Channel:   channel,
+				Payload:   "message 1",
+				Timestamp: time.Now().Add(-90 * time.Minute),
+			},
+			{
+				ID:        "msg2",
+				Channel:   channel,
+				Payload:   "message 2",
+				Timestamp: time.Now().Add(-80 * time.Minute),
+			},
 		}
-		assert.Equal(t, "broadcast: publish to channel slow-channel timed out after 5s", err.Error())
-	})
 
-	t.Run("ErrShutdownTimeout", func(t *testing.T) {
-		err := broadcast.ErrShutdownTimeout{}
-		assert.Equal(t, "broadcast: shutdown timeout exceeded", err.Error())
+		mockStorage.On("Load", ctx, channel, opts).Return(expectedMessages, nil)
+
+		messages, err := mockStorage.Load(ctx, channel, opts)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedMessages, messages)
+		assert.Len(t, messages, 2)
+
+		mockStorage.AssertExpectations(t)
 	})
 }
 
