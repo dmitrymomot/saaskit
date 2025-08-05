@@ -33,6 +33,7 @@ type subscriber[T any] struct {
 	cancel    context.CancelFunc
 	closeOnce sync.Once
 	hub       *hub[T]
+	mu        sync.RWMutex // Protects channel operations during close
 }
 
 type ackSubscriber[T any] struct {
@@ -215,6 +216,7 @@ func (h *hub[T]) SubscribeWithAck(ctx context.Context, channelName string, opts 
 
 	// Forward messages with acknowledgment tracking in separate goroutine
 	h.wg.Add(1)
+	ackSub.ackProcessing.Add(1) // Add before starting goroutine to avoid race
 	go func() {
 		defer h.wg.Done()
 		ackSub.forwardMessages(internalSub)
@@ -305,6 +307,17 @@ func (h *hub[T]) PublishMessage(ctx context.Context, message Message[T]) error {
 // sendToSubscriber delivers a message with timeout protection against slow consumers
 // Slow consumers are automatically disconnected to prevent memory buildup
 func (h *hub[T]) sendToSubscriber(sub *subscriber[T], msg Message[T], timeout time.Duration) {
+	// Try to acquire read lock to ensure subscriber isn't being closed
+	sub.mu.RLock()
+	defer sub.mu.RUnlock()
+
+	// Check context first for fast path
+	select {
+	case <-sub.ctx.Done():
+		return
+	default:
+	}
+
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -313,16 +326,10 @@ func (h *hub[T]) sendToSubscriber(sub *subscriber[T], msg Message[T], timeout ti
 		// Message delivered successfully
 	case <-timer.C:
 		// Slow consumer detected - disconnect to prevent memory accumulation
-		// Use closeOnce to ensure we only attempt cleanup once per subscriber
-		closed := false
-		sub.closeOnce.Do(func() {
-			closed = true
-		})
-		if closed {
-			go func() {
-				_ = sub.Close()
-			}()
-		}
+		// Close subscriber directly - closeOnce ensures this is safe to call multiple times
+		go func() {
+			_ = sub.Close()
+		}()
 	case <-sub.ctx.Done():
 		// Subscriber already closed
 	}
@@ -480,7 +487,7 @@ func (s *subscriber[T]) ID() string {
 // Close unsubscribes and cleans up resources
 func (s *subscriber[T]) Close() error {
 	s.closeOnce.Do(func() {
-		// Cancel context
+		// Cancel context to signal closure
 		s.cancel()
 
 		// Remove from hub
@@ -500,15 +507,17 @@ func (s *subscriber[T]) Close() error {
 			}
 		}
 
-		// Drain remaining messages before closing channel
-		go func() {
-			for range s.messages {
-				// Drain any remaining messages to prevent blocking publishers
-			}
-		}()
+		// Acquire write lock to prevent concurrent sends
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
-		// Close message channel
+		// Close message channel - write lock prevents concurrent sends
 		close(s.messages)
+
+		// Drain remaining messages in current goroutine to avoid race
+		for range s.messages {
+			// Drain any remaining messages to prevent blocking publishers
+		}
 	})
 
 	return nil
@@ -564,15 +573,13 @@ func (s *ackSubscriber[T]) Close() error {
 			}
 		}
 
-		// Drain remaining messages before closing channel
-		go func() {
-			for range s.messages {
-				// Drain any remaining messages
-			}
-		}()
-
 		// Close message channel
 		close(s.messages)
+
+		// Drain remaining messages in current goroutine to avoid race
+		for range s.messages {
+			// Drain any remaining messages
+		}
 	})
 
 	return nil
@@ -582,7 +589,6 @@ func (s *ackSubscriber[T]) Close() error {
 // Each message gets retry logic and timeout handling for reliable delivery
 func (s *ackSubscriber[T]) forwardMessages(internalSub *subscriber[T]) {
 	defer s.ackProcessing.Done()
-	s.ackProcessing.Add(1)
 
 	for {
 		select {

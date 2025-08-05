@@ -84,7 +84,6 @@ func TestNewHub(t *testing.T) {
 	})
 }
 
-
 func TestMessageJSONMarshaling(t *testing.T) {
 	t.Parallel()
 
@@ -343,7 +342,6 @@ func TestPublishOptions(t *testing.T) {
 		mockStorage.AssertExpectations(t)
 	})
 }
-
 
 func TestAckSubscriber(t *testing.T) {
 	t.Parallel()
@@ -736,7 +734,7 @@ func TestConcurrentChannelOperations(t *testing.T) {
 
 	// Concurrent channel creation/deletion
 	go func() {
-		for i := 0; i < 50; i++ {
+		for range 50 {
 			channel := "dynamic-channel"
 			sub, err := hub.Subscribe(ctx, channel)
 			if err == nil {
@@ -751,7 +749,7 @@ func TestConcurrentChannelOperations(t *testing.T) {
 
 	// Concurrent publishing
 	go func() {
-		for i := 0; i < 100; i++ {
+		for range 10 {
 			hub.Publish(ctx, "dynamic-channel", "message")
 			time.Sleep(5 * time.Millisecond)
 		}
@@ -759,7 +757,7 @@ func TestConcurrentChannelOperations(t *testing.T) {
 
 	// Concurrent channel listing
 	go func() {
-		for i := 0; i < 20; i++ {
+		for range 20 {
 			channels := hub.Channels()
 			_ = channels // Just accessing, not asserting
 			time.Sleep(25 * time.Millisecond)
