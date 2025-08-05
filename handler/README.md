@@ -15,6 +15,7 @@ This package is internal to the project and provides HTTP handler abstractions f
 - Type-safe request handling with automatic binding
 - Multiple response formats (JSON, HTML, redirects)
 - Built-in DataStar/SSE support for reactive UIs
+- Real-time streaming with SSE response type
 - Context abstraction with custom extensions
 - Decorator pattern for cross-cutting concerns
 - Comprehensive HTTP error types with i18n support
@@ -42,6 +43,37 @@ h := handler.HandlerFunc[handler.Context, CreateUserRequest](
 
 // Wrap for standard http.HandlerFunc
 http.HandleFunc("/users", handler.Wrap(h))
+```
+
+### Real-time SSE Streaming
+
+```go
+// Create an SSE handler for real-time updates
+chatHandler := handler.HandlerFunc[handler.Context, SubscribeRequest](
+    func(ctx handler.Context, req SubscribeRequest) handler.Response {
+        return handler.SSE(func(stream handler.StreamContext) error {
+            // Subscribe to chat messages
+            messages := chatRoom.Subscribe(req.RoomID, stream.Done())
+            defer chatRoom.Unsubscribe(req.RoomID)
+            
+            // Stream messages to client
+            for msg := range messages {
+                err := stream.SendComponent(
+                    templates.ChatMessage(msg),
+                    handler.WithTarget("#chat-messages"),
+                    handler.WithPatchMode(handler.PatchAppend),
+                )
+                if err != nil {
+                    return err
+                }
+            }
+            return nil
+        })
+    },
+)
+
+// Mount the SSE endpoint
+http.HandleFunc("/chat/:roomId/subscribe", handler.Wrap(chatHandler))
 ```
 
 ### Additional Usage Scenarios
@@ -162,6 +194,7 @@ const PatchAfter = datastar.ElementPatchModeAfter
 
 // Package errors
 var ErrNilResponse = errors.New("handler returned nil response")
+var ErrSSENotInitialized = errors.New("SSE not initialized for this request")
 
 // HTTP errors (4xx)
 var ErrBadRequest = HTTPError{Code: 400, Key: "bad_request"}
@@ -249,6 +282,18 @@ type TemplPatch struct {
 
 // JSON response configuration
 type JSONOption func(*jsonResponse)
+
+// SSE handler function
+type SSEHandler func(ctx StreamContext) error
+
+// SSE streaming context
+type StreamContext interface {
+    Context
+    SendComponent(component TemplComponent, opts ...TemplOption) error
+    SendMultiple(patches ...TemplPatch) error
+    SendSignal(name string, value any) error
+    SendSignals(signals map[string]any) error
+}
 ```
 
 ### Functions
@@ -293,6 +338,9 @@ func WithPatchMode(mode datastar.ElementPatchMode) TemplOption
 // DataStar/SSE utilities
 func IsDataStar(r *http.Request) bool
 func NewSSE(w http.ResponseWriter, r *http.Request) *datastar.ServerSentEventGenerator
+
+// SSE streaming
+func SSE(handler SSEHandler) Response
 
 // Error creation
 func NewHTTPError(code int, key string) HTTPError
