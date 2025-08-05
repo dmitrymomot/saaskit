@@ -181,7 +181,7 @@ func TestWorker_StartStop(t *testing.T) {
 		require.NoError(t, err)
 
 		// Let it run for a bit
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 
 		err = worker.Stop()
 		assert.NoError(t, err)
@@ -357,7 +357,7 @@ func TestWorker_ProcessTask(t *testing.T) {
 		require.NoError(t, err)
 
 		// Wait for first attempt
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 
 		assert.Equal(t, int32(1), attempts.Load())
 
@@ -411,7 +411,7 @@ func TestWorker_ProcessTask(t *testing.T) {
 		require.NoError(t, err)
 
 		// Wait for processing
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 
 		_ = worker.Stop()
 	})
@@ -461,7 +461,7 @@ func TestWorker_ProcessTask(t *testing.T) {
 		require.NoError(t, err)
 
 		// Wait for processing
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 
 		_ = worker.Stop()
 	})
@@ -514,7 +514,7 @@ func TestWorker_ProcessTask(t *testing.T) {
 		require.NoError(t, err)
 
 		// Wait for processing
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 
 		// Worker should still be running
 		err = worker.Stop()
@@ -589,7 +589,7 @@ func TestWorker_ConcurrentProcessing(t *testing.T) {
 			}
 
 			// Simulate work
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(20 * time.Millisecond)
 			processed.Add(1)
 			return nil
 		})
@@ -655,7 +655,7 @@ func TestWorker_GracefulShutdown(t *testing.T) {
 
 		handler := queue.NewTaskHandler(func(ctx context.Context, payload testPayload) error {
 			close(taskStarted)
-			time.Sleep(200 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 			taskCompleted.Store(true)
 			return nil
 		})
@@ -834,8 +834,17 @@ func TestWorker_QueueFiltering(t *testing.T) {
 		err = worker.Start(ctx)
 		require.NoError(t, err)
 
-		// Wait for processing
-		time.Sleep(300 * time.Millisecond)
+		// Wait for processing with timeout
+		deadline := time.Now().Add(100 * time.Millisecond)
+		for time.Now().Before(deadline) {
+			mu.Lock()
+			if processed["should-process-1"] > 0 && processed["should-process-2"] > 0 {
+				mu.Unlock()
+				break
+			}
+			mu.Unlock()
+			time.Sleep(5 * time.Millisecond)
+		}
 
 		// Verify correct tasks were processed
 		mu.Lock()

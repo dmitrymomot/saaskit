@@ -244,7 +244,7 @@ func TestScheduler_Start(t *testing.T) {
 		}()
 
 		// Wait for multiple check cycles
-		time.Sleep(150 * time.Millisecond)
+		time.Sleep(30 * time.Millisecond)
 
 		// Should only have 1 task (no duplicates)
 		count := repo.countTasksByName("no-duplicate")
@@ -274,7 +274,7 @@ func TestScheduler_Start(t *testing.T) {
 		}()
 
 		// Wait for check cycles
-		time.Sleep(150 * time.Millisecond)
+		time.Sleep(30 * time.Millisecond)
 
 		// Task should be created but scheduled for future
 		tasks := repo.getTasksByName("tomorrow-task")
@@ -382,7 +382,7 @@ func TestScheduler_TaskCreation(t *testing.T) {
 		}()
 
 		// Wait for task creation
-		time.Sleep(80 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 
 		// Verify created task
 		tasks := repo.getTasksByName("test-periodic")
@@ -425,7 +425,7 @@ func TestScheduler_TaskCreation(t *testing.T) {
 		}()
 
 		// Wait for error to occur
-		time.Sleep(80 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 
 		// Should not crash, task count should be 0
 		assert.Equal(t, 0, repo.countTasksByName("error-task"))
