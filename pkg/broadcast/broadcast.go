@@ -22,6 +22,9 @@ type Hub[T any] interface {
 	// Subscribe creates a new subscription to a channel
 	Subscribe(ctx context.Context, channel string, opts ...SubscribeOption) (Subscriber[T], error)
 
+	// SubscribeWithAck creates a new subscription with message acknowledgment support
+	SubscribeWithAck(ctx context.Context, channel string, opts ...SubscribeOption) (AckSubscriber[T], error)
+
 	// Publish sends a message to all subscribers of a channel
 	Publish(ctx context.Context, channel string, payload T, opts ...PublishOption) error
 
@@ -53,13 +56,51 @@ type Subscriber[T any] interface {
 	Close() error
 }
 
+// AckableMessage wraps a message with acknowledgment capabilities
+type AckableMessage[T any] struct {
+	Message[T]
+	ack  func() error
+	nack func() error
+}
+
+// Ack acknowledges successful message processing
+func (m *AckableMessage[T]) Ack() error {
+	if m.ack != nil {
+		return m.ack()
+	}
+	return nil
+}
+
+// Nack indicates message processing failure
+func (m *AckableMessage[T]) Nack() error {
+	if m.nack != nil {
+		return m.nack()
+	}
+	return nil
+}
+
+// AckSubscriber represents a subscription that supports message acknowledgment
+type AckSubscriber[T any] interface {
+	// Messages returns a channel to receive acknowledgeable messages
+	Messages() <-chan AckableMessage[T]
+
+	// Channel returns the subscribed channel name
+	Channel() string
+
+	// ID returns the unique subscriber ID
+	ID() string
+
+	// Close unsubscribes and cleans up resources
+	Close() error
+}
+
 // Storage interface for message persistence
-type Storage interface {
+type Storage[T any] interface {
 	// Store saves a message
-	Store(ctx context.Context, message Message[any]) error
+	Store(ctx context.Context, message Message[T]) error
 
 	// Load retrieves messages for a channel
-	Load(ctx context.Context, channel string, opts LoadOptions) ([]Message[any], error)
+	Load(ctx context.Context, channel string, opts LoadOptions) ([]Message[T], error)
 
 	// Delete removes messages older than the given time
 	Delete(ctx context.Context, before time.Time) error
@@ -85,6 +126,9 @@ type subscribeConfig struct {
 	replayLimit    int
 	errorCallback  func(error)
 	onSlowConsumer func()
+	ackTimeout     time.Duration
+	onAckTimeout   func(Message[any])
+	maxRetries     int
 }
 
 // WithBufferSize sets the message buffer size for a subscriber
@@ -113,6 +157,27 @@ func WithErrorCallback(fn func(error)) SubscribeOption {
 func WithSlowConsumerCallback(fn func()) SubscribeOption {
 	return func(c *subscribeConfig) {
 		c.onSlowConsumer = fn
+	}
+}
+
+// WithAckTimeout sets the timeout for message acknowledgment
+func WithAckTimeout(timeout time.Duration) SubscribeOption {
+	return func(c *subscribeConfig) {
+		c.ackTimeout = timeout
+	}
+}
+
+// WithAckTimeoutCallback sets a callback when acknowledgment times out
+func WithAckTimeoutCallback(fn func(Message[any])) SubscribeOption {
+	return func(c *subscribeConfig) {
+		c.onAckTimeout = fn
+	}
+}
+
+// WithMaxRetries sets maximum retry attempts for unacknowledged messages
+func WithMaxRetries(retries int) SubscribeOption {
+	return func(c *subscribeConfig) {
+		c.maxRetries = retries
 	}
 }
 
@@ -147,8 +212,8 @@ func WithTimeout(timeout time.Duration) PublishOption {
 }
 
 // HubConfig configures hub behavior
-type HubConfig struct {
-	Storage             Storage
+type HubConfig[T any] struct {
+	Storage             Storage[T]
 	DefaultBufferSize   int
 	CleanupInterval     time.Duration
 	SlowConsumerTimeout time.Duration
@@ -158,6 +223,6 @@ type HubConfig struct {
 }
 
 // NewHub creates a new broadcasting hub
-func NewHub[T any](config HubConfig) Hub[T] {
+func NewHub[T any](config HubConfig[T]) Hub[T] {
 	return newHub[T](config)
 }
