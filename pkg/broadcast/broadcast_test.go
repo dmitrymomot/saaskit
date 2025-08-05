@@ -2,6 +2,7 @@ package broadcast_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -14,33 +15,33 @@ import (
 )
 
 // MockStorage is a mock implementation of the Storage interface
-type MockStorage struct {
+type MockStorage[T any] struct {
 	mock.Mock
 }
 
 // Store saves a message
-func (m *MockStorage) Store(ctx context.Context, message broadcast.Message[any]) error {
+func (m *MockStorage[T]) Store(ctx context.Context, message broadcast.Message[T]) error {
 	args := m.Called(ctx, message)
 	return args.Error(0)
 }
 
 // Load retrieves messages for a channel
-func (m *MockStorage) Load(ctx context.Context, channel string, opts broadcast.LoadOptions) ([]broadcast.Message[any], error) {
+func (m *MockStorage[T]) Load(ctx context.Context, channel string, opts broadcast.LoadOptions) ([]broadcast.Message[T], error) {
 	args := m.Called(ctx, channel, opts)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]broadcast.Message[any]), args.Error(1)
+	return args.Get(0).([]broadcast.Message[T]), args.Error(1)
 }
 
 // Delete removes messages older than the given time
-func (m *MockStorage) Delete(ctx context.Context, before time.Time) error {
+func (m *MockStorage[T]) Delete(ctx context.Context, before time.Time) error {
 	args := m.Called(ctx, before)
 	return args.Error(0)
 }
 
 // Channels returns all known channels
-func (m *MockStorage) Channels(ctx context.Context) ([]string, error) {
+func (m *MockStorage[T]) Channels(ctx context.Context) ([]string, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -54,7 +55,7 @@ func TestNewHub(t *testing.T) {
 	t.Run("default config", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{})
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{})
 		require.NotNil(t, hub)
 		defer hub.Close()
 
@@ -69,7 +70,7 @@ func TestNewHub(t *testing.T) {
 		t.Parallel()
 
 		called := false
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize:   50,
 			CleanupInterval:     time.Minute,
 			SlowConsumerTimeout: 10 * time.Second,
@@ -109,10 +110,119 @@ func TestMessage(t *testing.T) {
 	assert.Equal(t, "value", msg.Metadata["key"])
 }
 
+func TestMessageJSONMarshaling(t *testing.T) {
+	t.Parallel()
+
+	// Test with string payload
+	t.Run("StringPayload", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Now().Truncate(time.Millisecond)
+		original := broadcast.Message[string]{
+			ID:        "msg-123",
+			Channel:   "test-channel",
+			Payload:   "test-payload",
+			Timestamp: timestamp,
+			Metadata: broadcast.Metadata{
+				"key1": "value1",
+				"key2": 42,
+			},
+		}
+
+		// Marshal to JSON
+		data, err := json.Marshal(original)
+		require.NoError(t, err)
+
+		// Unmarshal back
+		var decoded broadcast.Message[string]
+		err = json.Unmarshal(data, &decoded)
+		require.NoError(t, err)
+
+		// Verify fields
+		assert.Equal(t, original.ID, decoded.ID)
+		assert.Equal(t, original.Channel, decoded.Channel)
+		assert.Equal(t, original.Payload, decoded.Payload)
+		assert.Equal(t, original.Timestamp.Unix(), decoded.Timestamp.Unix())
+		assert.Equal(t, original.Metadata["key1"], decoded.Metadata["key1"])
+		assert.Equal(t, float64(42), decoded.Metadata["key2"]) // JSON numbers decode as float64
+	})
+
+	// Test with complex payload
+	t.Run("ComplexPayload", func(t *testing.T) {
+		t.Parallel()
+
+		type ComplexPayload struct {
+			Name   string   `json:"name"`
+			Count  int      `json:"count"`
+			Active bool     `json:"active"`
+			Tags   []string `json:"tags"`
+		}
+
+		timestamp := time.Now().Truncate(time.Millisecond)
+		original := broadcast.Message[ComplexPayload]{
+			ID:      "msg-456",
+			Channel: "complex-channel",
+			Payload: ComplexPayload{
+				Name:   "Test Item",
+				Count:  10,
+				Active: true,
+				Tags:   []string{"tag1", "tag2"},
+			},
+			Timestamp: timestamp,
+		}
+
+		// Marshal to JSON
+		data, err := json.Marshal(original)
+		require.NoError(t, err)
+
+		// Unmarshal back
+		var decoded broadcast.Message[ComplexPayload]
+		err = json.Unmarshal(data, &decoded)
+		require.NoError(t, err)
+
+		// Verify fields
+		assert.Equal(t, original.ID, decoded.ID)
+		assert.Equal(t, original.Channel, decoded.Channel)
+		assert.Equal(t, original.Payload.Name, decoded.Payload.Name)
+		assert.Equal(t, original.Payload.Count, decoded.Payload.Count)
+		assert.Equal(t, original.Payload.Active, decoded.Payload.Active)
+		assert.Equal(t, original.Payload.Tags, decoded.Payload.Tags)
+		assert.Equal(t, original.Timestamp.Unix(), decoded.Timestamp.Unix())
+	})
+
+	// Test with nil metadata
+	t.Run("NilMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		original := broadcast.Message[int]{
+			ID:        "msg-789",
+			Channel:   "int-channel",
+			Payload:   42,
+			Timestamp: time.Now(),
+			// Metadata is nil
+		}
+
+		// Marshal to JSON
+		data, err := json.Marshal(original)
+		require.NoError(t, err)
+
+		// Unmarshal back
+		var decoded broadcast.Message[int]
+		err = json.Unmarshal(data, &decoded)
+		require.NoError(t, err)
+
+		// Verify fields
+		assert.Equal(t, original.ID, decoded.ID)
+		assert.Equal(t, original.Channel, decoded.Channel)
+		assert.Equal(t, original.Payload, decoded.Payload)
+		assert.Nil(t, decoded.Metadata)
+	})
+}
+
 func TestPublishMessage(t *testing.T) {
 	t.Parallel()
 
-	hub := broadcast.NewHub[string](broadcast.HubConfig{
+	hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 		DefaultBufferSize: 10,
 	})
 	defer hub.Close()
@@ -155,7 +265,7 @@ func TestSubscribeOptions(t *testing.T) {
 	t.Run("error callback", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 		})
 		defer hub.Close()
@@ -180,7 +290,7 @@ func TestSubscribeOptions(t *testing.T) {
 	t.Run("slow consumer callback", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize:   1,
 			SlowConsumerTimeout: 50 * time.Millisecond,
 		})
@@ -212,7 +322,7 @@ func TestPublishOptions(t *testing.T) {
 	t.Run("with timeout", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 		})
 		defer hub.Close()
@@ -238,8 +348,8 @@ func TestPublishOptions(t *testing.T) {
 	t.Run("with persistence", func(t *testing.T) {
 		t.Parallel()
 
-		mockStorage := new(MockStorage)
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		mockStorage := new(MockStorage[string])
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 			Storage:           mockStorage,
 		})
@@ -330,8 +440,8 @@ func TestIntegrationScenario(t *testing.T) {
 	t.Parallel()
 
 	// Simulate a chat room scenario
-	mockStorage := new(MockStorage)
-	hub := broadcast.NewHub[ChatMessage](broadcast.HubConfig{
+	mockStorage := new(MockStorage[ChatMessage])
+	hub := broadcast.NewHub[ChatMessage](broadcast.HubConfig[ChatMessage]{
 		DefaultBufferSize: 50,
 		Storage:           mockStorage,
 		MetricsCallback: func(channel string, subscribers int) {
@@ -342,7 +452,7 @@ func TestIntegrationScenario(t *testing.T) {
 
 	// Setup storage expectations
 	mockStorage.On("Store", mock.Anything, mock.Anything).Return(nil).Maybe()
-	mockStorage.On("Load", mock.Anything, "chat-room", mock.Anything).Return([]broadcast.Message[any]{}, nil).Maybe()
+	mockStorage.On("Load", mock.Anything, "chat-room", mock.Anything).Return([]broadcast.Message[ChatMessage]{}, nil).Maybe()
 
 	ctx := context.Background()
 	room := "chat-room"
@@ -409,7 +519,7 @@ type ChatMessage struct {
 func TestConcurrentChannelOperations(t *testing.T) {
 	t.Parallel()
 
-	hub := broadcast.NewHub[string](broadcast.HubConfig{
+	hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 		DefaultBufferSize: 100,
 		CleanupInterval:   100 * time.Millisecond,
 	})

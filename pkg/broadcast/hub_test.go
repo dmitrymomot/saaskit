@@ -20,7 +20,7 @@ func TestHub_Subscribe(t *testing.T) {
 	t.Run("successful subscription", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 		})
 		defer hub.Close()
@@ -39,7 +39,7 @@ func TestHub_Subscribe(t *testing.T) {
 	t.Run("subscription with options", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 		})
 		defer hub.Close()
@@ -63,7 +63,7 @@ func TestHub_Subscribe(t *testing.T) {
 	t.Run("subscription with context cancellation", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 		})
 		defer hub.Close()
@@ -89,7 +89,7 @@ func TestHub_Subscribe(t *testing.T) {
 	t.Run("subscribe to closed hub", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{})
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{})
 		hub.Close()
 
 		ctx := context.Background()
@@ -102,7 +102,7 @@ func TestHub_Subscribe(t *testing.T) {
 	t.Run("multiple subscribers same channel", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 		})
 		defer hub.Close()
@@ -126,7 +126,7 @@ func TestHub_Subscribe(t *testing.T) {
 		var mu sync.Mutex
 		metrics := make(map[string]int)
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 			MetricsCallback: func(channel string, subscribers int) {
 				mu.Lock()
@@ -168,7 +168,7 @@ func TestHub_Publish(t *testing.T) {
 	t.Run("publish to single subscriber", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 		})
 		defer hub.Close()
@@ -195,7 +195,7 @@ func TestHub_Publish(t *testing.T) {
 	t.Run("publish to multiple subscribers", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 		})
 		defer hub.Close()
@@ -232,7 +232,7 @@ func TestHub_Publish(t *testing.T) {
 	t.Run("publish with metadata", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 		})
 		defer hub.Close()
@@ -265,7 +265,7 @@ func TestHub_Publish(t *testing.T) {
 	t.Run("publish to non-existent channel", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 		})
 		defer hub.Close()
@@ -278,7 +278,7 @@ func TestHub_Publish(t *testing.T) {
 	t.Run("publish to closed hub", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{})
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{})
 		hub.Close()
 
 		ctx := context.Background()
@@ -290,7 +290,7 @@ func TestHub_Publish(t *testing.T) {
 	t.Run("publish with context cancellation", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 1,
 		})
 		defer hub.Close()
@@ -313,7 +313,7 @@ func TestHub_Publish(t *testing.T) {
 func TestHub_SlowConsumer(t *testing.T) {
 	t.Parallel()
 
-	hub := broadcast.NewHub[string](broadcast.HubConfig{
+	hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 		DefaultBufferSize:   1,
 		SlowConsumerTimeout: 50 * time.Millisecond,
 	})
@@ -351,7 +351,7 @@ func TestHub_SlowConsumer(t *testing.T) {
 func TestHub_Channels(t *testing.T) {
 	t.Parallel()
 
-	hub := broadcast.NewHub[string](broadcast.HubConfig{
+	hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 		DefaultBufferSize: 10,
 	})
 	defer hub.Close()
@@ -379,7 +379,7 @@ func TestHub_Channels(t *testing.T) {
 func TestHub_SubscriberCount(t *testing.T) {
 	t.Parallel()
 
-	hub := broadcast.NewHub[string](broadcast.HubConfig{
+	hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 		DefaultBufferSize: 10,
 	})
 	defer hub.Close()
@@ -416,8 +416,8 @@ func TestHub_Storage(t *testing.T) {
 	t.Run("store messages", func(t *testing.T) {
 		t.Parallel()
 
-		mockStorage := new(MockStorage)
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		mockStorage := new(MockStorage[string])
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 			Storage:           mockStorage,
 		})
@@ -429,7 +429,7 @@ func TestHub_Storage(t *testing.T) {
 		defer sub.Close()
 
 		// Expect storage call
-		mockStorage.On("Store", mock.Anything, mock.MatchedBy(func(msg broadcast.Message[any]) bool {
+		mockStorage.On("Store", mock.Anything, mock.MatchedBy(func(msg broadcast.Message[string]) bool {
 			return msg.Channel == "storage-channel" && msg.Payload == "stored message"
 		})).Return(nil)
 
@@ -444,8 +444,8 @@ func TestHub_Storage(t *testing.T) {
 	t.Run("storage error", func(t *testing.T) {
 		t.Parallel()
 
-		mockStorage := new(MockStorage)
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		mockStorage := new(MockStorage[string])
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 			Storage:           mockStorage,
 		})
@@ -470,15 +470,15 @@ func TestHub_Storage(t *testing.T) {
 	t.Run("replay messages", func(t *testing.T) {
 		t.Parallel()
 
-		mockStorage := new(MockStorage)
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		mockStorage := new(MockStorage[string])
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 			Storage:           mockStorage,
 		})
 		defer hub.Close()
 
 		// Setup replay messages
-		replayMessages := []broadcast.Message[any]{
+		replayMessages := []broadcast.Message[string]{
 			{
 				ID:        "msg1",
 				Channel:   "replay-channel",
@@ -509,7 +509,7 @@ func TestHub_Storage(t *testing.T) {
 			select {
 			case msg := <-sub.Messages():
 				assert.Equal(t, replayMessages[i].ID, msg.ID)
-				assert.Equal(t, replayMessages[i].Payload.(string), msg.Payload)
+				assert.Equal(t, replayMessages[i].Payload, msg.Payload)
 			case <-time.After(200 * time.Millisecond):
 				t.Fatal("timeout waiting for replay message")
 			}
@@ -525,7 +525,7 @@ func TestHub_Close(t *testing.T) {
 	t.Run("graceful shutdown", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 		})
 
@@ -563,7 +563,7 @@ func TestHub_Close(t *testing.T) {
 	t.Run("close with cleanup interval", func(t *testing.T) {
 		t.Parallel()
 
-		hub := broadcast.NewHub[string](broadcast.HubConfig{
+		hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 			DefaultBufferSize: 10,
 			CleanupInterval:   50 * time.Millisecond,
 		})
@@ -576,7 +576,7 @@ func TestHub_Close(t *testing.T) {
 func TestHub_Concurrent(t *testing.T) {
 	t.Parallel()
 
-	hub := broadcast.NewHub[int](broadcast.HubConfig{
+	hub := broadcast.NewHub[int](broadcast.HubConfig[int]{
 		DefaultBufferSize: 100,
 	})
 	defer hub.Close()
@@ -650,7 +650,7 @@ func TestHub_Concurrent(t *testing.T) {
 func TestSubscriber_Close(t *testing.T) {
 	t.Parallel()
 
-	hub := broadcast.NewHub[string](broadcast.HubConfig{
+	hub := broadcast.NewHub[string](broadcast.HubConfig[string]{
 		DefaultBufferSize: 10,
 	})
 	defer hub.Close()
