@@ -57,6 +57,13 @@
 //	handler.Redirect("/success")          // 303 See Other
 //	handler.RedirectBack("/fallback")     // Redirect to referrer
 //
+// SSE streaming responses:
+//
+//	handler.SSE(func(stream StreamContext) error {
+//		// Long-lived connection for real-time updates
+//		return stream.SendComponent(component, opts...)
+//	})
+//
 // # DataStar Integration
 //
 // DataStar requests (identified by Accept: text/event-stream) automatically receive
