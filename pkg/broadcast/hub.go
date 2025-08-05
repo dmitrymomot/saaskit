@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// hub implements the Hub interface
 type hub[T any] struct {
 	config    HubConfig[T]
 	channels  map[string]*channel[T]
@@ -20,14 +19,12 @@ type hub[T any] struct {
 	closeChan chan struct{}
 }
 
-// channel manages subscribers for a specific channel
 type channel[T any] struct {
 	name        string
 	subscribers map[string]*subscriber[T]
 	mu          sync.RWMutex
 }
 
-// subscriber implements the Subscriber interface
 type subscriber[T any] struct {
 	id        string
 	channel   string
@@ -38,7 +35,6 @@ type subscriber[T any] struct {
 	hub       *hub[T]
 }
 
-// ackSubscriber implements the AckSubscriber interface
 type ackSubscriber[T any] struct {
 	id            string
 	channel       string
@@ -53,7 +49,6 @@ type ackSubscriber[T any] struct {
 	ackProcessing sync.WaitGroup
 }
 
-// pendingAck tracks a message awaiting acknowledgment
 type pendingAck[T any] struct {
 	message Message[T]
 	retries int
@@ -62,8 +57,8 @@ type pendingAck[T any] struct {
 	nacked  bool
 }
 
-// newHub creates a new hub instance
 func newHub[T any](config HubConfig[T]) *hub[T] {
+	// Apply default values for configuration that must be non-zero
 	if config.DefaultBufferSize <= 0 {
 		config.DefaultBufferSize = 100
 	}
@@ -86,6 +81,8 @@ func newHub[T any](config HubConfig[T]) *hub[T] {
 		closeChan: make(chan struct{}),
 	}
 
+	// Start cleanup goroutine only if interval is configured
+	// This prevents unnecessary background processing when not needed
 	if config.CleanupInterval > 0 {
 		h.wg.Add(1)
 		go h.cleanupLoop()
@@ -94,7 +91,6 @@ func newHub[T any](config HubConfig[T]) *hub[T] {
 	return h
 }
 
-// Subscribe creates a new subscription to a channel
 func (h *hub[T]) Subscribe(ctx context.Context, channelName string, opts ...SubscribeOption) (Subscriber[T], error) {
 	h.mu.Lock()
 	if h.closed {
@@ -102,7 +98,6 @@ func (h *hub[T]) Subscribe(ctx context.Context, channelName string, opts ...Subs
 		return nil, ErrHubClosed{}
 	}
 
-	// Apply options
 	config := subscribeConfig{
 		bufferSize: h.config.DefaultBufferSize,
 	}
@@ -110,7 +105,7 @@ func (h *hub[T]) Subscribe(ctx context.Context, channelName string, opts ...Subs
 		opt(&config)
 	}
 
-	// Get or create channel
+	// Create channel on-demand to minimize memory usage
 	ch, exists := h.channels[channelName]
 	if !exists {
 		ch = &channel[T]{
@@ -120,8 +115,6 @@ func (h *hub[T]) Subscribe(ctx context.Context, channelName string, opts ...Subs
 		h.channels[channelName] = ch
 	}
 	h.mu.Unlock()
-
-	// Create subscriber
 	subCtx, subCancel := context.WithCancel(ctx)
 	sub := &subscriber[T]{
 		id:       uuid.New().String(),
@@ -132,18 +125,16 @@ func (h *hub[T]) Subscribe(ctx context.Context, channelName string, opts ...Subs
 		hub:      h,
 	}
 
-	// Register subscriber
 	ch.mu.Lock()
 	ch.subscribers[sub.id] = sub
 	subscriberCount := len(ch.subscribers)
 	ch.mu.Unlock()
 
-	// Call metrics callback if configured
 	if h.config.MetricsCallback != nil {
 		h.config.MetricsCallback(channelName, subscriberCount)
 	}
 
-	// Handle replay if requested
+	// Replay historical messages in separate goroutine to avoid blocking subscription
 	if config.replay && h.config.Storage != nil {
 		h.wg.Add(1)
 		go func() {
@@ -152,18 +143,17 @@ func (h *hub[T]) Subscribe(ctx context.Context, channelName string, opts ...Subs
 		}()
 	}
 
-	// Handle context cancellation
+	// Handle context cancellation in separate goroutine
 	h.wg.Add(1)
 	go func() {
 		defer h.wg.Done()
 		<-subCtx.Done()
-		_ = sub.Close() // Error already logged if any
+		_ = sub.Close()
 	}()
 
 	return sub, nil
 }
 
-// SubscribeWithAck creates a new subscription with message acknowledgment support
 func (h *hub[T]) SubscribeWithAck(ctx context.Context, channelName string, opts ...SubscribeOption) (AckSubscriber[T], error) {
 	h.mu.Lock()
 	if h.closed {
@@ -171,7 +161,8 @@ func (h *hub[T]) SubscribeWithAck(ctx context.Context, channelName string, opts 
 		return nil, ErrHubClosed{}
 	}
 
-	// Apply options
+	// Set acknowledgment defaults: 30s timeout allows for complex processing,
+	// 3 retries handle transient failures without overwhelming the system
 	config := subscribeConfig{
 		bufferSize: h.config.DefaultBufferSize,
 		ackTimeout: 30 * time.Second,
@@ -181,7 +172,6 @@ func (h *hub[T]) SubscribeWithAck(ctx context.Context, channelName string, opts 
 		opt(&config)
 	}
 
-	// Get or create channel
 	ch, exists := h.channels[channelName]
 	if !exists {
 		ch = &channel[T]{
@@ -191,8 +181,6 @@ func (h *hub[T]) SubscribeWithAck(ctx context.Context, channelName string, opts 
 		h.channels[channelName] = ch
 	}
 	h.mu.Unlock()
-
-	// Create ack subscriber
 	subCtx, subCancel := context.WithCancel(ctx)
 	ackSub := &ackSubscriber[T]{
 		id:          uuid.New().String(),
@@ -205,7 +193,8 @@ func (h *hub[T]) SubscribeWithAck(ctx context.Context, channelName string, opts 
 		pendingAcks: make(map[string]*pendingAck[T]),
 	}
 
-	// Create internal subscriber wrapper
+	// Internal subscriber acts as intermediary to receive all messages
+	// before they're wrapped with acknowledgment functionality
 	internalSub := &subscriber[T]{
 		id:       ackSub.id,
 		channel:  channelName,
@@ -215,25 +204,22 @@ func (h *hub[T]) SubscribeWithAck(ctx context.Context, channelName string, opts 
 		hub:      h,
 	}
 
-	// Register subscriber
 	ch.mu.Lock()
 	ch.subscribers[ackSub.id] = internalSub
 	subscriberCount := len(ch.subscribers)
 	ch.mu.Unlock()
 
-	// Call metrics callback if configured
 	if h.config.MetricsCallback != nil {
 		h.config.MetricsCallback(channelName, subscriberCount)
 	}
 
-	// Start message forwarding with acknowledgment
+	// Forward messages with acknowledgment tracking in separate goroutine
 	h.wg.Add(1)
 	go func() {
 		defer h.wg.Done()
 		ackSub.forwardMessages(internalSub)
 	}()
 
-	// Handle replay if requested
 	if config.replay && h.config.Storage != nil {
 		h.wg.Add(1)
 		go func() {
@@ -241,8 +227,6 @@ func (h *hub[T]) SubscribeWithAck(ctx context.Context, channelName string, opts 
 			h.replayMessages(internalSub, config.replayLimit)
 		}()
 	}
-
-	// Handle context cancellation
 	h.wg.Add(1)
 	go func() {
 		defer h.wg.Done()
@@ -253,7 +237,6 @@ func (h *hub[T]) SubscribeWithAck(ctx context.Context, channelName string, opts 
 	return ackSub, nil
 }
 
-// Publish sends a message to all subscribers of a channel
 func (h *hub[T]) Publish(ctx context.Context, channelName string, payload T, opts ...PublishOption) error {
 	msg := Message[T]{
 		ID:        uuid.New().String(),
@@ -262,7 +245,6 @@ func (h *hub[T]) Publish(ctx context.Context, channelName string, payload T, opt
 		Timestamp: time.Now(),
 	}
 
-	// Apply options
 	config := publishConfig{}
 	for _, opt := range opts {
 		opt(&config)
@@ -275,7 +257,6 @@ func (h *hub[T]) Publish(ctx context.Context, channelName string, payload T, opt
 	return h.PublishMessage(ctx, msg)
 }
 
-// PublishMessage sends a pre-built message
 func (h *hub[T]) PublishMessage(ctx context.Context, message Message[T]) error {
 	h.mu.RLock()
 	if h.closed {
@@ -286,18 +267,18 @@ func (h *hub[T]) PublishMessage(ctx context.Context, message Message[T]) error {
 	ch, exists := h.channels[message.Channel]
 	if !exists {
 		h.mu.RUnlock()
-		return nil // No subscribers, not an error
+		return nil // No subscribers - message discarded but not an error condition
 	}
 	h.mu.RUnlock()
 
-	// Store message if storage is configured
 	if h.config.Storage != nil {
 		if err := h.config.Storage.Store(ctx, message); err != nil {
 			return &ErrStorageFailure{Operation: "store", Err: err}
 		}
 	}
 
-	// Broadcast to subscribers
+	// Create snapshot of subscribers to avoid holding read lock during message delivery
+	// This prevents deadlocks and reduces lock contention
 	ch.mu.RLock()
 	subscribers := make([]*subscriber[T], 0, len(ch.subscribers))
 	for _, sub := range ch.subscribers {
@@ -321,29 +302,29 @@ func (h *hub[T]) PublishMessage(ctx context.Context, message Message[T]) error {
 	return nil
 }
 
-// sendToSubscriber sends a message to a single subscriber with timeout
+// sendToSubscriber delivers a message with timeout protection against slow consumers
+// Slow consumers are automatically disconnected to prevent memory buildup
 func (h *hub[T]) sendToSubscriber(sub *subscriber[T], msg Message[T], timeout time.Duration) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
 	select {
 	case sub.messages <- msg:
-		// Success
+		// Message delivered successfully
 	case <-timer.C:
-		// Slow consumer
-		// Try to close slow consumer once
+		// Slow consumer detected - disconnect to prevent memory accumulation
+		// Use closeOnce to ensure we only attempt cleanup once per subscriber
 		closed := false
 		sub.closeOnce.Do(func() {
 			closed = true
 		})
 		if closed {
-			// First time detecting slow consumer
 			go func() {
-				_ = sub.Close() // Error already logged if any
+				_ = sub.Close()
 			}()
 		}
 	case <-sub.ctx.Done():
-		// Subscriber closed
+		// Subscriber already closed
 	}
 }
 
@@ -376,7 +357,6 @@ func (h *hub[T]) SubscriberCount(channelName string) int {
 	return count
 }
 
-// Close gracefully shuts down the hub
 func (h *hub[T]) Close() error {
 	h.mu.Lock()
 	if h.closed {
@@ -387,10 +367,7 @@ func (h *hub[T]) Close() error {
 	close(h.closeChan)
 	h.mu.Unlock()
 
-	// Cancel context to stop background goroutines
 	h.cancel()
-
-	// Close all subscribers
 	h.mu.RLock()
 	channels := make([]*channel[T], 0, len(h.channels))
 	for _, ch := range h.channels {
@@ -411,7 +388,7 @@ func (h *hub[T]) Close() error {
 		}
 	}
 
-	// Wait for all goroutines to finish
+	// Wait for graceful shutdown with timeout to prevent hanging
 	done := make(chan struct{})
 	go func() {
 		h.wg.Wait()
@@ -426,7 +403,7 @@ func (h *hub[T]) Close() error {
 	}
 }
 
-// cleanupLoop periodically cleans up empty channels
+// cleanupLoop prevents memory leaks by removing channels with no subscribers
 func (h *hub[T]) cleanupLoop() {
 	defer h.wg.Done()
 	ticker := time.NewTicker(h.config.CleanupInterval)
@@ -601,7 +578,8 @@ func (s *ackSubscriber[T]) Close() error {
 	return nil
 }
 
-// forwardMessages forwards messages from internal subscriber with acknowledgment tracking
+// forwardMessages wraps regular messages with acknowledgment functionality
+// Each message gets retry logic and timeout handling for reliable delivery
 func (s *ackSubscriber[T]) forwardMessages(internalSub *subscriber[T]) {
 	defer s.ackProcessing.Done()
 	s.ackProcessing.Add(1)
@@ -613,12 +591,9 @@ func (s *ackSubscriber[T]) forwardMessages(internalSub *subscriber[T]) {
 				return
 			}
 
-			// Create acknowledgeable message
 			ackMsg := AckableMessage[T]{
 				Message: msg,
 			}
-
-			// Setup acknowledgment tracking
 			pending := &pendingAck[T]{
 				message: msg,
 				retries: 0,
@@ -675,7 +650,7 @@ func (s *ackSubscriber[T]) forwardMessages(internalSub *subscriber[T]) {
 	}
 }
 
-// handleAckTimeout handles acknowledgment timeout
+// handleAckTimeout implements exponential backoff retry logic for unacknowledged messages
 func (s *ackSubscriber[T]) handleAckTimeout(msg Message[T]) {
 	s.pendingMu.Lock()
 	pending, exists := s.pendingAcks[msg.ID]
@@ -686,11 +661,11 @@ func (s *ackSubscriber[T]) handleAckTimeout(msg Message[T]) {
 
 	pending.retries++
 	if pending.retries >= s.config.maxRetries {
-		// Max retries reached, remove from pending
+		// Max retries exceeded - give up and notify application
 		delete(s.pendingAcks, msg.ID)
 		s.pendingMu.Unlock()
 
-		// Call timeout callback if configured
+		// Invoke timeout callback to let application handle failed delivery
 		if s.config.onAckTimeout != nil {
 			anyMsg := Message[any]{
 				ID:        msg.ID,

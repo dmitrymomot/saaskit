@@ -14,18 +14,15 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/broadcast"
 )
 
-// MockStorage is a mock implementation of the Storage interface
 type MockStorage[T any] struct {
 	mock.Mock
 }
 
-// Store saves a message
 func (m *MockStorage[T]) Store(ctx context.Context, message broadcast.Message[T]) error {
 	args := m.Called(ctx, message)
 	return args.Error(0)
 }
 
-// Load retrieves messages for a channel
 func (m *MockStorage[T]) Load(ctx context.Context, channel string, opts broadcast.LoadOptions) ([]broadcast.Message[T], error) {
 	args := m.Called(ctx, channel, opts)
 	if args.Get(0) == nil {
@@ -34,13 +31,11 @@ func (m *MockStorage[T]) Load(ctx context.Context, channel string, opts broadcas
 	return args.Get(0).([]broadcast.Message[T]), args.Error(1)
 }
 
-// Delete removes messages older than the given time
 func (m *MockStorage[T]) Delete(ctx context.Context, before time.Time) error {
 	args := m.Called(ctx, before)
 	return args.Error(0)
 }
 
-// Channels returns all known channels
 func (m *MockStorage[T]) Channels(ctx context.Context) ([]string, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
@@ -59,7 +54,6 @@ func TestNewHub(t *testing.T) {
 		require.NotNil(t, hub)
 		defer hub.Close()
 
-		// Should use defaults
 		ctx := context.Background()
 		sub, err := hub.Subscribe(ctx, "test")
 		require.NoError(t, err)
@@ -144,7 +138,7 @@ func TestMessageJSONMarshaling(t *testing.T) {
 		assert.Equal(t, original.Payload, decoded.Payload)
 		assert.Equal(t, original.Timestamp.Unix(), decoded.Timestamp.Unix())
 		assert.Equal(t, original.Metadata["key1"], decoded.Metadata["key1"])
-		assert.Equal(t, float64(42), decoded.Metadata["key2"]) // JSON numbers decode as float64
+		assert.Equal(t, float64(42), decoded.Metadata["key2"]) // JSON unmarshals numbers as float64
 	})
 
 	// Test with complex payload
@@ -199,7 +193,6 @@ func TestMessageJSONMarshaling(t *testing.T) {
 			Channel:   "int-channel",
 			Payload:   42,
 			Timestamp: time.Now(),
-			// Metadata is nil
 		}
 
 		// Marshal to JSON
@@ -232,7 +225,6 @@ func TestPublishMessage(t *testing.T) {
 	require.NoError(t, err)
 	defer sub.Close()
 
-	// Create custom message
 	customMsg := broadcast.Message[string]{
 		ID:        "custom-id",
 		Channel:   "test-channel",
@@ -246,7 +238,6 @@ func TestPublishMessage(t *testing.T) {
 	err = hub.PublishMessage(ctx, customMsg)
 	require.NoError(t, err)
 
-	// Verify received message
 	select {
 	case msg := <-sub.Messages():
 		assert.Equal(t, customMsg.ID, msg.ID)
@@ -282,8 +273,7 @@ func TestSubscribeOptions(t *testing.T) {
 		require.NoError(t, err)
 		defer sub.Close()
 
-		// Error callbacks would be triggered by internal errors
-		// For this test, we just verify the option is accepted
+		// Error callbacks triggered by internal errors - just verify option accepted
 		assert.Nil(t, capturedError)
 	})
 
@@ -306,12 +296,11 @@ func TestSubscribeOptions(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		// Fill buffer without reading to trigger slow consumer
+		// Fill subscriber buffer to trigger slow consumer detection
 		hub.Publish(ctx, "test-channel", "msg1")
 		hub.Publish(ctx, "test-channel", "msg2")
 
-		// Note: The current implementation doesn't call the slow consumer callback
-		// This test verifies the option is accepted
+		// Test verifies option is accepted (callback implementation may vary)
 		sub.Close()
 	})
 }
@@ -357,12 +346,12 @@ func TestPublishOptions(t *testing.T) {
 
 		ctx := context.Background()
 
-		// Need a subscriber for storage to be called
+		// Storage.Store() called when subscribers exist
 		sub, err := hub.Subscribe(ctx, "test-channel")
 		require.NoError(t, err)
 		defer sub.Close()
 
-		// Storage is called whenever configured, not just with WithPersistence
+		// Storage called for all messages when configured, regardless of WithPersistence
 		mockStorage.On("Store", mock.Anything, mock.Anything).Return(nil)
 
 		err = hub.Publish(ctx, "test-channel", "persistent message",
@@ -439,7 +428,7 @@ func TestErrors(t *testing.T) {
 func TestIntegrationScenario(t *testing.T) {
 	t.Parallel()
 
-	// Simulate a chat room scenario
+	// Integration test simulating real-world chat room usage
 	mockStorage := new(MockStorage[ChatMessage])
 	hub := broadcast.NewHub[ChatMessage](broadcast.HubConfig[ChatMessage]{
 		DefaultBufferSize: 50,
