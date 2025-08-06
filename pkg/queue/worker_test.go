@@ -513,8 +513,9 @@ func TestWorker_ProcessTask(t *testing.T) {
 		err = worker.Start(ctx)
 		require.NoError(t, err)
 
-		// Wait for processing
-		time.Sleep(50 * time.Millisecond)
+		// Wait for processing - needs more time than pull interval
+		// to ensure task is claimed, processed (panic), and FailTask is called
+		time.Sleep(150 * time.Millisecond)
 
 		// Worker should still be running
 		err = worker.Stop()
