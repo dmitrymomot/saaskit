@@ -1,3 +1,5 @@
+//go:build load
+
 package tenant_test
 
 import (
@@ -10,15 +12,15 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/tenant"
 )
 
-func TestResolvers_ConcurrentAccess(t *testing.T) {
+func TestResolvers_ConcurrentAccess_Load(t *testing.T) {
 	t.Parallel()
 
 	t.Run("subdomain_resolver_concurrent", func(t *testing.T) {
 		t.Parallel()
 
 		resolver := tenant.NewSubdomainResolver(".example.com")
-		const numGoroutines = 5  // Reduced from 100
-		const numOperations = 10 // Reduced from 500
+		const numGoroutines = 100
+		const numOperations = 500
 
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
@@ -44,8 +46,8 @@ func TestResolvers_ConcurrentAccess(t *testing.T) {
 		t.Parallel()
 
 		resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-		const numGoroutines = 5  // Reduced from 100
-		const numOperations = 10 // Reduced from 500
+		const numGoroutines = 100
+		const numOperations = 500
 
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
@@ -72,8 +74,8 @@ func TestResolvers_ConcurrentAccess(t *testing.T) {
 		t.Parallel()
 
 		resolver := tenant.NewPathResolver(2)
-		const numGoroutines = 5  // Reduced from 100
-		const numOperations = 10 // Reduced from 500
+		const numGoroutines = 100
+		const numOperations = 500
 
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
@@ -108,8 +110,8 @@ func TestResolvers_ConcurrentAccess(t *testing.T) {
 			pathResolver,
 		)
 
-		const numGoroutines = 5  // Reduced from 100
-		const numOperations = 10 // Reduced from 500
+		const numGoroutines = 100
+		const numOperations = 500
 
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
@@ -149,12 +151,12 @@ func TestResolvers_ConcurrentAccess(t *testing.T) {
 	})
 }
 
-func TestResolver_InputValidation_Concurrent(t *testing.T) {
+func TestResolver_InputValidation_Concurrent_Load(t *testing.T) {
 	t.Parallel()
 
 	resolver := tenant.NewHeaderResolver("X-Tenant-ID")
-	const numGoroutines = 3 // Reduced from 50
-	const numOperations = 5 // Reduced from 100
+	const numGoroutines = 50
+	const numOperations = 100
 
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines)
@@ -162,8 +164,11 @@ func TestResolver_InputValidation_Concurrent(t *testing.T) {
 	// Focus on clearly valid inputs to test concurrency, not edge cases
 	testInputs := []string{
 		"valid-tenant",
+		"a",
 		"tenant123",
 		"test-org",
+		"company1",
+		"acme-corp",
 	}
 
 	for i := 0; i < numGoroutines; i++ {
@@ -185,5 +190,3 @@ func TestResolver_InputValidation_Concurrent(t *testing.T) {
 
 	wg.Wait()
 }
-
-// repeat helper function removed as it's no longer used
