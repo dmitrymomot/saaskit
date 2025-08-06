@@ -33,18 +33,18 @@ type Action struct {
 
 // Notification is the core domain model for notifications.
 type Notification struct {
-	ID        string                 `json:"id"`
-	UserID    string                 `json:"user_id"`
-	Type      Type                   `json:"type"`
-	Priority  Priority               `json:"priority"`
-	Title     string                 `json:"title"`
-	Message   string                 `json:"message"`
-	Data      map[string]interface{} `json:"data,omitempty"`    // Arbitrary data for transport layers to use
-	Actions   []Action               `json:"actions,omitempty"` // Call-to-action buttons
-	Read      bool                   `json:"read"`
-	ReadAt    *time.Time             `json:"read_at,omitempty"`
-	CreatedAt time.Time              `json:"created_at"`
-	ExpiresAt *time.Time             `json:"expires_at,omitempty"`
+	ID        string         `json:"id"`
+	UserID    string         `json:"user_id"`
+	Type      Type           `json:"type"`
+	Priority  Priority       `json:"priority"`
+	Title     string         `json:"title"`
+	Message   string         `json:"message"`
+	Data      map[string]any `json:"data,omitempty"`    // Arbitrary data for transport layers to use
+	Actions   []Action       `json:"actions,omitempty"` // Call-to-action buttons
+	Read      bool           `json:"read"`
+	ReadAt    *time.Time     `json:"read_at,omitempty"`
+	CreatedAt time.Time      `json:"created_at"`
+	ExpiresAt *time.Time     `json:"expires_at,omitempty"`
 }
 
 // IsExpired returns true if the notification has expired.

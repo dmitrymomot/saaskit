@@ -91,7 +91,7 @@ func TestNotification_MarkAsRead(t *testing.T) {
 				Message:  "Test Message",
 				Type:     TypeInfo,
 				Priority: PriorityHigh,
-				Data:     map[string]interface{}{"key": "value"},
+				Data:     map[string]any{"key": "value"},
 				Actions: []Action{
 					{Label: "Click", URL: "/click", Style: "primary"},
 				},
@@ -199,14 +199,14 @@ func TestNotification_EdgeCases(t *testing.T) {
 		n := Notification{
 			ID:     "test",
 			UserID: "user",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"string":  "value",
 				"number":  42,
 				"boolean": true,
-				"nested": map[string]interface{}{
+				"nested": map[string]any{
 					"key": "value",
 				},
-				"array": []interface{}{1, 2, 3},
+				"array": []any{1, 2, 3},
 			},
 		}
 		assert.Equal(t, "value", n.Data["string"])
