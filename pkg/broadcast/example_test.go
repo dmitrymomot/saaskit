@@ -125,7 +125,7 @@ func ExampleMemoryBroadcaster_closedBroadcaster() {
 
 	// Operations after close are safe but have no effect
 	sub := b.Subscribe(ctx) // Returns a closed subscriber
-	
+
 	// Check if channel is closed immediately
 	select {
 	case _, ok := <-sub.Receive(ctx):
@@ -154,7 +154,7 @@ func ExampleMemoryBroadcaster_slowConsumer() {
 	// Slow consumer that can't keep up
 	received := make([]int, 0)
 	done := make(chan bool)
-	
+
 	go func() {
 		for msg := range sub.Receive(ctx) {
 			received = append(received, msg.Data)

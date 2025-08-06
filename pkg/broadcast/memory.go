@@ -5,8 +5,7 @@ import (
 	"sync"
 )
 
-// MemoryBroadcaster is an in-memory implementation of Broadcaster.
-// It drops messages for slow consumers rather than blocking the broadcast operation.
+// MemoryBroadcaster drops messages for slow consumers rather than blocking the broadcast operation.
 // All methods are safe for concurrent use.
 type MemoryBroadcaster[T any] struct {
 	subscribers map[*subscriber[T]]struct{}
@@ -23,7 +22,9 @@ type MemoryBroadcaster[T any] struct {
 func NewMemoryBroadcaster[T any](bufferSize int) *MemoryBroadcaster[T] {
 	return &MemoryBroadcaster[T]{
 		subscribers: make(map[*subscriber[T]]struct{}),
-		bufferSize:  max(bufferSize, 1),
+		// Minimum buffer size of 1 prevents zero-buffer channels which would
+		// make all sends blocking and defeat the non-blocking design
+		bufferSize: max(bufferSize, 1),
 	}
 }
 
@@ -33,16 +34,16 @@ func NewMemoryBroadcaster[T any](bufferSize int) *MemoryBroadcaster[T] {
 func (b *MemoryBroadcaster[T]) Subscribe(ctx context.Context) Subscriber[T] {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	
+
 	if b.closed {
 		sub := newSubscriber[T](b.bufferSize)
 		_ = sub.Close()
 		return sub
 	}
-	
+
 	sub := newSubscriber[T](b.bufferSize)
 	b.subscribers[sub] = struct{}{}
-	
+
 	// Auto-cleanup on context cancellation
 	if ctx.Done() != nil {
 		b.cleanupWg.Add(1)
@@ -52,7 +53,7 @@ func (b *MemoryBroadcaster[T]) Subscribe(ctx context.Context) Subscriber[T] {
 			b.unsubscribe(sub)
 		}()
 	}
-	
+
 	return sub
 }
 
@@ -61,20 +62,24 @@ func (b *MemoryBroadcaster[T]) Subscribe(ctx context.Context) Subscriber[T] {
 // the message is dropped for that subscriber and they are marked for removal.
 // Returns nil even if some subscribers didn't receive the message.
 func (b *MemoryBroadcaster[T]) Broadcast(ctx context.Context, msg Message[T]) error {
+	// Use RLock for read-heavy operations: broadcasts are frequent,
+	// subscriber map changes (add/remove) are infrequent
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	
+
 	if b.closed {
 		return nil
 	}
-	
+
 	for sub := range b.subscribers {
 		if !sub.send(msg) {
-			// Subscriber is slow or closed, remove asynchronously
+			// Remove slow/closed subscribers asynchronously to avoid blocking
+			// this broadcast. Using goroutine prevents write-lock contention
+			// during read-heavy broadcast operations
 			go b.unsubscribe(sub)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -84,33 +89,33 @@ func (b *MemoryBroadcaster[T]) Broadcast(ctx context.Context, msg Message[T]) er
 // and Broadcast will have no effect.
 func (b *MemoryBroadcaster[T]) Close() error {
 	b.mu.Lock()
-	
+
 	if b.closed {
 		b.mu.Unlock()
 		return nil
 	}
-	
+
 	b.closed = true
-	
+
 	// Close all subscribers
 	for sub := range b.subscribers {
 		_ = sub.Close()
 	}
-	
-	// Clear the map
+
 	clear(b.subscribers)
 	b.mu.Unlock()
-	
-	// Wait for all cleanup goroutines to finish
+
+	// Wait for all cleanup goroutines to prevent race conditions between
+	// Close() and async unsubscribe operations from Broadcast()
 	b.cleanupWg.Wait()
-	
+
 	return nil
 }
 
 func (b *MemoryBroadcaster[T]) unsubscribe(sub *subscriber[T]) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	
+
 	delete(b.subscribers, sub)
 	_ = sub.Close()
 }

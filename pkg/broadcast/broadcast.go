@@ -7,20 +7,15 @@ import (
 )
 
 var (
-	// ErrBroadcasterClosed is returned when operations are attempted on a closed broadcaster.
 	ErrBroadcasterClosed = errors.New("broadcaster: closed")
-	
-	// ErrSubscriberClosed is returned when operations are attempted on a closed subscriber.
-	ErrSubscriberClosed = errors.New("subscriber: closed")
+	ErrSubscriberClosed  = errors.New("subscriber: closed")
 )
 
-// Message wraps data of type T for type-safe broadcasting.
 type Message[T any] struct {
 	Data T
 }
 
-// Subscriber receives messages from a Broadcaster.
-// Implementations must be safe for concurrent use.
+// Subscriber implementations must be safe for concurrent use.
 type Subscriber[T any] interface {
 	// Receive returns a channel for receiving broadcast messages.
 	// The context parameter allows implementations to respect cancellation
@@ -28,7 +23,7 @@ type Subscriber[T any] interface {
 	// For the in-memory implementation, the context is not used but kept
 	// for interface consistency across all adapter implementations.
 	Receive(ctx context.Context) <-chan Message[T]
-	
+
 	// Close closes the subscriber and releases resources.
 	// After Close, the receive channel is closed and no more messages will be received.
 	// Close is idempotent and safe to call multiple times.
@@ -43,13 +38,13 @@ type Broadcaster[T any] interface {
 	// The context controls the lifetime of the subscription - when the context
 	// is cancelled, the subscription is automatically cleaned up.
 	Subscribe(ctx context.Context) Subscriber[T]
-	
+
 	// Broadcast sends a message to all active subscribers.
 	// Messages may be dropped for slow consumers to prevent blocking.
 	// The context parameter is kept for consistency but may not be used
 	// by all implementations.
 	Broadcast(ctx context.Context, msg Message[T]) error
-	
+
 	// Close shuts down the broadcaster and closes all subscribers.
 	// After Close, Subscribe and Broadcast will return closed subscribers
 	// and have no effect, respectively.
@@ -75,7 +70,7 @@ func (s *subscriber[T]) Receive(ctx context.Context) <-chan Message[T] {
 func (s *subscriber[T]) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if !s.closed {
 		close(s.ch)
 		s.closed = true
@@ -86,11 +81,13 @@ func (s *subscriber[T]) Close() error {
 func (s *subscriber[T]) send(msg Message[T]) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	if s.closed {
 		return false
 	}
-	
+
+	// Non-blocking send: if channel is full, immediately return false
+	// to prevent slow consumers from blocking the entire broadcast system
 	select {
 	case s.ch <- msg:
 		return true
