@@ -6,13 +6,15 @@ import (
 	"sync"
 
 	"github.com/dmitrymomot/saaskit/pkg/broadcast"
+	"github.com/dmitrymomot/saaskit/pkg/cache"
 	"github.com/dmitrymomot/saaskit/pkg/logger"
 )
 
 // BroadcastDeliverer uses the broadcast package for real-time notification delivery.
 type BroadcastDeliverer struct {
-	userBroadcasters map[string]broadcast.Broadcaster[Notification]
+	userBroadcasters *cache.LRUCache[string, broadcast.Broadcaster[Notification]]
 	bufferSize       int
+	maxBroadcasters  int
 	logger           *slog.Logger
 	mu               sync.RWMutex
 }
@@ -27,29 +29,53 @@ func WithBroadcastLogger(logger *slog.Logger) BroadcastDelivererOption {
 	}
 }
 
+// WithMaxBroadcasters sets the maximum number of user broadcasters.
+// When this limit is reached, the least recently used broadcaster is evicted.
+// Default is 10,000 if not specified.
+func WithMaxBroadcasters(limit int) BroadcastDelivererOption {
+	return func(b *BroadcastDeliverer) {
+		if limit > 0 {
+			b.maxBroadcasters = limit
+		}
+	}
+}
+
 // NewBroadcastDeliverer creates a new broadcast-based deliverer.
 func NewBroadcastDeliverer(bufferSize int, opts ...BroadcastDelivererOption) *BroadcastDeliverer {
 	b := &BroadcastDeliverer{
-		userBroadcasters: make(map[string]broadcast.Broadcaster[Notification]),
-		bufferSize:       bufferSize,
-		logger:           slog.Default(),
+		bufferSize:      bufferSize,
+		maxBroadcasters: 10000, // Default max broadcasters
+		logger:          slog.Default(),
 	}
 
 	for _, opt := range opts {
 		opt(b)
 	}
 
+	// Initialize LRU cache with the configured capacity
+	b.userBroadcasters = cache.NewLRUCache[string, broadcast.Broadcaster[Notification]](b.maxBroadcasters)
+
+	// Set eviction callback to close evicted broadcasters
+	b.userBroadcasters.SetEvictCallback(func(userID string, broadcaster broadcast.Broadcaster[Notification]) {
+		if err := broadcaster.Close(); err != nil {
+			b.logger.LogAttrs(context.Background(), slog.LevelError, "Failed to close evicted broadcaster",
+				logger.UserID(userID),
+				logger.Error(err),
+			)
+		}
+	})
+
 	return b
 }
 
 func (d *BroadcastDeliverer) Deliver(ctx context.Context, notif Notification) error {
-	// Lazy initialization of user-specific broadcasters with double-checked locking pattern
-	// This avoids creating broadcasters for users who never receive notifications
+	// Get or create broadcaster for the user
 	d.mu.Lock()
-	b, exists := d.userBroadcasters[notif.UserID]
+	b, exists := d.userBroadcasters.Get(notif.UserID)
 	if !exists {
 		b = broadcast.NewMemoryBroadcaster[Notification](d.bufferSize)
-		d.userBroadcasters[notif.UserID] = b
+		// Put will evict LRU broadcaster if at capacity
+		d.userBroadcasters.Put(notif.UserID, b)
 	}
 	d.mu.Unlock()
 
@@ -66,12 +92,13 @@ func (d *BroadcastDeliverer) DeliverBatch(ctx context.Context, notifs []Notifica
 
 	// Deliver to each user
 	for userID, userNotifications := range userNotifs {
-		// Lazy initialization pattern - create broadcaster only when needed
+		// Get or create broadcaster for the user
 		d.mu.Lock()
-		b, exists := d.userBroadcasters[userID]
+		b, exists := d.userBroadcasters.Get(userID)
 		if !exists {
 			b = broadcast.NewMemoryBroadcaster[Notification](d.bufferSize)
-			d.userBroadcasters[userID] = b
+			// Put will evict LRU broadcaster if at capacity
+			d.userBroadcasters.Put(userID, b)
 		}
 		d.mu.Unlock()
 
@@ -98,10 +125,11 @@ func (d *BroadcastDeliverer) Subscribe(ctx context.Context, userID string) broad
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	b, exists := d.userBroadcasters[userID]
+	b, exists := d.userBroadcasters.Get(userID)
 	if !exists {
 		b = broadcast.NewMemoryBroadcaster[Notification](d.bufferSize)
-		d.userBroadcasters[userID] = b
+		// Put will evict LRU broadcaster if at capacity
+		d.userBroadcasters.Put(userID, b)
 	}
 
 	return b.Subscribe(ctx)
@@ -112,19 +140,7 @@ func (d *BroadcastDeliverer) Close() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	for userID, b := range d.userBroadcasters {
-		if err := b.Close(); err != nil {
-			// Continue closing remaining broadcasters even if one fails
-			// This ensures cleanup doesn't get stuck on a single failing broadcaster
-			d.logger.LogAttrs(context.Background(), slog.LevelError, "Failed to close broadcaster",
-				logger.UserID(userID),
-				logger.Error(err),
-			)
-			continue
-		}
-	}
-
-	// Clear the map
-	d.userBroadcasters = make(map[string]broadcast.Broadcaster[Notification])
+	// Clear will call the eviction callback for each broadcaster
+	d.userBroadcasters.Clear()
 	return nil
 }
