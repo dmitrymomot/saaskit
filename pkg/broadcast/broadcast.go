@@ -2,7 +2,16 @@ package broadcast
 
 import (
 	"context"
+	"errors"
 	"sync"
+)
+
+var (
+	// ErrBroadcasterClosed is returned when operations are attempted on a closed broadcaster.
+	ErrBroadcasterClosed = errors.New("broadcaster: closed")
+	
+	// ErrSubscriberClosed is returned when operations are attempted on a closed subscriber.
+	ErrSubscriberClosed = errors.New("subscriber: closed")
 )
 
 // Message wraps data of type T for type-safe broadcasting.

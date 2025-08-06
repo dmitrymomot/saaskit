@@ -13,6 +13,7 @@ type MemoryBroadcaster[T any] struct {
 	bufferSize  int
 	closed      bool
 	mu          sync.RWMutex
+	cleanupWg   sync.WaitGroup // tracks cleanup goroutines
 }
 
 // NewMemoryBroadcaster creates a new in-memory broadcaster.
@@ -43,10 +44,14 @@ func (b *MemoryBroadcaster[T]) Subscribe(ctx context.Context) Subscriber[T] {
 	b.subscribers[sub] = struct{}{}
 	
 	// Auto-cleanup on context cancellation
-	go func() {
-		<-ctx.Done()
-		b.unsubscribe(sub)
-	}()
+	if ctx.Done() != nil {
+		b.cleanupWg.Add(1)
+		go func() {
+			defer b.cleanupWg.Done()
+			<-ctx.Done()
+			b.unsubscribe(sub)
+		}()
+	}
 	
 	return sub
 }
@@ -79,9 +84,9 @@ func (b *MemoryBroadcaster[T]) Broadcast(ctx context.Context, msg Message[T]) er
 // and Broadcast will have no effect.
 func (b *MemoryBroadcaster[T]) Close() error {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	
 	if b.closed {
+		b.mu.Unlock()
 		return nil
 	}
 	
@@ -94,6 +99,11 @@ func (b *MemoryBroadcaster[T]) Close() error {
 	
 	// Clear the map
 	clear(b.subscribers)
+	b.mu.Unlock()
+	
+	// Wait for all cleanup goroutines to finish
+	b.cleanupWg.Wait()
+	
 	return nil
 }
 
