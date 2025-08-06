@@ -35,17 +35,17 @@ func main() {
     defer b.Close()
 
     ctx := context.Background()
-    
+
     // Subscribe to messages
     sub := b.Subscribe(ctx)
-    
+
     // Receive messages in goroutine
     go func() {
         for msg := range sub.Receive(ctx) {
             fmt.Println("Received:", msg.Data)
         }
     }()
-    
+
     // Broadcast messages
     b.Broadcast(ctx, broadcast.Message[string]{Data: "Hello, World!"})
 }
@@ -98,6 +98,22 @@ sub := b.Subscribe(ctx)
 // Subscription automatically cleaned up when context cancels
 ```
 
+## Buffer Size Guide
+
+Choosing the right buffer size depends on your use case:
+
+- **Small (1-10)**: Low memory usage, quick dropping of slow consumers. Good for real-time updates where latest data matters most.
+- **Medium (10-100)**: Balanced approach suitable for most applications. Handles brief processing delays without dropping messages.
+- **Large (100-1000)**: High throughput scenarios with bursty traffic. More memory per subscriber but better tolerance for processing delays.
+- **Very Large (1000+)**: Only for specific cases where message loss is critical and memory usage is not a concern.
+
+Consider your:
+
+- Message frequency
+- Processing time per message
+- Tolerance for message loss
+- Available memory
+
 ## Performance
 
 - **Broadcast**: ~82ns per operation, 0 allocations
@@ -135,6 +151,91 @@ b.Broadcast(ctx, msg)
 
 All operations are thread-safe. The broadcaster uses RWMutex to protect concurrent access to the subscriber map.
 
+## Troubleshooting
+
+### Messages Not Being Received
+
+**Symptom**: Subscriber's Receive() channel returns no messages.
+
+**Common Causes**:
+
+- Context was cancelled before messages were sent
+- Subscriber was closed before receiving
+- Broadcaster was closed
+
+**Solution**:
+
+```go
+// Ensure context is not cancelled
+ctx := context.Background() // or context.WithTimeout with sufficient time
+
+// Check for closed channel
+for msg := range sub.Receive(ctx) {
+    // Process message
+}
+// Channel closed when loop exits
+```
+
+### Memory Leaks
+
+**Symptom**: Goroutines or memory usage grows over time.
+
+**Common Causes**:
+
+- Not calling `broadcaster.Close()` when done
+- Creating subscribers with long-lived contexts that never cancel
+
+**Solution**:
+
+```go
+// Always close broadcaster when done
+b := broadcast.NewMemoryBroadcaster[T](100)
+defer b.Close() // Ensures cleanup
+
+// Use context with timeout for subscribers
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+sub := b.Subscribe(ctx)
+```
+
+### Messages Being Dropped
+
+**Symptom**: Some subscribers miss messages.
+
+**Common Causes**:
+
+- Buffer size too small for message rate
+- Slow message processing blocking the receive channel
+
+**Solution**:
+
+```go
+// Increase buffer size
+b := broadcast.NewMemoryBroadcaster[T](1000) // Larger buffer
+
+// Process messages quickly or offload to goroutine
+for msg := range sub.Receive(ctx) {
+    go processMessage(msg) // Non-blocking processing
+}
+```
+
+### Performance Issues
+
+**Symptom**: High CPU or slow broadcast operations.
+
+**Common Causes**:
+
+- Too many subscribers (1000+)
+- Very large messages
+- Inefficient message processing
+
+**Solution**:
+
+- Consider batching messages
+- Reduce subscriber count or use multiple broadcasters
+- Profile to identify bottlenecks
+- Consider future Redis adapter for distributed load
+
 ## Limitations
 
 - **In-Memory Only**: Current implementation doesn't persist messages
@@ -147,6 +248,7 @@ All operations are thread-safe. The broadcaster uses RWMutex to protect concurre
 This package follows MLP (Minimum Lovable Product) principles. Features are intentionally limited to keep the implementation simple and maintainable.
 
 Before adding features, consider:
+
 - Does this solve a real problem for 80% of users?
 - Can it be implemented without breaking existing code?
 - Does it maintain the simplicity of the current API?
