@@ -20,7 +20,7 @@ require (
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/starfederation/datastar-go v1.0.1
 	github.com/stretchr/testify v1.10.0
-	go.mongodb.org/mongo-driver/v2 v2.2.2
+	go.mongodb.org/mongo-driver/v2 v2.2.3
 	golang.org/x/crypto v0.40.0
 	golang.org/x/text v0.27.0
 	gopkg.in/yaml.v3 v3.0.1
