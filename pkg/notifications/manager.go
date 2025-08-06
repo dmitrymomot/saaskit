@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/dmitrymomot/saaskit/pkg/logger"
 )
 
@@ -32,21 +33,20 @@ func NewManager(storage Storage, deliverer Deliverer, opts ...ManagerOption) *Ma
 	if deliverer == nil {
 		deliverer = &NoOpDeliverer{}
 	}
-	
+
 	m := &Manager{
 		storage:   storage,
 		deliverer: deliverer,
 		logger:    slog.Default(),
 	}
-	
+
 	for _, opt := range opts {
 		opt(m)
 	}
-	
+
 	return m
 }
 
-// Send creates and delivers a notification.
 func (m *Manager) Send(ctx context.Context, notif Notification) error {
 	// Generate ID if not provided
 	if notif.ID == "" {
@@ -58,15 +58,15 @@ func (m *Manager) Send(ctx context.Context, notif Notification) error {
 		notif.CreatedAt = time.Now()
 	}
 
-	// Store first
+	// Store first to ensure persistence even if real-time delivery fails
 	if err := m.storage.Create(ctx, notif); err != nil {
 		return fmt.Errorf("failed to store notification: %w", err)
 	}
 
-	// Then deliver (best effort)
+	// Then attempt real-time delivery (best effort pattern)
 	if m.deliverer != nil {
-		// Don't return error for delivery failures
-		// Notification is already stored and can be retrieved
+		// Log delivery failure but don't fail the entire operation
+		// Notification is persisted and available for retrieval/retry
 		if err := m.deliverer.Deliver(ctx, notif); err != nil {
 			m.logger.LogAttrs(ctx, slog.LevelWarn, "Failed to deliver notification, but it was stored successfully",
 				slog.String("notification_id", notif.ID),
@@ -79,7 +79,6 @@ func (m *Manager) Send(ctx context.Context, notif Notification) error {
 	return nil
 }
 
-// SendToUsers sends a notification to multiple users.
 func (m *Manager) SendToUsers(ctx context.Context, userIDs []string, template Notification) error {
 	notifications := make([]Notification, 0, len(userIDs))
 
@@ -97,7 +96,8 @@ func (m *Manager) SendToUsers(ctx context.Context, userIDs []string, template No
 		notifications = append(notifications, notif)
 	}
 
-	// Batch deliver (best effort)
+	// Attempt batch delivery after all notifications are persisted
+	// Uses best-effort pattern - failures don't affect stored notifications
 	if m.deliverer != nil {
 		if err := m.deliverer.DeliverBatch(ctx, notifications); err != nil {
 			m.logger.LogAttrs(ctx, slog.LevelWarn, "Failed to deliver notification batch, but they were stored successfully",
@@ -110,7 +110,6 @@ func (m *Manager) SendToUsers(ctx context.Context, userIDs []string, template No
 	return nil
 }
 
-// SendBatch sends multiple notifications.
 func (m *Manager) SendBatch(ctx context.Context, notifications []Notification) error {
 	for i := range notifications {
 		// Generate ID if not provided
@@ -129,7 +128,7 @@ func (m *Manager) SendBatch(ctx context.Context, notifications []Notification) e
 		}
 	}
 
-	// Batch deliver (best effort)
+	// Attempt batch delivery after all notifications are persisted
 	if m.deliverer != nil {
 		if err := m.deliverer.DeliverBatch(ctx, notifications); err != nil {
 			m.logger.LogAttrs(ctx, slog.LevelWarn, "Failed to deliver notification batch, but they were stored successfully",
@@ -142,24 +141,21 @@ func (m *Manager) SendBatch(ctx context.Context, notifications []Notification) e
 	return nil
 }
 
-// Get retrieves a notification.
 func (m *Manager) Get(ctx context.Context, userID, notifID string) (*Notification, error) {
 	return m.storage.Get(ctx, userID, notifID)
 }
 
-// List returns notifications for a user.
 func (m *Manager) List(ctx context.Context, userID string, opts ListOptions) ([]Notification, error) {
 	return m.storage.List(ctx, userID, opts)
 }
 
-// MarkRead marks notifications as read.
 func (m *Manager) MarkRead(ctx context.Context, userID string, notifIDs ...string) error {
 	return m.storage.MarkRead(ctx, userID, notifIDs...)
 }
 
 // MarkAllRead marks all notifications as read for a user.
 func (m *Manager) MarkAllRead(ctx context.Context, userID string) error {
-	// Get all unread notifications
+	// Retrieve all unread notifications to get their IDs for bulk update
 	notifications, err := m.storage.List(ctx, userID, ListOptions{
 		OnlyUnread: true,
 	})
@@ -167,7 +163,7 @@ func (m *Manager) MarkAllRead(ctx context.Context, userID string) error {
 		return err
 	}
 
-	// Extract IDs
+	// Extract notification IDs for batch marking
 	ids := make([]string, len(notifications))
 	for i, n := range notifications {
 		ids[i] = n.ID
@@ -181,12 +177,10 @@ func (m *Manager) MarkAllRead(ctx context.Context, userID string) error {
 	return nil
 }
 
-// Delete removes notifications.
 func (m *Manager) Delete(ctx context.Context, userID string, notifIDs ...string) error {
 	return m.storage.Delete(ctx, userID, notifIDs...)
 }
 
-// CountUnread returns the number of unread notifications for a user.
 func (m *Manager) CountUnread(ctx context.Context, userID string) (int, error) {
 	return m.storage.CountUnread(ctx, userID)
 }

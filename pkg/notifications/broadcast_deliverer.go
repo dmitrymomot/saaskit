@@ -34,16 +34,17 @@ func NewBroadcastDeliverer(bufferSize int, opts ...BroadcastDelivererOption) *Br
 		bufferSize:       bufferSize,
 		logger:           slog.Default(),
 	}
-	
+
 	for _, opt := range opts {
 		opt(b)
 	}
-	
+
 	return b
 }
 
-// Deliver sends a notification to the user's broadcast channel.
 func (d *BroadcastDeliverer) Deliver(ctx context.Context, notif Notification) error {
+	// Lazy initialization of user-specific broadcasters with double-checked locking pattern
+	// This avoids creating broadcasters for users who never receive notifications
 	d.mu.Lock()
 	b, exists := d.userBroadcasters[notif.UserID]
 	if !exists {
@@ -55,9 +56,9 @@ func (d *BroadcastDeliverer) Deliver(ctx context.Context, notif Notification) er
 	return b.Broadcast(ctx, broadcast.Message[Notification]{Data: notif})
 }
 
-// DeliverBatch sends multiple notifications.
 func (d *BroadcastDeliverer) DeliverBatch(ctx context.Context, notifs []Notification) error {
-	// Group notifications by user
+	// Group notifications by user to optimize broadcast operations
+	// This reduces lock contention by batching operations per user
 	userNotifs := make(map[string][]Notification)
 	for _, n := range notifs {
 		userNotifs[n.UserID] = append(userNotifs[n.UserID], n)
@@ -65,6 +66,7 @@ func (d *BroadcastDeliverer) DeliverBatch(ctx context.Context, notifs []Notifica
 
 	// Deliver to each user
 	for userID, userNotifications := range userNotifs {
+		// Lazy initialization pattern - create broadcaster only when needed
 		d.mu.Lock()
 		b, exists := d.userBroadcasters[userID]
 		if !exists {
@@ -75,7 +77,8 @@ func (d *BroadcastDeliverer) DeliverBatch(ctx context.Context, notifs []Notifica
 
 		for _, notif := range userNotifications {
 			if err := b.Broadcast(ctx, broadcast.Message[Notification]{Data: notif}); err != nil {
-				// Continue with other notifications on error
+				// Continue with remaining notifications even if one fails
+				// This prevents a single bad notification from blocking the entire batch
 				d.logger.LogAttrs(ctx, slog.LevelError, "Failed to broadcast notification",
 					slog.String("notification_id", notif.ID),
 					logger.UserID(notif.UserID),
@@ -111,7 +114,8 @@ func (d *BroadcastDeliverer) Close() error {
 
 	for userID, b := range d.userBroadcasters {
 		if err := b.Close(); err != nil {
-			// Continue closing others even if one fails
+			// Continue closing remaining broadcasters even if one fails
+			// This ensures cleanup doesn't get stuck on a single failing broadcaster
 			d.logger.LogAttrs(context.Background(), slog.LevelError, "Failed to close broadcaster",
 				logger.UserID(userID),
 				logger.Error(err),

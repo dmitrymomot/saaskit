@@ -26,7 +26,6 @@ func NewMemoryStorage() *MemoryStorage {
 	}
 }
 
-// Create stores a new notification.
 func (s *MemoryStorage) Create(ctx context.Context, notif Notification) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -46,7 +45,6 @@ func (s *MemoryStorage) Create(ctx context.Context, notif Notification) error {
 	return nil
 }
 
-// Get retrieves a single notification.
 func (s *MemoryStorage) Get(ctx context.Context, userID, notifID string) (*Notification, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -58,7 +56,8 @@ func (s *MemoryStorage) Get(ctx context.Context, userID, notifID string) (*Notif
 
 	for _, n := range notifications {
 		if n.ID == notifID {
-			notif := n // Create a copy
+			// Return a copy to prevent external mutation of stored data
+			notif := n
 			return &notif, nil
 		}
 	}
@@ -66,7 +65,6 @@ func (s *MemoryStorage) Get(ctx context.Context, userID, notifID string) (*Notif
 	return nil, ErrNotificationNotFound
 }
 
-// List returns notifications for a user.
 func (s *MemoryStorage) List(ctx context.Context, userID string, opts ListOptions) ([]Notification, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -111,7 +109,9 @@ func (s *MemoryStorage) List(ctx context.Context, userID string, opts ListOption
 		filtered = append(filtered, n)
 	}
 
-	// Sort by created time (newest first)
+	// Sort by created time (newest first) using bubble sort
+	// O(n²) complexity acceptable for in-memory storage with small datasets
+	// For production use, consider replacing MemoryStorage with database-backed implementation
 	for i := 0; i < len(filtered)-1; i++ {
 		for j := i + 1; j < len(filtered); j++ {
 			if filtered[i].CreatedAt.Before(filtered[j].CreatedAt) {
@@ -134,7 +134,6 @@ func (s *MemoryStorage) List(ctx context.Context, userID string, opts ListOption
 	return filtered[start:end], nil
 }
 
-// MarkRead marks notification(s) as read.
 func (s *MemoryStorage) MarkRead(ctx context.Context, userID string, notifIDs ...string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -144,6 +143,7 @@ func (s *MemoryStorage) MarkRead(ctx context.Context, userID string, notifIDs ..
 		return nil
 	}
 
+	// Create lookup map for O(1) ID checking instead of O(n) slice iteration
 	idMap := make(map[string]bool)
 	for _, id := range notifIDs {
 		idMap[id] = true
@@ -159,7 +159,6 @@ func (s *MemoryStorage) MarkRead(ctx context.Context, userID string, notifIDs ..
 	return nil
 }
 
-// Delete removes notification(s).
 func (s *MemoryStorage) Delete(ctx context.Context, userID string, notifIDs ...string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -169,6 +168,7 @@ func (s *MemoryStorage) Delete(ctx context.Context, userID string, notifIDs ...s
 		return nil
 	}
 
+	// Create lookup map for O(1) ID checking instead of O(n) slice iteration
 	idMap := make(map[string]bool)
 	for _, id := range notifIDs {
 		idMap[id] = true
@@ -185,7 +185,6 @@ func (s *MemoryStorage) Delete(ctx context.Context, userID string, notifIDs ...s
 	return nil
 }
 
-// CountUnread returns unread count for user.
 func (s *MemoryStorage) CountUnread(ctx context.Context, userID string) (int, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

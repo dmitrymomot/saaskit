@@ -77,11 +77,11 @@ func ExampleBroadcastDeliverer_Subscribe() {
 	go func() {
 		time.Sleep(10 * time.Millisecond) // Small delay to ensure subscriber is ready
 		_ = deliverer.Deliver(ctx, notifications.Notification{
-			ID:       "notif-1",
-			UserID:   userID,
-			Type:     notifications.TypeInfo,
-			Title:    "Real-time notification",
-			Message:  "This was delivered in real-time",
+			ID:        "notif-1",
+			UserID:    userID,
+			Type:      notifications.TypeInfo,
+			Title:     "Real-time notification",
+			Message:   "This was delivered in real-time",
 			CreatedAt: time.Now(),
 		})
 	}()

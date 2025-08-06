@@ -39,8 +39,8 @@ type Notification struct {
 	Priority  Priority               `json:"priority"`
 	Title     string                 `json:"title"`
 	Message   string                 `json:"message"`
-	Data      map[string]interface{} `json:"data,omitempty"`      // Custom payload
-	Actions   []Action               `json:"actions,omitempty"`   // CTAs
+	Data      map[string]interface{} `json:"data,omitempty"`    // Arbitrary data for transport layers to use
+	Actions   []Action               `json:"actions,omitempty"` // Call-to-action buttons
 	Read      bool                   `json:"read"`
 	ReadAt    *time.Time             `json:"read_at,omitempty"`
 	CreatedAt time.Time              `json:"created_at"`

@@ -38,19 +38,19 @@ func NewMultiDeliverer(deliverers []Deliverer, opts ...MultiDelivererOption) *Mu
 		deliverers: deliverers,
 		logger:     slog.Default(),
 	}
-	
+
 	for _, opt := range opts {
 		opt(m)
 	}
-	
+
 	return m
 }
 
-// Deliver sends notification through all configured channels.
 func (m *MultiDeliverer) Deliver(ctx context.Context, notif Notification) error {
 	for i, d := range m.deliverers {
 		if err := d.Deliver(ctx, notif); err != nil {
-			// Log but don't fail - best effort delivery
+			// Continue with other deliverers on failure - implements best-effort delivery pattern
+			// This ensures one failing channel doesn't prevent delivery through other channels
 			m.logger.LogAttrs(ctx, slog.LevelError, "Failed to deliver notification",
 				slog.String("notification_id", notif.ID),
 				logger.UserID(notif.UserID),
@@ -63,11 +63,10 @@ func (m *MultiDeliverer) Deliver(ctx context.Context, notif Notification) error 
 	return nil
 }
 
-// DeliverBatch sends multiple notifications through all channels.
 func (m *MultiDeliverer) DeliverBatch(ctx context.Context, notifs []Notification) error {
 	for i, d := range m.deliverers {
 		if err := d.DeliverBatch(ctx, notifs); err != nil {
-			// Log but don't fail - best effort delivery
+			// Continue with other deliverers on failure - implements best-effort delivery pattern
 			m.logger.LogAttrs(ctx, slog.LevelError, "Failed to deliver notification batch",
 				slog.Int("notification_count", len(notifs)),
 				slog.Int("deliverer_index", i),
@@ -83,12 +82,10 @@ func (m *MultiDeliverer) DeliverBatch(ctx context.Context, notifs []Notification
 // Useful for testing or when real-time delivery is not needed.
 type NoOpDeliverer struct{}
 
-// Deliver does nothing and returns nil.
 func (n *NoOpDeliverer) Deliver(ctx context.Context, notif Notification) error {
 	return nil
 }
 
-// DeliverBatch does nothing and returns nil.
 func (n *NoOpDeliverer) DeliverBatch(ctx context.Context, notifs []Notification) error {
 	return nil
 }

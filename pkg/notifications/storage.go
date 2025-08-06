@@ -26,11 +26,11 @@ type Storage interface {
 	CountUnread(ctx context.Context, userID string) (int, error)
 }
 
-// ListOptions provides filtering options for listing notifications.
+// ListOptions provides filtering and pagination options for listing notifications.
 type ListOptions struct {
-	Limit      int        // Maximum number of notifications to return
-	Offset     int        // Number of notifications to skip
-	OnlyUnread bool       // Filter to only unread notifications
-	Types      []Type     // Filter by notification types
-	Since      *time.Time // Filter notifications created after this time
+	Limit      int        // Maximum number of notifications to return (0 = no limit)
+	Offset     int        // Number of notifications to skip for pagination
+	OnlyUnread bool       // When true, only return unread notifications
+	Types      []Type     // If specified, only return notifications of these types
+	Since      *time.Time // If specified, only return notifications created after this time
 }
