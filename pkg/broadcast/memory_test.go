@@ -37,6 +37,28 @@ func TestMemoryBroadcaster_Subscribe(t *testing.T) {
 		assert.False(t, ok)
 	})
 
+	t.Run("subscriber double close is safe", func(t *testing.T) {
+		b := NewMemoryBroadcaster[string](10)
+		defer b.Close()
+
+		ctx := context.Background()
+		sub := b.Subscribe(ctx)
+		require.NotNil(t, sub)
+
+		// First close should succeed
+		err := sub.Close()
+		require.NoError(t, err)
+
+		// Second close should also be safe (idempotent)
+		err = sub.Close()
+		require.NoError(t, err)
+
+		// Channel should be closed
+		ch := sub.Receive(ctx)
+		_, ok := <-ch
+		assert.False(t, ok, "channel should be closed after Close()")
+	})
+
 	t.Run("context cancellation unsubscribes", func(t *testing.T) {
 		b := NewMemoryBroadcaster[string](10)
 		defer b.Close()
