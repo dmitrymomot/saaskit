@@ -234,15 +234,16 @@ func TestNotification_TimeBoundaries(t *testing.T) {
 		assert.True(t, n.IsExpired())
 	})
 
-	t.Run("microsecond precision", func(t *testing.T) {
-		// Test that expiration works with microsecond precision
-		justExpired := time.Now().Add(-1 * time.Microsecond)
+	t.Run("millisecond precision", func(t *testing.T) {
+		// Test that expiration works with millisecond precision
+		// Using milliseconds instead of microseconds to avoid race conditions
+		justExpired := time.Now().Add(-1 * time.Millisecond)
 		n := Notification{
 			ExpiresAt: &justExpired,
 		}
 		assert.True(t, n.IsExpired())
 
-		justNotExpired := time.Now().Add(1 * time.Microsecond)
+		justNotExpired := time.Now().Add(10 * time.Millisecond)
 		n2 := Notification{
 			ExpiresAt: &justNotExpired,
 		}
