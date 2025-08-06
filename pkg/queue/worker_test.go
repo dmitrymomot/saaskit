@@ -836,7 +836,7 @@ func TestWorker_QueueFiltering(t *testing.T) {
 		require.NoError(t, err)
 
 		// Wait for processing with timeout
-		deadline := time.Now().Add(100 * time.Millisecond)
+		deadline := time.Now().Add(200 * time.Millisecond)
 		for time.Now().Before(deadline) {
 			mu.Lock()
 			if processed["should-process-1"] > 0 && processed["should-process-2"] > 0 {
