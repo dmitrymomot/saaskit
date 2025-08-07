@@ -17,15 +17,6 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/validator"
 )
 
-var (
-	ErrInvalidCredentials = errors.New("auth: invalid email or password")
-	ErrEmailAlreadyExists = errors.New("auth: email already registered")
-	ErrUserNotFound       = errors.New("auth: user not found")
-	ErrTokenInvalid       = errors.New("auth: invalid token")
-	ErrTokenExpired       = errors.New("auth: token expired")
-	ErrEmailUnchanged     = errors.New("auth: new email is the same as current email")
-)
-
 const (
 	SubjectPasswordReset = "password_reset"
 	SubjectEmailVerify   = "email_verify" // for future use
@@ -40,6 +31,14 @@ type PasswordResetTokenPayload struct {
 	ExpireAt int64  `json:"exp"`   // Unix timestamp
 }
 
+// PasswordAuthenticator defines password-based authentication operations
+type PasswordAuthenticator interface {
+	Register(ctx context.Context, email, password string) (*User, error)
+	Authenticate(ctx context.Context, email, password string) (*User, error)
+	ForgotPassword(ctx context.Context, email string) (*PasswordResetRequest, error)
+	ResetPassword(ctx context.Context, resetToken, newPassword string) (*User, error)
+}
+
 // PasswordStorage defines the storage operations required for password authentication
 type PasswordStorage interface {
 	CreateUser(ctx context.Context, user *User) error
@@ -50,49 +49,75 @@ type PasswordStorage interface {
 	GetPasswordHash(ctx context.Context, userID uuid.UUID) ([]byte, error)
 }
 
-// PasswordService provides password-based authentication with configurable security requirements
-type PasswordService struct {
+// passwordService provides password-based authentication with configurable security requirements
+type passwordService struct {
 	storage          PasswordStorage
 	tokenSecret      string
 	bcryptCost       int
 	logger           *slog.Logger
 	resetTokenTTL    time.Duration
 	passwordStrength validator.PasswordStrengthConfig
+
+	// Hooks for extending password authentication behavior
+	afterRegister func(ctx context.Context, user *User) error
+	beforeLogin   func(ctx context.Context, email string) error
+	afterLogin    func(ctx context.Context, user *User) error
 }
 
-type PasswordOption func(*PasswordService)
+type PasswordOption func(*passwordService)
 
 // WithPasswordLogger sets a custom logger for the service
 func WithPasswordLogger(logger *slog.Logger) PasswordOption {
-	return func(s *PasswordService) {
+	return func(s *passwordService) {
 		s.logger = logger
 	}
 }
 
 // WithBcryptCost sets the bcrypt cost for password hashing
 func WithBcryptCost(cost int) PasswordOption {
-	return func(s *PasswordService) {
+	return func(s *passwordService) {
 		s.bcryptCost = cost
 	}
 }
 
 // WithResetTokenTTL sets the TTL for password reset tokens
 func WithResetTokenTTL(ttl time.Duration) PasswordOption {
-	return func(s *PasswordService) {
+	return func(s *passwordService) {
 		s.resetTokenTTL = ttl
 	}
 }
 
 // WithPasswordStrength sets custom password strength requirements
 func WithPasswordStrength(config validator.PasswordStrengthConfig) PasswordOption {
-	return func(s *PasswordService) {
+	return func(s *passwordService) {
 		s.passwordStrength = config
 	}
 }
 
+// WithAfterRegister sets a hook that runs after successful registration
+func WithAfterRegister(fn func(context.Context, *User) error) PasswordOption {
+	return func(s *passwordService) {
+		s.afterRegister = fn
+	}
+}
+
+// WithBeforeLogin sets a hook that runs before login attempt
+func WithBeforeLogin(fn func(context.Context, string) error) PasswordOption {
+	return func(s *passwordService) {
+		s.beforeLogin = fn
+	}
+}
+
+// WithAfterLogin sets a hook that runs after successful login
+func WithAfterLogin(fn func(context.Context, *User) error) PasswordOption {
+	return func(s *passwordService) {
+		s.afterLogin = fn
+	}
+}
+
 // NewPasswordService creates a new password authentication service
-func NewPasswordService(storage PasswordStorage, tokenSecret string, opts ...PasswordOption) *PasswordService {
-	s := &PasswordService{
+func NewPasswordService(storage PasswordStorage, tokenSecret string, opts ...PasswordOption) PasswordAuthenticator {
+	s := &passwordService{
 		storage:       storage,
 		tokenSecret:   tokenSecret,
 		bcryptCost:    bcrypt.DefaultCost,
@@ -113,7 +138,7 @@ func NewPasswordService(storage PasswordStorage, tokenSecret string, opts ...Pas
 }
 
 // Register creates a new user with email and password
-func (s *PasswordService) Register(ctx context.Context, email, password string) (*User, error) {
+func (s *passwordService) Register(ctx context.Context, email, password string) (*User, error) {
 	email = sanitizer.NormalizeEmail(email)
 
 	if err := validator.Apply(
@@ -162,13 +187,46 @@ func (s *PasswordService) Register(ctx context.Context, email, password string) 
 		return nil, fmt.Errorf("failed to save password: %w", err)
 	}
 
+	// Execute after register hook if set
+	if s.afterRegister != nil {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.Error("afterRegister hook panicked",
+						logger.UserID(user.ID.String()),
+						slog.Any("panic", r),
+						logger.Component("password"),
+					)
+				}
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			if err := s.afterRegister(ctx, user); err != nil {
+				s.logger.Error("afterRegister hook failed",
+					logger.UserID(user.ID.String()),
+					logger.Error(err),
+					logger.Component("password"),
+				)
+			}
+		}()
+	}
+
 	return user, nil
 }
 
 // Authenticate verifies email and password, returns user if valid.
 // Returns generic ErrInvalidCredentials for any failure to prevent user enumeration attacks.
-func (s *PasswordService) Authenticate(ctx context.Context, email, password string) (*User, error) {
+func (s *passwordService) Authenticate(ctx context.Context, email, password string) (*User, error) {
 	email = sanitizer.NormalizeEmail(email)
+
+	// Execute before login hook if set
+	if s.beforeLogin != nil {
+		if err := s.beforeLogin(ctx, email); err != nil {
+			return nil, fmt.Errorf("login blocked: %w", err)
+		}
+	}
 
 	user, err := s.storage.GetUserByEmail(ctx, email)
 	if err != nil {
@@ -184,6 +242,32 @@ func (s *PasswordService) Authenticate(ctx context.Context, email, password stri
 		return nil, ErrInvalidCredentials
 	}
 
+	// Execute after login hook if set
+	if s.afterLogin != nil {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.Error("afterLogin hook panicked",
+						logger.UserID(user.ID.String()),
+						slog.Any("panic", r),
+						logger.Component("password"),
+					)
+				}
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			if err := s.afterLogin(ctx, user); err != nil {
+				s.logger.Error("afterLogin hook failed",
+					logger.UserID(user.ID.String()),
+					logger.Error(err),
+					logger.Component("password"),
+				)
+			}
+		}()
+	}
+
 	return user, nil
 }
 
@@ -196,7 +280,7 @@ type PasswordResetRequest struct {
 
 // ForgotPassword generates a password reset token for the given email.
 // Note: Handler should implement timing attack prevention by always returning success to users.
-func (s *PasswordService) ForgotPassword(ctx context.Context, email string) (*PasswordResetRequest, error) {
+func (s *passwordService) ForgotPassword(ctx context.Context, email string) (*PasswordResetRequest, error) {
 	email = sanitizer.NormalizeEmail(email)
 
 	user, err := s.storage.GetUserByEmail(ctx, email)
@@ -225,7 +309,7 @@ func (s *PasswordService) ForgotPassword(ctx context.Context, email string) (*Pa
 }
 
 // ResetPassword resets the password using a valid reset token
-func (s *PasswordService) ResetPassword(ctx context.Context, resetToken, newPassword string) (*User, error) {
+func (s *passwordService) ResetPassword(ctx context.Context, resetToken, newPassword string) (*User, error) {
 	if err := validator.Apply(
 		validator.StrongPassword("password", newPassword, s.passwordStrength),
 		validator.NotCommonPassword("password", newPassword),
