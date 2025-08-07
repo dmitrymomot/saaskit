@@ -33,6 +33,12 @@ type MagicLinkRequest struct {
 	ExpiresAt time.Time
 }
 
+// MagicLinkAuthenticator defines magic link authentication operations
+type MagicLinkAuthenticator interface {
+	RequestMagicLink(ctx context.Context, email string) (*MagicLinkRequest, error)
+	VerifyMagicLink(ctx context.Context, magicLinkToken string) (*User, error)
+}
+
 // MagicLinkStorage defines the storage operations required for magic link authentication
 type MagicLinkStorage interface {
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
@@ -40,33 +46,59 @@ type MagicLinkStorage interface {
 	UpdateUserVerified(ctx context.Context, id uuid.UUID, verified bool) error
 }
 
-// MagicLinkService handles passwordless authentication via magic links
-type MagicLinkService struct {
+// magicLinkService handles passwordless authentication via magic links
+type magicLinkService struct {
 	storage      MagicLinkStorage
 	tokenSecret  string
 	logger       *slog.Logger
 	magicLinkTTL time.Duration // TTL for magic link tokens
+
+	// Hooks for extending magic link behavior
+	afterGenerate func(ctx context.Context, user *User, token string) error
+	beforeVerify  func(ctx context.Context, token string) error
+	afterVerify   func(ctx context.Context, user *User) error
 }
 
-type MagicLinkOption func(*MagicLinkService)
+type MagicLinkOption func(*magicLinkService)
 
-// WithLogger sets a custom logger for the service
-func WithLogger(logger *slog.Logger) MagicLinkOption {
-	return func(s *MagicLinkService) {
+// WithMagicLinkLogger sets a custom logger for the service
+func WithMagicLinkLogger(logger *slog.Logger) MagicLinkOption {
+	return func(s *magicLinkService) {
 		s.logger = logger
 	}
 }
 
 // WithMagicLinkTTL sets the TTL for magic link tokens
 func WithMagicLinkTTL(ttl time.Duration) MagicLinkOption {
-	return func(s *MagicLinkService) {
+	return func(s *magicLinkService) {
 		s.magicLinkTTL = ttl
 	}
 }
 
+// WithAfterGenerate sets a hook that runs after generating a magic link
+func WithAfterGenerate(fn func(context.Context, *User, string) error) MagicLinkOption {
+	return func(s *magicLinkService) {
+		s.afterGenerate = fn
+	}
+}
+
+// WithBeforeVerify sets a hook that runs before verifying a magic link
+func WithBeforeVerify(fn func(context.Context, string) error) MagicLinkOption {
+	return func(s *magicLinkService) {
+		s.beforeVerify = fn
+	}
+}
+
+// WithAfterVerify sets a hook that runs after successful verification
+func WithAfterVerify(fn func(context.Context, *User) error) MagicLinkOption {
+	return func(s *magicLinkService) {
+		s.afterVerify = fn
+	}
+}
+
 // NewMagicLinkService creates a new magic link authentication service
-func NewMagicLinkService(storage MagicLinkStorage, tokenSecret string, opts ...MagicLinkOption) *MagicLinkService {
-	s := &MagicLinkService{
+func NewMagicLinkService(storage MagicLinkStorage, tokenSecret string, opts ...MagicLinkOption) MagicLinkAuthenticator {
+	s := &magicLinkService{
 		storage:      storage,
 		tokenSecret:  tokenSecret,
 		logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -82,7 +114,7 @@ func NewMagicLinkService(storage MagicLinkStorage, tokenSecret string, opts ...M
 
 // RequestMagicLink generates a magic link token for the given email.
 // Auto-registers new users to reduce friction in the onboarding flow.
-func (s *MagicLinkService) RequestMagicLink(ctx context.Context, email string) (*MagicLinkRequest, error) {
+func (s *magicLinkService) RequestMagicLink(ctx context.Context, email string) (*MagicLinkRequest, error) {
 	email = sanitizer.NormalizeEmail(email)
 	if err := validator.Apply(
 		validator.ValidEmail("email", email),
@@ -123,15 +155,53 @@ func (s *MagicLinkService) RequestMagicLink(ctx context.Context, email string) (
 		return nil, fmt.Errorf("failed to generate magic link token: %w", err)
 	}
 
-	return &MagicLinkRequest{
+	req := &MagicLinkRequest{
 		Email:     email,
 		Token:     tokenStr,
 		ExpiresAt: expiresAt,
-	}, nil
+	}
+
+	// Execute after generate hook if set
+	if s.afterGenerate != nil {
+		// Get user for hook
+		user, _ := s.storage.GetUserByEmail(ctx, email)
+		if user != nil {
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						s.logger.Error("afterGenerate hook panicked",
+							slog.String("email", email),
+							slog.Any("panic", r),
+							logger.Component("magic_link"),
+						)
+					}
+				}()
+
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				if err := s.afterGenerate(ctx, user, tokenStr); err != nil {
+					s.logger.Error("afterGenerate hook failed",
+						slog.String("email", email),
+						logger.Error(err),
+						logger.Component("magic_link"),
+					)
+				}
+			}()
+		}
+	}
+
+	return req, nil
 }
 
 // VerifyMagicLink validates a magic link token and returns the authenticated user
-func (s *MagicLinkService) VerifyMagicLink(ctx context.Context, magicLinkToken string) (*User, error) {
+func (s *magicLinkService) VerifyMagicLink(ctx context.Context, magicLinkToken string) (*User, error) {
+	// Execute before verify hook if set
+	if s.beforeVerify != nil {
+		if err := s.beforeVerify(ctx, magicLinkToken); err != nil {
+			return nil, fmt.Errorf("verify blocked: %w", err)
+		}
+	}
 	payload, err := token.ParseToken[MagicLinkTokenPayload](magicLinkToken, s.tokenSecret)
 	if err != nil {
 		return nil, ErrTokenInvalid
@@ -164,6 +234,32 @@ func (s *MagicLinkService) VerifyMagicLink(ctx context.Context, magicLinkToken s
 
 	// MVP: Replay protection via token ID tracking deferred.
 	// 15-minute TTL provides reasonable security for initial launch.
+
+	// Execute after verify hook if set
+	if s.afterVerify != nil {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.Error("afterVerify hook panicked",
+						logger.UserID(user.ID.String()),
+						slog.Any("panic", r),
+						logger.Component("magic_link"),
+					)
+				}
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			if err := s.afterVerify(ctx, user); err != nil {
+				s.logger.Error("afterVerify hook failed",
+					logger.UserID(user.ID.String()),
+					logger.Error(err),
+					logger.Component("magic_link"),
+				)
+			}
+		}()
+	}
 
 	return user, nil
 }
