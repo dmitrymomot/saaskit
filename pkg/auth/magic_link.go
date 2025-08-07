@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -40,9 +41,10 @@ type MagicLinkStorage interface {
 
 // MagicLinkService handles passwordless authentication via magic links
 type MagicLinkService struct {
-	storage     MagicLinkStorage
-	tokenSecret string
-	logger      *slog.Logger
+	storage        MagicLinkStorage
+	tokenSecret    string
+	logger         *slog.Logger
+	magicLinkTTL   time.Duration // TTL for magic link tokens
 }
 
 // MagicLinkOption is a functional option for MagicLinkService
@@ -55,12 +57,20 @@ func WithLogger(logger *slog.Logger) MagicLinkOption {
 	}
 }
 
+// WithMagicLinkTTL sets the TTL for magic link tokens
+func WithMagicLinkTTL(ttl time.Duration) MagicLinkOption {
+	return func(s *MagicLinkService) {
+		s.magicLinkTTL = ttl
+	}
+}
+
 // NewMagicLinkService creates a new magic link authentication service
 func NewMagicLinkService(storage MagicLinkStorage, tokenSecret string, opts ...MagicLinkOption) *MagicLinkService {
 	s := &MagicLinkService{
-		storage:     storage,
-		tokenSecret: tokenSecret,
-		logger:      slog.New(slog.NewTextHandler(io.Discard, nil)), // noop logger by default
+		storage:      storage,
+		tokenSecret:  tokenSecret,
+		logger:       slog.New(slog.NewTextHandler(io.Discard, nil)), // noop logger by default
+		magicLinkTTL: 15 * time.Minute, // Default 15 minutes for magic links
 	}
 
 	// Apply options
@@ -76,7 +86,12 @@ func (s *MagicLinkService) RequestMagicLink(ctx context.Context, email string) (
 	// Check if identity exists, create if not (auto-registration)
 	_, err := s.storage.GetIdentityByEmail(ctx, email)
 	if err != nil {
-		// Create new identity if doesn't exist
+		// Only create new identity if error is "not found"
+		if !errors.Is(err, ErrIdentityNotFound) {
+			return nil, fmt.Errorf("failed to check identity: %w", err)
+		}
+		
+		// Create new identity for auto-registration
 		identity := &Identity{
 			ID:         uuid.New(),
 			Email:      email,
@@ -90,8 +105,8 @@ func (s *MagicLinkService) RequestMagicLink(ctx context.Context, email string) (
 		}
 	}
 
-	// Create magic link token with short expiry (15 minutes)
-	expiresAt := time.Now().Add(15 * time.Minute)
+	// Create magic link token with configured expiry
+	expiresAt := time.Now().Add(s.magicLinkTTL)
 	payload := MagicLinkTokenPayload{
 		ID:       uuid.New().String(), // Unique token ID for single-use tracking
 		Email:    email,
@@ -115,7 +130,6 @@ func (s *MagicLinkService) RequestMagicLink(ctx context.Context, email string) (
 // VerifyMagicLink validates a magic link token and returns the authenticated identity
 func (s *MagicLinkService) VerifyMagicLink(ctx context.Context, magicLinkToken string) (*Identity, error) {
 	// Parse and validate token
-	var payload MagicLinkTokenPayload
 	payload, err := token.ParseToken[MagicLinkTokenPayload](magicLinkToken, s.tokenSecret)
 	if err != nil {
 		return nil, ErrTokenInvalid

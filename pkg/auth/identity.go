@@ -2,7 +2,10 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"time"
 
 	"github.com/dmitrymomot/saaskit/pkg/token"
@@ -41,16 +44,53 @@ type IdentityStorage interface {
 
 // IdentityService handles authenticated user account management
 type IdentityService struct {
-	storage     IdentityStorage
-	tokenSecret string
+	storage         IdentityStorage
+	tokenSecret     string
+	bcryptCost      int
+	logger          *slog.Logger
+	emailChangeTTL  time.Duration // TTL for email change tokens
+}
+
+// IdentityOption is a functional option for IdentityService
+type IdentityOption func(*IdentityService)
+
+// WithIdentityLogger sets a custom logger for the service
+func WithIdentityLogger(logger *slog.Logger) IdentityOption {
+	return func(s *IdentityService) {
+		s.logger = logger
+	}
+}
+
+// WithIdentityBcryptCost sets the bcrypt cost for password hashing
+func WithIdentityBcryptCost(cost int) IdentityOption {
+	return func(s *IdentityService) {
+		s.bcryptCost = cost
+	}
+}
+
+// WithEmailChangeTTL sets the TTL for email change tokens
+func WithEmailChangeTTL(ttl time.Duration) IdentityOption {
+	return func(s *IdentityService) {
+		s.emailChangeTTL = ttl
+	}
 }
 
 // NewIdentityService creates a new identity management service
-func NewIdentityService(storage IdentityStorage, tokenSecret string) *IdentityService {
-	return &IdentityService{
-		storage:     storage,
-		tokenSecret: tokenSecret,
+func NewIdentityService(storage IdentityStorage, tokenSecret string, opts ...IdentityOption) *IdentityService {
+	s := &IdentityService{
+		storage:        storage,
+		tokenSecret:    tokenSecret,
+		bcryptCost:     bcrypt.DefaultCost,
+		logger:         slog.New(slog.NewTextHandler(io.Discard, nil)), // noop logger by default
+		emailChangeTTL: 1 * time.Hour, // Default 1 hour for email change tokens
 	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s
 }
 
 // GetIdentity retrieves the identity information for an authenticated user
@@ -76,7 +116,7 @@ func (s *IdentityService) ChangePassword(ctx context.Context, identityID uuid.UU
 	}
 
 	// Hash new password
-	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), s.bcryptCost)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -99,13 +139,17 @@ func (s *IdentityService) RequestEmailChange(ctx context.Context, identityID uui
 
 	// Check if email is the same - no need to change
 	if identity.Email == newEmail {
-		return nil, nil
+		return nil, ErrEmailUnchanged
 	}
 
 	// Check if new email is already taken
-	existing, _ := s.storage.GetIdentityByEmail(ctx, newEmail)
-	if existing != nil {
+	_, err = s.storage.GetIdentityByEmail(ctx, newEmail)
+	if err == nil {
 		return nil, ErrEmailAlreadyExists
+	}
+	// Only proceed if error is "not found", otherwise return the error
+	if !errors.Is(err, ErrIdentityNotFound) {
+		return nil, fmt.Errorf("failed to check existing email: %w", err)
 	}
 
 	// Verify current password for security
@@ -119,7 +163,7 @@ func (s *IdentityService) RequestEmailChange(ctx context.Context, identityID uui
 	}
 
 	// Create email change token
-	expiresAt := time.Now().Add(1 * time.Hour)
+	expiresAt := time.Now().Add(s.emailChangeTTL)
 	payload := EmailChangeTokenPayload{
 		ID:       identityID.String(),
 		OldEmail: identity.Email,
@@ -145,7 +189,6 @@ func (s *IdentityService) RequestEmailChange(ctx context.Context, identityID uui
 // ConfirmEmailChange validates the email change token and updates the email in the database
 func (s *IdentityService) ConfirmEmailChange(ctx context.Context, emailChangeToken string) (*Identity, error) {
 	// Parse and validate token
-	var payload EmailChangeTokenPayload
 	payload, err := token.ParseToken[EmailChangeTokenPayload](emailChangeToken, s.tokenSecret)
 	if err != nil {
 		return nil, ErrTokenInvalid
@@ -179,9 +222,13 @@ func (s *IdentityService) ConfirmEmailChange(ctx context.Context, emailChangeTok
 	}
 
 	// Check if new email is still available
-	existing, _ := s.storage.GetIdentityByEmail(ctx, payload.NewEmail)
-	if existing != nil {
+	_, err = s.storage.GetIdentityByEmail(ctx, payload.NewEmail)
+	if err == nil {
 		return nil, ErrEmailAlreadyExists
+	}
+	// Only proceed if error is "not found", otherwise return the error
+	if !errors.Is(err, ErrIdentityNotFound) {
+		return nil, fmt.Errorf("failed to check existing email: %w", err)
 	}
 
 	// Update email
