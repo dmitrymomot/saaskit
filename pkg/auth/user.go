@@ -33,6 +33,14 @@ type EmailChangeTokenPayload struct {
 	ExpireAt int64  `json:"exp"` // Unix timestamp
 }
 
+// UserManager defines user management operations
+type UserManager interface {
+	GetUser(ctx context.Context, userID uuid.UUID) (*User, error)
+	ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error
+	RequestEmailChange(ctx context.Context, userID uuid.UUID, newEmail, currentPassword string) (*EmailChangeRequest, error)
+	ConfirmEmailChange(ctx context.Context, emailChangeToken string) (*User, error)
+}
+
 // UserStorage defines the storage operations required for user management
 type UserStorage interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (*User, error)
@@ -42,49 +50,75 @@ type UserStorage interface {
 	UpdatePasswordHash(ctx context.Context, userID uuid.UUID, hash []byte) error
 }
 
-// UserService handles authenticated user account management
-type UserService struct {
+// userService handles authenticated user account management
+type userService struct {
 	storage          UserStorage
 	tokenSecret      string
 	bcryptCost       int
 	logger           *slog.Logger
 	emailChangeTTL   time.Duration
 	passwordStrength validator.PasswordStrengthConfig
+
+	// Hooks for extending user management behavior
+	beforeUpdate func(ctx context.Context, userID uuid.UUID) error
+	afterUpdate  func(ctx context.Context, user *User) error
+	afterDelete  func(ctx context.Context, userID uuid.UUID) error
 }
 
-type UserOption func(*UserService)
+type UserOption func(*userService)
 
 // WithUserLogger sets a custom logger for the service
 func WithUserLogger(logger *slog.Logger) UserOption {
-	return func(s *UserService) {
+	return func(s *userService) {
 		s.logger = logger
 	}
 }
 
 // WithUserBcryptCost sets the bcrypt cost for password hashing
 func WithUserBcryptCost(cost int) UserOption {
-	return func(s *UserService) {
+	return func(s *userService) {
 		s.bcryptCost = cost
 	}
 }
 
 // WithEmailChangeTTL sets the TTL for email change tokens
 func WithEmailChangeTTL(ttl time.Duration) UserOption {
-	return func(s *UserService) {
+	return func(s *userService) {
 		s.emailChangeTTL = ttl
 	}
 }
 
 // WithUserPasswordStrength sets custom password strength requirements
 func WithUserPasswordStrength(config validator.PasswordStrengthConfig) UserOption {
-	return func(s *UserService) {
+	return func(s *userService) {
 		s.passwordStrength = config
 	}
 }
 
+// WithBeforeUpdate sets a hook that runs before any user update
+func WithBeforeUpdate(fn func(context.Context, uuid.UUID) error) UserOption {
+	return func(s *userService) {
+		s.beforeUpdate = fn
+	}
+}
+
+// WithAfterUpdate sets a hook that runs after successful user update
+func WithAfterUpdate(fn func(context.Context, *User) error) UserOption {
+	return func(s *userService) {
+		s.afterUpdate = fn
+	}
+}
+
+// WithAfterDelete sets a hook that runs after user deletion
+func WithAfterDelete(fn func(context.Context, uuid.UUID) error) UserOption {
+	return func(s *userService) {
+		s.afterDelete = fn
+	}
+}
+
 // NewUserService creates a new user management service
-func NewUserService(storage UserStorage, tokenSecret string, opts ...UserOption) *UserService {
-	s := &UserService{
+func NewUserService(storage UserStorage, tokenSecret string, opts ...UserOption) UserManager {
+	s := &userService{
 		storage:        storage,
 		tokenSecret:    tokenSecret,
 		bcryptCost:     bcrypt.DefaultCost,
@@ -105,7 +139,7 @@ func NewUserService(storage UserStorage, tokenSecret string, opts ...UserOption)
 }
 
 // GetUser retrieves the user information for an authenticated user
-func (s *UserService) GetUser(ctx context.Context, userID uuid.UUID) (*User, error) {
+func (s *userService) GetUser(ctx context.Context, userID uuid.UUID) (*User, error) {
 	user, err := s.storage.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
@@ -114,7 +148,13 @@ func (s *UserService) GetUser(ctx context.Context, userID uuid.UUID) (*User, err
 }
 
 // ChangePassword updates the password for an authenticated user
-func (s *UserService) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error {
+func (s *userService) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error {
+	// Execute before update hook if set
+	if s.beforeUpdate != nil {
+		if err := s.beforeUpdate(ctx, userID); err != nil {
+			return fmt.Errorf("update blocked: %w", err)
+		}
+	}
 	if err := validator.Apply(
 		validator.StrongPassword("password", newPassword, s.passwordStrength),
 		validator.NotCommonPassword("password", newPassword),
@@ -140,12 +180,41 @@ func (s *UserService) ChangePassword(ctx context.Context, userID uuid.UUID, oldP
 		return fmt.Errorf("failed to update password: %w", err)
 	}
 
+	// Execute after update hook if set
+	if s.afterUpdate != nil {
+		user, _ := s.storage.GetUserByID(ctx, userID)
+		if user != nil {
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						s.logger.Error("afterUpdate hook panicked",
+							slog.String("user_id", userID.String()),
+							slog.Any("panic", r),
+							slog.String("component", "user"),
+						)
+					}
+				}()
+
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				if err := s.afterUpdate(ctx, user); err != nil {
+					s.logger.Error("afterUpdate hook failed",
+						slog.String("user_id", userID.String()),
+						slog.Any("error", err),
+						slog.String("component", "user"),
+					)
+				}
+			}()
+		}
+	}
+
 	return nil
 }
 
 // RequestEmailChange initiates an email change process by generating a verification token.
 // Requires password verification for security to prevent unauthorized email changes.
-func (s *UserService) RequestEmailChange(ctx context.Context, userID uuid.UUID, newEmail, currentPassword string) (*EmailChangeRequest, error) {
+func (s *userService) RequestEmailChange(ctx context.Context, userID uuid.UUID, newEmail, currentPassword string) (*EmailChangeRequest, error) {
 	newEmail = sanitizer.NormalizeEmail(newEmail)
 	if err := validator.Apply(
 		validator.ValidEmail("email", newEmail),
@@ -203,7 +272,7 @@ func (s *UserService) RequestEmailChange(ctx context.Context, userID uuid.UUID, 
 }
 
 // ConfirmEmailChange validates the email change token and updates the email in the database
-func (s *UserService) ConfirmEmailChange(ctx context.Context, emailChangeToken string) (*User, error) {
+func (s *userService) ConfirmEmailChange(ctx context.Context, emailChangeToken string) (*User, error) {
 	payload, err := token.ParseToken[EmailChangeTokenPayload](emailChangeToken, s.tokenSecret)
 	if err != nil {
 		return nil, ErrTokenInvalid
@@ -240,9 +309,47 @@ func (s *UserService) ConfirmEmailChange(ctx context.Context, emailChangeToken s
 		return nil, fmt.Errorf("failed to check existing email: %w", err)
 	}
 
+	// Execute before update hook if set
+	if s.beforeUpdate != nil {
+		if err := s.beforeUpdate(ctx, userID); err != nil {
+			return nil, fmt.Errorf("update blocked: %w", err)
+		}
+	}
+
 	if err := s.storage.UpdateUserEmail(ctx, userID, payload.NewEmail); err != nil {
 		return nil, fmt.Errorf("failed to update email: %w", err)
 	}
 
-	return s.storage.GetUserByID(ctx, userID)
+	updatedUser, err := s.storage.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Execute after update hook if set
+	if s.afterUpdate != nil {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.Error("afterUpdate hook panicked",
+						slog.String("user_id", userID.String()),
+						slog.Any("panic", r),
+						slog.String("component", "user"),
+					)
+				}
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			if err := s.afterUpdate(ctx, updatedUser); err != nil {
+				s.logger.Error("afterUpdate hook failed",
+					slog.String("user_id", userID.String()),
+					slog.Any("error", err),
+					slog.String("component", "user"),
+				)
+			}
+		}()
+	}
+
+	return updatedUser, nil
 }
