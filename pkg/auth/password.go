@@ -12,10 +12,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dmitrymomot/saaskit/pkg/logger"
+	"github.com/dmitrymomot/saaskit/pkg/sanitizer"
 	"github.com/dmitrymomot/saaskit/pkg/token"
+	"github.com/dmitrymomot/saaskit/pkg/validator"
 )
 
-// Password service errors
 var (
 	ErrInvalidCredentials = errors.New("auth: invalid email or password")
 	ErrEmailAlreadyExists = errors.New("auth: email already registered")
@@ -25,7 +26,6 @@ var (
 	ErrEmailUnchanged     = errors.New("auth: new email is the same as current email")
 )
 
-// Token subjects for different authentication flows
 const (
 	SubjectPasswordReset = "password_reset"
 	SubjectEmailVerify   = "email_verify" // for future use
@@ -40,29 +40,26 @@ type PasswordResetTokenPayload struct {
 	ExpireAt int64  `json:"exp"`   // Unix timestamp
 }
 
-// PasswordStorage interface for password service
+// PasswordStorage defines the storage operations required for password authentication
 type PasswordStorage interface {
-	// User operations
 	CreateUser(ctx context.Context, user *User) error
 	GetUserByID(ctx context.Context, id uuid.UUID) (*User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
-	DeleteUser(ctx context.Context, id uuid.UUID) error // For cleanup on failure
-
-	// Password operations
+	DeleteUser(ctx context.Context, id uuid.UUID) error
 	StorePasswordHash(ctx context.Context, userID uuid.UUID, hash []byte) error
 	GetPasswordHash(ctx context.Context, userID uuid.UUID) ([]byte, error)
 }
 
-// PasswordService handles password-based authentication
+// PasswordService provides password-based authentication with configurable security requirements
 type PasswordService struct {
-	storage       PasswordStorage
-	tokenSecret   string
-	bcryptCost    int
-	logger        *slog.Logger
-	resetTokenTTL time.Duration // TTL for password reset tokens
+	storage          PasswordStorage
+	tokenSecret      string
+	bcryptCost       int
+	logger           *slog.Logger
+	resetTokenTTL    time.Duration
+	passwordStrength validator.PasswordStrengthConfig
 }
 
-// PasswordOption is a functional option for PasswordService
 type PasswordOption func(*PasswordService)
 
 // WithPasswordLogger sets a custom logger for the service
@@ -86,17 +83,28 @@ func WithResetTokenTTL(ttl time.Duration) PasswordOption {
 	}
 }
 
+// WithPasswordStrength sets custom password strength requirements
+func WithPasswordStrength(config validator.PasswordStrengthConfig) PasswordOption {
+	return func(s *PasswordService) {
+		s.passwordStrength = config
+	}
+}
+
 // NewPasswordService creates a new password authentication service
 func NewPasswordService(storage PasswordStorage, tokenSecret string, opts ...PasswordOption) *PasswordService {
 	s := &PasswordService{
 		storage:       storage,
 		tokenSecret:   tokenSecret,
 		bcryptCost:    bcrypt.DefaultCost,
-		logger:        slog.New(slog.NewTextHandler(io.Discard, nil)), // noop logger by default
-		resetTokenTTL: 1 * time.Hour,                                  // Default 1 hour for reset tokens
+		logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		resetTokenTTL: 1 * time.Hour,
+		passwordStrength: validator.PasswordStrengthConfig{
+			MinLength:      8,
+			MaxLength:      128,
+			MinCharClasses: 2, // Pragmatic default: requires only 2 character classes for better UX while maintaining security
+		},
 	}
 
-	// Apply options
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -106,25 +114,29 @@ func NewPasswordService(storage PasswordStorage, tokenSecret string, opts ...Pas
 
 // Register creates a new user with email and password
 func (s *PasswordService) Register(ctx context.Context, email, password string) (*User, error) {
-	// Check if email already exists
+	email = sanitizer.NormalizeEmail(email)
+
+	if err := validator.Apply(
+		validator.ValidEmail("email", email),
+		validator.StrongPassword("password", password, s.passwordStrength),
+		validator.NotCommonPassword("password", password),
+	); err != nil {
+		return nil, err
+	}
+
 	_, err := s.storage.GetUserByEmail(ctx, email)
 	if err == nil {
 		return nil, ErrEmailAlreadyExists
 	}
-	// Only proceed if error is "not found", otherwise return the error
 	if !errors.Is(err, ErrUserNotFound) {
 		return nil, fmt.Errorf("failed to check existing user: %w", err)
 	}
 
-	// Hash password
-	passwordBytes := []byte(password)
-	defer clear(passwordBytes) // Clear password from memory
-	hash, err := bcrypt.GenerateFromPassword(passwordBytes, s.bcryptCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), s.bcryptCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Create user
 	user := &User{
 		ID:         uuid.New(),
 		Email:      email,
@@ -133,14 +145,12 @@ func (s *PasswordService) Register(ctx context.Context, email, password string) 
 		CreatedAt:  time.Now(),
 	}
 
-	// Save user
 	if err := s.storage.CreateUser(ctx, user); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	// Save password hash
 	if err := s.storage.StorePasswordHash(ctx, user.ID, hash); err != nil {
-		// Attempt to clean up the created user
+		// Clean up the user record if password storage fails to maintain consistency
 		if deleteErr := s.storage.DeleteUser(ctx, user.ID); deleteErr != nil {
 			s.logger.Error("failed to cleanup user after password save failure",
 				logger.UserID(user.ID.String()),
@@ -155,24 +165,22 @@ func (s *PasswordService) Register(ctx context.Context, email, password string) 
 	return user, nil
 }
 
-// Authenticate verifies email and password, returns user if valid
+// Authenticate verifies email and password, returns user if valid.
+// Returns generic ErrInvalidCredentials for any failure to prevent user enumeration attacks.
 func (s *PasswordService) Authenticate(ctx context.Context, email, password string) (*User, error) {
-	// Get user by email
+	email = sanitizer.NormalizeEmail(email)
+
 	user, err := s.storage.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, ErrInvalidCredentials
 	}
 
-	// Get password hash
 	hash, err := s.storage.GetPasswordHash(ctx, user.ID)
 	if err != nil {
 		return nil, ErrInvalidCredentials
 	}
 
-	// Verify password
-	passwordBytes := []byte(password)
-	defer clear(passwordBytes) // Clear password from memory
-	if err := bcrypt.CompareHashAndPassword(hash, passwordBytes); err != nil {
+	if err := bcrypt.CompareHashAndPassword(hash, []byte(password)); err != nil {
 		return nil, ErrInvalidCredentials
 	}
 
@@ -186,20 +194,16 @@ type PasswordResetRequest struct {
 	ExpiresAt time.Time
 }
 
-// ForgotPassword generates a password reset token for the given email
+// ForgotPassword generates a password reset token for the given email.
+// Note: Handler should implement timing attack prevention by always returning success to users.
 func (s *PasswordService) ForgotPassword(ctx context.Context, email string) (*PasswordResetRequest, error) {
-	// Get user by email
+	email = sanitizer.NormalizeEmail(email)
+
 	user, err := s.storage.GetUserByEmail(ctx, email)
 	if err != nil {
-		// Return the actual error - let the handler layer decide how to handle it
-		// The handler should implement timing attack prevention by:
-		// 1. Always returning success to the user
-		// 2. Maintaining consistent response times
-		// 3. Only sending emails for valid users
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// Create reset token payload
 	expiresAt := time.Now().Add(s.resetTokenTTL)
 	payload := PasswordResetTokenPayload{
 		ID:       user.ID.String(),
@@ -208,7 +212,6 @@ func (s *PasswordService) ForgotPassword(ctx context.Context, email string) (*Pa
 		ExpireAt: expiresAt.Unix(),
 	}
 
-	// Generate signed token
 	tokenStr, err := token.GenerateToken(payload, s.tokenSecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate reset token: %w", err)
@@ -223,39 +226,39 @@ func (s *PasswordService) ForgotPassword(ctx context.Context, email string) (*Pa
 
 // ResetPassword resets the password using a valid reset token
 func (s *PasswordService) ResetPassword(ctx context.Context, resetToken, newPassword string) (*User, error) {
-	// Parse and validate token
+	if err := validator.Apply(
+		validator.StrongPassword("password", newPassword, s.passwordStrength),
+		validator.NotCommonPassword("password", newPassword),
+	); err != nil {
+		return nil, err
+	}
+
 	payload, err := token.ParseToken[PasswordResetTokenPayload](resetToken, s.tokenSecret)
 	if err != nil {
 		return nil, ErrTokenInvalid
 	}
 
-	// Check subject
 	if payload.Subject != SubjectPasswordReset {
 		return nil, ErrTokenInvalid
 	}
 
-	// Check expiration
 	if time.Now().Unix() > payload.ExpireAt {
 		return nil, ErrTokenExpired
 	}
 
-	// Get user ID from token
 	userID, err := uuid.Parse(payload.ID)
 	if err != nil {
 		return nil, ErrTokenInvalid
 	}
 
-	// Hash new password
 	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), s.bcryptCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Update password
 	if err := s.storage.StorePasswordHash(ctx, userID, hash); err != nil {
 		return nil, fmt.Errorf("failed to update password: %w", err)
 	}
 
-	// Return updated user
 	return s.storage.GetUserByID(ctx, userID)
 }

@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Predefined auth methods
 const (
 	MethodPassword    = "password"
 	MethodMagicLink   = "magic_link"
@@ -14,11 +13,11 @@ const (
 	MethodOAuthGithub = "oauth_github"
 )
 
-// User represents an authenticated user
+// User represents an authenticated user in the system
 type User struct {
 	ID         uuid.UUID
 	Email      string
-	AuthMethod string // "password", "google", "magic_link", etc.
+	AuthMethod string
 	IsVerified bool
 	CreatedAt  time.Time
 }

@@ -11,7 +11,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/dmitrymomot/saaskit/pkg/sanitizer"
 	"github.com/dmitrymomot/saaskit/pkg/token"
+	"github.com/dmitrymomot/saaskit/pkg/validator"
 )
 
 // EmailChangeRequest contains data for email change verification
@@ -31,28 +33,25 @@ type EmailChangeTokenPayload struct {
 	ExpireAt int64  `json:"exp"` // Unix timestamp
 }
 
-// UserStorage interface for user service
+// UserStorage defines the storage operations required for user management
 type UserStorage interface {
-	// User operations
 	GetUserByID(ctx context.Context, id uuid.UUID) (*User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	UpdateUserEmail(ctx context.Context, id uuid.UUID, email string) error
-
-	// Password operations
 	GetPasswordHash(ctx context.Context, userID uuid.UUID) ([]byte, error)
 	UpdatePasswordHash(ctx context.Context, userID uuid.UUID, hash []byte) error
 }
 
 // UserService handles authenticated user account management
 type UserService struct {
-	storage        UserStorage
-	tokenSecret    string
-	bcryptCost     int
-	logger         *slog.Logger
-	emailChangeTTL time.Duration // TTL for email change tokens
+	storage          UserStorage
+	tokenSecret      string
+	bcryptCost       int
+	logger           *slog.Logger
+	emailChangeTTL   time.Duration
+	passwordStrength validator.PasswordStrengthConfig
 }
 
-// UserOption is a functional option for UserService
 type UserOption func(*UserService)
 
 // WithUserLogger sets a custom logger for the service
@@ -76,17 +75,28 @@ func WithEmailChangeTTL(ttl time.Duration) UserOption {
 	}
 }
 
+// WithUserPasswordStrength sets custom password strength requirements
+func WithUserPasswordStrength(config validator.PasswordStrengthConfig) UserOption {
+	return func(s *UserService) {
+		s.passwordStrength = config
+	}
+}
+
 // NewUserService creates a new user management service
 func NewUserService(storage UserStorage, tokenSecret string, opts ...UserOption) *UserService {
 	s := &UserService{
 		storage:        storage,
 		tokenSecret:    tokenSecret,
 		bcryptCost:     bcrypt.DefaultCost,
-		logger:         slog.New(slog.NewTextHandler(io.Discard, nil)), // noop logger by default
-		emailChangeTTL: 1 * time.Hour,                                  // Default 1 hour for email change tokens
+		logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
+		emailChangeTTL: 1 * time.Hour,
+		passwordStrength: validator.PasswordStrengthConfig{
+			MinLength:      8,
+			MaxLength:      128,
+			MinCharClasses: 2, // Pragmatic default: requires only 2 character classes for better UX
+		},
 	}
 
-	// Apply options
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -105,24 +115,27 @@ func (s *UserService) GetUser(ctx context.Context, userID uuid.UUID) (*User, err
 
 // ChangePassword updates the password for an authenticated user
 func (s *UserService) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error {
-	// Get current password hash
+	if err := validator.Apply(
+		validator.StrongPassword("password", newPassword, s.passwordStrength),
+		validator.NotCommonPassword("password", newPassword),
+	); err != nil {
+		return err
+	}
+
 	hash, err := s.storage.GetPasswordHash(ctx, userID)
 	if err != nil {
 		return ErrUserNotFound
 	}
 
-	// Verify old password
 	if err := bcrypt.CompareHashAndPassword(hash, []byte(oldPassword)); err != nil {
 		return ErrInvalidCredentials
 	}
 
-	// Hash new password
 	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), s.bcryptCost)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Update password
 	if err := s.storage.UpdatePasswordHash(ctx, userID, newHash); err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
@@ -130,30 +143,34 @@ func (s *UserService) ChangePassword(ctx context.Context, userID uuid.UUID, oldP
 	return nil
 }
 
-// RequestEmailChange initiates an email change process by generating a verification token
+// RequestEmailChange initiates an email change process by generating a verification token.
+// Requires password verification for security to prevent unauthorized email changes.
 func (s *UserService) RequestEmailChange(ctx context.Context, userID uuid.UUID, newEmail, currentPassword string) (*EmailChangeRequest, error) {
-	// Verify user exists and get current email
+	newEmail = sanitizer.NormalizeEmail(newEmail)
+	if err := validator.Apply(
+		validator.ValidEmail("email", newEmail),
+	); err != nil {
+		return nil, err
+	}
+
 	user, err := s.storage.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
 
-	// Check if email is the same - no need to change
 	if user.Email == newEmail {
 		return nil, ErrEmailUnchanged
 	}
 
-	// Check if new email is already taken
+	// Check if new email is already taken, handling race conditions gracefully
 	_, err = s.storage.GetUserByEmail(ctx, newEmail)
 	if err == nil {
 		return nil, ErrEmailAlreadyExists
 	}
-	// Only proceed if error is "not found", otherwise return the error
 	if !errors.Is(err, ErrUserNotFound) {
 		return nil, fmt.Errorf("failed to check existing email: %w", err)
 	}
 
-	// Verify current password for security
 	hash, err := s.storage.GetPasswordHash(ctx, userID)
 	if err != nil {
 		return nil, ErrUserNotFound
@@ -163,7 +180,6 @@ func (s *UserService) RequestEmailChange(ctx context.Context, userID uuid.UUID, 
 		return nil, ErrInvalidCredentials
 	}
 
-	// Create email change token
 	expiresAt := time.Now().Add(s.emailChangeTTL)
 	payload := EmailChangeTokenPayload{
 		ID:       userID.String(),
@@ -173,7 +189,6 @@ func (s *UserService) RequestEmailChange(ctx context.Context, userID uuid.UUID, 
 		ExpireAt: expiresAt.Unix(),
 	}
 
-	// Generate signed token
 	tokenStr, err := token.GenerateToken(payload, s.tokenSecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate email change token: %w", err)
@@ -189,54 +204,45 @@ func (s *UserService) RequestEmailChange(ctx context.Context, userID uuid.UUID, 
 
 // ConfirmEmailChange validates the email change token and updates the email in the database
 func (s *UserService) ConfirmEmailChange(ctx context.Context, emailChangeToken string) (*User, error) {
-	// Parse and validate token
 	payload, err := token.ParseToken[EmailChangeTokenPayload](emailChangeToken, s.tokenSecret)
 	if err != nil {
 		return nil, ErrTokenInvalid
 	}
 
-	// Check subject
 	if payload.Subject != SubjectEmailChange {
 		return nil, ErrTokenInvalid
 	}
 
-	// Check expiration
 	if time.Now().Unix() > payload.ExpireAt {
 		return nil, ErrTokenExpired
 	}
 
-	// Parse user ID
 	userID, err := uuid.Parse(payload.ID)
 	if err != nil {
 		return nil, ErrTokenInvalid
 	}
 
-	// Verify the user still exists and email hasn't changed
 	user, err := s.storage.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
 
-	// Check if current email matches what was in the token
 	if user.Email != payload.OldEmail {
-		return nil, ErrTokenInvalid // Email was already changed
+		return nil, ErrTokenInvalid // Prevents replay attacks after email already changed
 	}
 
-	// Check if new email is still available
+	// Re-check email availability to handle race conditions
 	_, err = s.storage.GetUserByEmail(ctx, payload.NewEmail)
 	if err == nil {
 		return nil, ErrEmailAlreadyExists
 	}
-	// Only proceed if error is "not found", otherwise return the error
 	if !errors.Is(err, ErrUserNotFound) {
 		return nil, fmt.Errorf("failed to check existing email: %w", err)
 	}
 
-	// Update email
 	if err := s.storage.UpdateUserEmail(ctx, userID, payload.NewEmail); err != nil {
 		return nil, fmt.Errorf("failed to update email: %w", err)
 	}
 
-	// Return updated user
 	return s.storage.GetUserByID(ctx, userID)
 }

@@ -17,9 +17,9 @@ import (
 	"golang.org/x/oauth2/google"
 
 	"github.com/dmitrymomot/saaskit/pkg/logger"
+	"github.com/dmitrymomot/saaskit/pkg/sanitizer"
 )
 
-// OAuth provider constants
 const (
 	ProviderGoogle = "google"
 )
@@ -34,7 +34,6 @@ type GoogleOAuthConfig struct {
 	VerifiedOnly bool          `env:"GOOGLE_OAUTH_VERIFIED_ONLY" envDefault:"true"`
 }
 
-// OAuth errors
 var (
 	ErrInvalidState    = errors.New("oauth: invalid or expired state")
 	ErrInvalidCode     = errors.New("oauth: invalid authorization code")
@@ -44,20 +43,15 @@ var (
 	ErrNoGoogleLink    = errors.New("oauth: no google account linked")
 )
 
-// OAuthStorage interface for OAuth operations (universal for any provider)
+// OAuthStorage defines storage operations for OAuth authentication (provider-agnostic)
 type OAuthStorage interface {
-	// User operations (reuse existing)
 	CreateUser(ctx context.Context, user *User) error
 	GetUserByID(ctx context.Context, id uuid.UUID) (*User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	DeleteUser(ctx context.Context, id uuid.UUID) error
-
-	// Universal OAuth operations
 	StoreOAuthLink(ctx context.Context, userID uuid.UUID, provider, providerUserID string) error
 	GetUserByOAuth(ctx context.Context, provider, providerUserID string) (*User, error)
 	RemoveOAuthLink(ctx context.Context, userID uuid.UUID, provider string) error
-
-	// State validation (CSRF protection)
 	StoreState(ctx context.Context, state string, expiresAt time.Time) error
 	ConsumeState(ctx context.Context, state string) error
 }
@@ -71,7 +65,6 @@ type GoogleOAuthService struct {
 	logger       *slog.Logger
 }
 
-// GoogleOAuthOption is a functional option for GoogleOAuthService
 type GoogleOAuthOption func(*GoogleOAuthService)
 
 // WithGoogleLogger sets a custom logger for the service
@@ -94,10 +87,9 @@ func NewGoogleOAuthService(storage OAuthStorage, config GoogleOAuthConfig, token
 			Endpoint:     google.Endpoint,
 		},
 		tokenSecret: tokenSecret,
-		logger:      slog.New(slog.NewTextHandler(io.Discard, nil)), // noop logger by default
+		logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
-	// Apply options
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -105,28 +97,26 @@ func NewGoogleOAuthService(storage OAuthStorage, config GoogleOAuthConfig, token
 	return s
 }
 
-// GetAuthURL generates an OAuth authorization URL with CSRF protection
+// GetAuthURL generates an OAuth authorization URL with CSRF protection via state parameter
 func (s *GoogleOAuthService) GetAuthURL(ctx context.Context) (string, error) {
-	// Generate secure random state
 	state, err := s.generateState()
 	if err != nil {
 		return "", fmt.Errorf("failed to generate state: %w", err)
 	}
 
-	// Store state with expiration
 	expiresAt := time.Now().Add(s.config.StateTTL)
 	if err := s.storage.StoreState(ctx, state, expiresAt); err != nil {
 		return "", fmt.Errorf("failed to store state: %w", err)
 	}
 
-	// Generate OAuth URL
 	url := s.oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline)
 	return url, nil
 }
 
-// Auth handles OAuth callback - authenticates user or links to existing user
+// Auth handles OAuth callback - authenticates user or links to existing user.
+// State validation prevents CSRF attacks by ensuring request originated from our auth flow.
 func (s *GoogleOAuthService) Auth(ctx context.Context, code, state string, linkToUserID *uuid.UUID) (*User, error) {
-	// Validate and consume state (one-time use for CSRF protection)
+	// Consume state token (one-time use prevents replay attacks)
 	if err := s.storage.ConsumeState(ctx, state); err != nil {
 		if errors.Is(err, ErrUserNotFound) {
 			return nil, ErrInvalidState
@@ -134,29 +124,27 @@ func (s *GoogleOAuthService) Auth(ctx context.Context, code, state string, linkT
 		return nil, fmt.Errorf("failed to validate state: %w", err)
 	}
 
-	// Exchange code for token
 	token, err := s.oauth2Config.Exchange(ctx, code)
 	if err != nil {
 		return nil, ErrInvalidCode
 	}
 
-	// Fetch user info from Google
 	googleUser, err := s.fetchGoogleUser(ctx, token.AccessToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch google user: %w", err)
 	}
 
-	// Reject unverified emails (security measure) - configurable
+	googleUser.Email = sanitizer.NormalizeEmail(googleUser.Email)
+
+	// Security: reject unverified emails to prevent account takeover via unverified Gmail accounts
 	if s.config.VerifiedOnly && !googleUser.VerifiedEmail {
 		return nil, ErrUnverifiedEmail
 	}
 
-	// Handle linking to existing user
 	if linkToUserID != nil {
 		return s.handleLinking(ctx, *linkToUserID, googleUser)
 	}
 
-	// Handle normal authentication flow
 	return s.handleAuth(ctx, googleUser)
 }
 
@@ -171,21 +159,17 @@ func (s *GoogleOAuthService) Unlink(ctx context.Context, userID uuid.UUID) error
 	return nil
 }
 
-// handleLinking links Google account to existing user
 func (s *GoogleOAuthService) handleLinking(ctx context.Context, userID uuid.UUID, googleUser *googleUserInfo) (*User, error) {
-	// Check if Google ID is already linked to another account
 	existingUser, err := s.storage.GetUserByOAuth(ctx, ProviderGoogle, googleUser.ID)
 	if err == nil && existingUser.ID != userID {
 		return nil, ErrGoogleLinked
 	}
 
-	// Get the user we're linking to
 	user, err := s.storage.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// Store the OAuth link
 	if err := s.storage.StoreOAuthLink(ctx, userID, ProviderGoogle, googleUser.ID); err != nil {
 		return nil, fmt.Errorf("failed to link google account: %w", err)
 	}
@@ -193,29 +177,23 @@ func (s *GoogleOAuthService) handleLinking(ctx context.Context, userID uuid.UUID
 	return user, nil
 }
 
-// handleAuth handles normal authentication/registration flow
 func (s *GoogleOAuthService) handleAuth(ctx context.Context, googleUser *googleUserInfo) (*User, error) {
-	// Check if Google ID is already linked
 	user, err := s.storage.GetUserByOAuth(ctx, ProviderGoogle, googleUser.ID)
 	if err == nil {
-		// User authenticated successfully
 		return user, nil
 	}
 	if !errors.Is(err, ErrUserNotFound) {
 		return nil, fmt.Errorf("failed to check oauth link: %w", err)
 	}
 
-	// Check if email already exists
 	_, err = s.storage.GetUserByEmail(ctx, googleUser.Email)
 	if err == nil {
-		// Email exists with different auth method
-		return nil, ErrEmailExists
+		return nil, ErrEmailExists // Prevent account takeover via OAuth
 	}
 	if !errors.Is(err, ErrUserNotFound) {
 		return nil, fmt.Errorf("failed to check existing email: %w", err)
 	}
 
-	// Create new user
 	user = &User{
 		ID:         uuid.New(),
 		Email:      googleUser.Email,
@@ -224,14 +202,12 @@ func (s *GoogleOAuthService) handleAuth(ctx context.Context, googleUser *googleU
 		CreatedAt:  time.Now(),
 	}
 
-	// Save user
 	if err := s.storage.CreateUser(ctx, user); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	// Store OAuth link
 	if err := s.storage.StoreOAuthLink(ctx, user.ID, ProviderGoogle, googleUser.ID); err != nil {
-		// Attempt to clean up the created user
+		// Clean up user record to maintain consistency if OAuth link fails
 		if deleteErr := s.storage.DeleteUser(ctx, user.ID); deleteErr != nil {
 			s.logger.Error("failed to cleanup user after oauth link save failure",
 				logger.UserID(user.ID.String()),
@@ -247,7 +223,6 @@ func (s *GoogleOAuthService) handleAuth(ctx context.Context, googleUser *googleU
 	return user, nil
 }
 
-// generateState generates a cryptographically secure random state
 func (s *GoogleOAuthService) generateState() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -256,14 +231,12 @@ func (s *GoogleOAuthService) generateState() (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
-// googleUserInfo represents the user data from Google API
 type googleUserInfo struct {
 	ID            string `json:"id"`
 	Email         string `json:"email"`
 	VerifiedEmail bool   `json:"verified_email"`
 }
 
-// fetchGoogleUser fetches user information from Google API
 func (s *GoogleOAuthService) fetchGoogleUser(ctx context.Context, accessToken string) (*googleUserInfo, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://www.googleapis.com/oauth2/v2/userinfo", nil)
 	if err != nil {

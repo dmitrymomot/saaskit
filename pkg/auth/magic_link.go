@@ -11,10 +11,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dmitrymomot/saaskit/pkg/logger"
+	"github.com/dmitrymomot/saaskit/pkg/sanitizer"
 	"github.com/dmitrymomot/saaskit/pkg/token"
+	"github.com/dmitrymomot/saaskit/pkg/validator"
 )
 
-// Token subject for magic link authentication
 const SubjectMagicLink = "magic_link"
 
 // MagicLinkTokenPayload contains the data encoded in magic link tokens
@@ -32,9 +33,8 @@ type MagicLinkRequest struct {
 	ExpiresAt time.Time
 }
 
-// MagicLinkStorage interface for magic link service
+// MagicLinkStorage defines the storage operations required for magic link authentication
 type MagicLinkStorage interface {
-	// User operations
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	CreateUser(ctx context.Context, user *User) error
 	UpdateUserVerified(ctx context.Context, id uuid.UUID, verified bool) error
@@ -48,7 +48,6 @@ type MagicLinkService struct {
 	magicLinkTTL time.Duration // TTL for magic link tokens
 }
 
-// MagicLinkOption is a functional option for MagicLinkService
 type MagicLinkOption func(*MagicLinkService)
 
 // WithLogger sets a custom logger for the service
@@ -70,11 +69,10 @@ func NewMagicLinkService(storage MagicLinkStorage, tokenSecret string, opts ...M
 	s := &MagicLinkService{
 		storage:      storage,
 		tokenSecret:  tokenSecret,
-		logger:       slog.New(slog.NewTextHandler(io.Discard, nil)), // noop logger by default
-		magicLinkTTL: 15 * time.Minute,                               // Default 15 minutes for magic links
+		logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		magicLinkTTL: 15 * time.Minute, // Short TTL reduces risk without replay protection
 	}
 
-	// Apply options
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -82,22 +80,28 @@ func NewMagicLinkService(storage MagicLinkStorage, tokenSecret string, opts ...M
 	return s
 }
 
-// RequestMagicLink generates a magic link token for the given email
+// RequestMagicLink generates a magic link token for the given email.
+// Auto-registers new users to reduce friction in the onboarding flow.
 func (s *MagicLinkService) RequestMagicLink(ctx context.Context, email string) (*MagicLinkRequest, error) {
-	// Check if user exists, create if not (auto-registration)
+	email = sanitizer.NormalizeEmail(email)
+	if err := validator.Apply(
+		validator.ValidEmail("email", email),
+	); err != nil {
+		return nil, err
+	}
+
 	_, err := s.storage.GetUserByEmail(ctx, email)
 	if err != nil {
-		// Only create new user if error is "not found"
 		if !errors.Is(err, ErrUserNotFound) {
 			return nil, fmt.Errorf("failed to check user: %w", err)
 		}
 
-		// Create new user for auto-registration
+		// Auto-register new users to minimize onboarding friction
 		user := &User{
 			ID:         uuid.New(),
 			Email:      email,
 			AuthMethod: MethodMagicLink,
-			IsVerified: false, // Will be verified on first successful login
+			IsVerified: false, // Verified on first successful magic link authentication
 			CreatedAt:  time.Now(),
 		}
 
@@ -106,16 +110,14 @@ func (s *MagicLinkService) RequestMagicLink(ctx context.Context, email string) (
 		}
 	}
 
-	// Create magic link token with configured expiry
 	expiresAt := time.Now().Add(s.magicLinkTTL)
 	payload := MagicLinkTokenPayload{
-		ID:       uuid.New().String(), // Unique token ID for single-use tracking
+		ID:       uuid.New().String(), // Unique ID enables future replay protection
 		Email:    email,
 		Subject:  SubjectMagicLink,
 		ExpireAt: expiresAt.Unix(),
 	}
 
-	// Generate signed token
 	tokenStr, err := token.GenerateToken(payload, s.tokenSecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate magic link token: %w", err)
@@ -130,29 +132,24 @@ func (s *MagicLinkService) RequestMagicLink(ctx context.Context, email string) (
 
 // VerifyMagicLink validates a magic link token and returns the authenticated user
 func (s *MagicLinkService) VerifyMagicLink(ctx context.Context, magicLinkToken string) (*User, error) {
-	// Parse and validate token
 	payload, err := token.ParseToken[MagicLinkTokenPayload](magicLinkToken, s.tokenSecret)
 	if err != nil {
 		return nil, ErrTokenInvalid
 	}
 
-	// Check subject
 	if payload.Subject != SubjectMagicLink {
 		return nil, ErrTokenInvalid
 	}
 
-	// Check expiration
 	if time.Now().Unix() > payload.ExpireAt {
 		return nil, ErrTokenExpired
 	}
 
-	// Get user by email
 	user, err := s.storage.GetUserByEmail(ctx, payload.Email)
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
 
-	// Mark user as verified on successful magic link authentication
 	if !user.IsVerified {
 		if err := s.storage.UpdateUserVerified(ctx, user.ID, true); err != nil {
 			s.logger.Error("failed to update user verified status",
@@ -165,8 +162,8 @@ func (s *MagicLinkService) VerifyMagicLink(ctx context.Context, magicLinkToken s
 		user.IsVerified = true
 	}
 
-	// Note: Token ID (payload.ID) could be tracked in storage to prevent
-	// replay attacks, but for MVP the short 15-minute expiry is sufficient
+	// MVP: Replay protection via token ID tracking deferred.
+	// 15-minute TTL provides reasonable security for initial launch.
 
 	return user, nil
 }
