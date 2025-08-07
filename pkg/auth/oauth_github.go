@@ -35,33 +35,53 @@ type GitHubOAuthConfig struct {
 	VerifiedOnly bool          `env:"GITHUB_OAUTH_VERIFIED_ONLY" envDefault:"true"`
 }
 
-var (
-	ErrGithubLinked   = errors.New("oauth: github account already linked to another user")
-	ErrNoGithubLink   = errors.New("oauth: no github account linked")
-	ErrNoPrimaryEmail = errors.New("oauth: no primary email found in github account")
-)
-
-// GitHubOAuthService handles GitHub OAuth authentication
-type GitHubOAuthService struct {
+// gitHubOAuthService handles GitHub OAuth authentication
+type gitHubOAuthService struct {
 	storage      OAuthStorage
 	config       GitHubOAuthConfig
 	oauth2Config *oauth2.Config
 	tokenSecret  string
 	logger       *slog.Logger
+
+	// Hooks for extending OAuth behavior
+	afterAuth  func(ctx context.Context, user *User) error
+	beforeLink func(ctx context.Context, userID uuid.UUID) error
+	afterLink  func(ctx context.Context, user *User) error
 }
 
-type GitHubOAuthOption func(*GitHubOAuthService)
+type GitHubOAuthOption func(*gitHubOAuthService)
 
 // WithGitHubLogger sets a custom logger for the service
 func WithGitHubLogger(logger *slog.Logger) GitHubOAuthOption {
-	return func(s *GitHubOAuthService) {
+	return func(s *gitHubOAuthService) {
 		s.logger = logger
 	}
 }
 
+// WithGitHubAfterAuth sets a hook that runs after successful OAuth authentication
+func WithGitHubAfterAuth(fn func(context.Context, *User) error) GitHubOAuthOption {
+	return func(s *gitHubOAuthService) {
+		s.afterAuth = fn
+	}
+}
+
+// WithGitHubBeforeLink sets a hook that runs before linking OAuth account
+func WithGitHubBeforeLink(fn func(context.Context, uuid.UUID) error) GitHubOAuthOption {
+	return func(s *gitHubOAuthService) {
+		s.beforeLink = fn
+	}
+}
+
+// WithGitHubAfterLink sets a hook that runs after successful OAuth account linking
+func WithGitHubAfterLink(fn func(context.Context, *User) error) GitHubOAuthOption {
+	return func(s *gitHubOAuthService) {
+		s.afterLink = fn
+	}
+}
+
 // NewGitHubOAuthService creates a new GitHub OAuth service
-func NewGitHubOAuthService(storage OAuthStorage, config GitHubOAuthConfig, tokenSecret string, opts ...GitHubOAuthOption) *GitHubOAuthService {
-	s := &GitHubOAuthService{
+func NewGitHubOAuthService(storage OAuthStorage, config GitHubOAuthConfig, tokenSecret string, opts ...GitHubOAuthOption) OAuthAuthenticator {
+	s := &gitHubOAuthService{
 		storage: storage,
 		config:  config,
 		oauth2Config: &oauth2.Config{
@@ -83,7 +103,7 @@ func NewGitHubOAuthService(storage OAuthStorage, config GitHubOAuthConfig, token
 }
 
 // GetAuthURL generates an OAuth authorization URL with CSRF protection via state parameter
-func (s *GitHubOAuthService) GetAuthURL(ctx context.Context) (string, error) {
+func (s *gitHubOAuthService) GetAuthURL(ctx context.Context) (string, error) {
 	state, err := s.generateState()
 	if err != nil {
 		return "", fmt.Errorf("failed to generate state: %w", err)
@@ -100,10 +120,10 @@ func (s *GitHubOAuthService) GetAuthURL(ctx context.Context) (string, error) {
 
 // Auth handles OAuth callback - authenticates user or links to existing user.
 // State validation prevents CSRF attacks by ensuring request originated from our auth flow.
-func (s *GitHubOAuthService) Auth(ctx context.Context, code, state string, linkToUserID *uuid.UUID) (*User, error) {
+func (s *gitHubOAuthService) Auth(ctx context.Context, code, state string, linkToUserID *uuid.UUID) (*User, error) {
 	// Consume state token (one-time use prevents replay attacks)
 	if err := s.storage.ConsumeState(ctx, state); err != nil {
-		if errors.Is(err, ErrUserNotFound) {
+		if errors.Is(err, ErrStateNotFound) {
 			return nil, ErrInvalidState
 		}
 		return nil, fmt.Errorf("failed to validate state: %w", err)
@@ -166,23 +186,34 @@ func (s *GitHubOAuthService) Auth(ctx context.Context, code, state string, linkT
 }
 
 // Unlink removes GitHub OAuth link from a user
-func (s *GitHubOAuthService) Unlink(ctx context.Context, userID uuid.UUID) error {
+func (s *gitHubOAuthService) Unlink(ctx context.Context, userID uuid.UUID) error {
 	if err := s.storage.RemoveOAuthLink(ctx, userID, ProviderGithub); err != nil {
-		if errors.Is(err, ErrUserNotFound) {
-			return ErrNoGithubLink
+		if errors.Is(err, ErrNoProviderLink) {
+			return ErrNoProviderLink
 		}
 		return fmt.Errorf("failed to unlink github account: %w", err)
 	}
 	return nil
 }
 
-func (s *GitHubOAuthService) handleLinking(ctx context.Context, userID uuid.UUID, githubUser *githubUserInfo) (*User, error) {
+func (s *gitHubOAuthService) handleLinking(ctx context.Context, userID uuid.UUID, githubUser *githubUserInfo) (*User, error) {
 	// Convert GitHub numeric ID to string for storage
 	providerUserID := strconv.FormatInt(githubUser.ID, 10)
 
 	existingUser, err := s.storage.GetUserByOAuth(ctx, ProviderGithub, providerUserID)
-	if err == nil && existingUser.ID != userID {
-		return nil, ErrGithubLinked
+	if err == nil {
+		if existingUser.ID != userID {
+			return nil, ErrProviderLinked
+		}
+		// Already linked to this user, nothing to do
+		return existingUser, nil
+	}
+
+	// Execute before link hook if set (only if actually linking)
+	if s.beforeLink != nil {
+		if err := s.beforeLink(ctx, userID); err != nil {
+			return nil, fmt.Errorf("link blocked: %w", err)
+		}
 	}
 
 	user, err := s.storage.GetUserByID(ctx, userID)
@@ -194,10 +225,36 @@ func (s *GitHubOAuthService) handleLinking(ctx context.Context, userID uuid.UUID
 		return nil, fmt.Errorf("failed to link github account: %w", err)
 	}
 
+	// Execute after link hook if set (only if actually linked)
+	if s.afterLink != nil {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.Error("afterLink hook panicked",
+						logger.UserID(user.ID.String()),
+						slog.Any("panic", r),
+						logger.Component("github_oauth"),
+					)
+				}
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			if err := s.afterLink(ctx, user); err != nil {
+				s.logger.Error("afterLink hook failed",
+					logger.UserID(user.ID.String()),
+					logger.Error(err),
+					logger.Component("github_oauth"),
+				)
+			}
+		}()
+	}
+
 	return user, nil
 }
 
-func (s *GitHubOAuthService) handleAuth(ctx context.Context, githubUser *githubUserInfo) (*User, error) {
+func (s *gitHubOAuthService) handleAuth(ctx context.Context, githubUser *githubUserInfo) (*User, error) {
 	// Convert GitHub numeric ID to string for storage
 	providerUserID := strconv.FormatInt(githubUser.ID, 10)
 
@@ -211,7 +268,7 @@ func (s *GitHubOAuthService) handleAuth(ctx context.Context, githubUser *githubU
 
 	_, err = s.storage.GetUserByEmail(ctx, githubUser.Email)
 	if err == nil {
-		return nil, ErrEmailExists // Prevent account takeover via OAuth
+		return nil, ErrProviderEmailInUse // Prevent account takeover via OAuth
 	}
 	if !errors.Is(err, ErrUserNotFound) {
 		return nil, fmt.Errorf("failed to check existing email: %w", err)
@@ -243,10 +300,36 @@ func (s *GitHubOAuthService) handleAuth(ctx context.Context, githubUser *githubU
 		return nil, fmt.Errorf("failed to store oauth link: %w", err)
 	}
 
+	// Execute after auth hook if set
+	if s.afterAuth != nil {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.Error("afterAuth hook panicked",
+						logger.UserID(user.ID.String()),
+						slog.Any("panic", r),
+						logger.Component("github_oauth"),
+					)
+				}
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			if err := s.afterAuth(ctx, user); err != nil {
+				s.logger.Error("afterAuth hook failed",
+					logger.UserID(user.ID.String()),
+					logger.Error(err),
+					logger.Component("github_oauth"),
+				)
+			}
+		}()
+	}
+
 	return user, nil
 }
 
-func (s *GitHubOAuthService) generateState() (string, error) {
+func (s *gitHubOAuthService) generateState() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
@@ -268,7 +351,7 @@ type githubEmail struct {
 	Verified bool   `json:"verified"`
 }
 
-func (s *GitHubOAuthService) fetchGitHubUser(ctx context.Context, accessToken string) (*githubUserInfo, error) {
+func (s *gitHubOAuthService) fetchGitHubUser(ctx context.Context, accessToken string) (*githubUserInfo, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user", nil)
 	if err != nil {
 		return nil, err
@@ -302,7 +385,7 @@ func (s *GitHubOAuthService) fetchGitHubUser(ctx context.Context, accessToken st
 	return &user, nil
 }
 
-func (s *GitHubOAuthService) fetchGitHubEmails(ctx context.Context, accessToken string) ([]githubEmail, error) {
+func (s *gitHubOAuthService) fetchGitHubEmails(ctx context.Context, accessToken string) ([]githubEmail, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user/emails", nil)
 	if err != nil {
 		return nil, err
