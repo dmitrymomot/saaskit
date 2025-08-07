@@ -8,17 +8,18 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/dmitrymomot/saaskit/pkg/logger"
-	"github.com/dmitrymomot/saaskit/pkg/token"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/dmitrymomot/saaskit/pkg/logger"
+	"github.com/dmitrymomot/saaskit/pkg/token"
 )
 
 // Password service errors
 var (
 	ErrInvalidCredentials = errors.New("auth: invalid email or password")
 	ErrEmailAlreadyExists = errors.New("auth: email already registered")
-	ErrIdentityNotFound   = errors.New("auth: identity not found")
+	ErrUserNotFound       = errors.New("auth: user not found")
 	ErrTokenInvalid       = errors.New("auth: invalid token")
 	ErrTokenExpired       = errors.New("auth: token expired")
 	ErrEmailUnchanged     = errors.New("auth: new email is the same as current email")
@@ -33,7 +34,7 @@ const (
 
 // PasswordResetTokenPayload contains the data encoded in password reset tokens
 type PasswordResetTokenPayload struct {
-	ID       string `json:"id"`    // Identity ID
+	ID       string `json:"id"`    // User ID
 	Email    string `json:"email"` // User email
 	Subject  string `json:"sub"`   // Token subject: SubjectPasswordReset
 	ExpireAt int64  `json:"exp"`   // Unix timestamp
@@ -41,15 +42,15 @@ type PasswordResetTokenPayload struct {
 
 // PasswordStorage interface for password service
 type PasswordStorage interface {
-	// Identity operations
-	CreateIdentity(ctx context.Context, identity *Identity) error
-	GetIdentityByID(ctx context.Context, id uuid.UUID) (*Identity, error)
-	GetIdentityByEmail(ctx context.Context, email string) (*Identity, error)
-	DeleteIdentity(ctx context.Context, id uuid.UUID) error // For cleanup on failure
+	// User operations
+	CreateUser(ctx context.Context, user *User) error
+	GetUserByID(ctx context.Context, id uuid.UUID) (*User, error)
+	GetUserByEmail(ctx context.Context, email string) (*User, error)
+	DeleteUser(ctx context.Context, id uuid.UUID) error // For cleanup on failure
 
 	// Password operations
-	StorePasswordHash(ctx context.Context, identityID uuid.UUID, hash []byte) error
-	GetPasswordHash(ctx context.Context, identityID uuid.UUID) ([]byte, error)
+	StorePasswordHash(ctx context.Context, userID uuid.UUID, hash []byte) error
+	GetPasswordHash(ctx context.Context, userID uuid.UUID) ([]byte, error)
 }
 
 // PasswordService handles password-based authentication
@@ -103,16 +104,16 @@ func NewPasswordService(storage PasswordStorage, tokenSecret string, opts ...Pas
 	return s
 }
 
-// Register creates a new identity with email and password
-func (s *PasswordService) Register(ctx context.Context, email, password string) (*Identity, error) {
+// Register creates a new user with email and password
+func (s *PasswordService) Register(ctx context.Context, email, password string) (*User, error) {
 	// Check if email already exists
-	_, err := s.storage.GetIdentityByEmail(ctx, email)
+	_, err := s.storage.GetUserByEmail(ctx, email)
 	if err == nil {
 		return nil, ErrEmailAlreadyExists
 	}
 	// Only proceed if error is "not found", otherwise return the error
-	if !errors.Is(err, ErrIdentityNotFound) {
-		return nil, fmt.Errorf("failed to check existing identity: %w", err)
+	if !errors.Is(err, ErrUserNotFound) {
+		return nil, fmt.Errorf("failed to check existing user: %w", err)
 	}
 
 	// Hash password
@@ -123,8 +124,8 @@ func (s *PasswordService) Register(ctx context.Context, email, password string) 
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Create identity
-	identity := &Identity{
+	// Create user
+	user := &User{
 		ID:         uuid.New(),
 		Email:      email,
 		AuthMethod: MethodPassword,
@@ -132,38 +133,38 @@ func (s *PasswordService) Register(ctx context.Context, email, password string) 
 		CreatedAt:  time.Now(),
 	}
 
-	// Save identity
-	if err := s.storage.CreateIdentity(ctx, identity); err != nil {
-		return nil, fmt.Errorf("failed to create identity: %w", err)
+	// Save user
+	if err := s.storage.CreateUser(ctx, user); err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
 	// Save password hash
-	if err := s.storage.StorePasswordHash(ctx, identity.ID, hash); err != nil {
-		// Attempt to clean up the created identity
-		if deleteErr := s.storage.DeleteIdentity(ctx, identity.ID); deleteErr != nil {
-			s.logger.Error("failed to cleanup identity after password save failure",
-				logger.UserID(identity.ID.String()),
-				slog.String("email", identity.Email),
+	if err := s.storage.StorePasswordHash(ctx, user.ID, hash); err != nil {
+		// Attempt to clean up the created user
+		if deleteErr := s.storage.DeleteUser(ctx, user.ID); deleteErr != nil {
+			s.logger.Error("failed to cleanup user after password save failure",
+				logger.UserID(user.ID.String()),
+				slog.String("email", user.Email),
 				logger.Error(deleteErr),
-				logger.Component("password_service"),
+				logger.Component("password"),
 			)
 		}
 		return nil, fmt.Errorf("failed to save password: %w", err)
 	}
 
-	return identity, nil
+	return user, nil
 }
 
-// Authenticate verifies email and password, returns identity if valid
-func (s *PasswordService) Authenticate(ctx context.Context, email, password string) (*Identity, error) {
-	// Get identity by email
-	identity, err := s.storage.GetIdentityByEmail(ctx, email)
+// Authenticate verifies email and password, returns user if valid
+func (s *PasswordService) Authenticate(ctx context.Context, email, password string) (*User, error) {
+	// Get user by email
+	user, err := s.storage.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, ErrInvalidCredentials
 	}
 
 	// Get password hash
-	hash, err := s.storage.GetPasswordHash(ctx, identity.ID)
+	hash, err := s.storage.GetPasswordHash(ctx, user.ID)
 	if err != nil {
 		return nil, ErrInvalidCredentials
 	}
@@ -175,7 +176,7 @@ func (s *PasswordService) Authenticate(ctx context.Context, email, password stri
 		return nil, ErrInvalidCredentials
 	}
 
-	return identity, nil
+	return user, nil
 }
 
 // PasswordResetRequest contains data needed for password reset
@@ -187,21 +188,21 @@ type PasswordResetRequest struct {
 
 // ForgotPassword generates a password reset token for the given email
 func (s *PasswordService) ForgotPassword(ctx context.Context, email string) (*PasswordResetRequest, error) {
-	// Get identity by email
-	identity, err := s.storage.GetIdentityByEmail(ctx, email)
+	// Get user by email
+	user, err := s.storage.GetUserByEmail(ctx, email)
 	if err != nil {
 		// Return the actual error - let the handler layer decide how to handle it
 		// The handler should implement timing attack prevention by:
 		// 1. Always returning success to the user
 		// 2. Maintaining consistent response times
-		// 3. Only sending emails for valid identities
-		return nil, fmt.Errorf("failed to get identity: %w", err)
+		// 3. Only sending emails for valid users
+		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
 	// Create reset token payload
 	expiresAt := time.Now().Add(s.resetTokenTTL)
 	payload := PasswordResetTokenPayload{
-		ID:       identity.ID.String(),
+		ID:       user.ID.String(),
 		Email:    email,
 		Subject:  SubjectPasswordReset,
 		ExpireAt: expiresAt.Unix(),
@@ -221,7 +222,7 @@ func (s *PasswordService) ForgotPassword(ctx context.Context, email string) (*Pa
 }
 
 // ResetPassword resets the password using a valid reset token
-func (s *PasswordService) ResetPassword(ctx context.Context, resetToken, newPassword string) (*Identity, error) {
+func (s *PasswordService) ResetPassword(ctx context.Context, resetToken, newPassword string) (*User, error) {
 	// Parse and validate token
 	payload, err := token.ParseToken[PasswordResetTokenPayload](resetToken, s.tokenSecret)
 	if err != nil {
@@ -238,8 +239,8 @@ func (s *PasswordService) ResetPassword(ctx context.Context, resetToken, newPass
 		return nil, ErrTokenExpired
 	}
 
-	// Get identity ID from token
-	identityID, err := uuid.Parse(payload.ID)
+	// Get user ID from token
+	userID, err := uuid.Parse(payload.ID)
 	if err != nil {
 		return nil, ErrTokenInvalid
 	}
@@ -251,10 +252,10 @@ func (s *PasswordService) ResetPassword(ctx context.Context, resetToken, newPass
 	}
 
 	// Update password
-	if err := s.storage.StorePasswordHash(ctx, identityID, hash); err != nil {
+	if err := s.storage.StorePasswordHash(ctx, userID, hash); err != nil {
 		return nil, fmt.Errorf("failed to update password: %w", err)
 	}
 
-	// Return updated identity
-	return s.storage.GetIdentityByID(ctx, identityID)
+	// Return updated user
+	return s.storage.GetUserByID(ctx, userID)
 }
