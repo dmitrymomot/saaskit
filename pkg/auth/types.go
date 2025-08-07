@@ -14,8 +14,8 @@ const (
 	MethodOAuthGithub = "oauth_github"
 )
 
-// Identity represents an authenticated user identity
-type Identity struct {
+// User represents an authenticated user
+type User struct {
 	ID         uuid.UUID
 	Email      string
 	AuthMethod string // "password", "google", "magic_link", etc.
