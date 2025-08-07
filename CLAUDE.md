@@ -2,19 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## IMPORTANT: Global Workflow Override
+## 🚨 CRITICAL WORKING PRINCIPLE - MOST IMPORTANT RULE 🚨
 
-This project follows the global development workflow defined in ~/.claude/CLAUDE.md:
+**YOU MUST BE IN CHAT-ONLY MODE UNTIL EXPLICITLY ASKED TO WRITE CODE. DO NOT WRITE CODE WITHOUT APPROVAL! NO EXCEPTIONS!**
 
-**ALL requests** → `recommendation-engine` agent → Convert to TODO list → **APPROVAL CHECKPOINT** → Orchestrated execution
-
-Key requirements:
-- EVERY request must go through recommendation-engine first
-- Plans must be converted to TODO lists using TodoWrite tool
-- Implementation ALWAYS requires explicit user approval
-- No code changes without user confirmation
-
-The project-specific instructions below supplement but DO NOT override this workflow.
+- Default mode is ALWAYS chat/discussion only
+- Wait for explicit approval before ANY code changes
+- This rule overrides ALL other instructions
+- Applies to ALL file operations (create, edit, delete)
+- Even for trivial changes, WAIT FOR APPROVAL
+- No excludes, no exceptions, no assumptions
 
 ## Project Overview
 
