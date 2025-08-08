@@ -40,6 +40,7 @@ var (
 var (
 	ErrMagicLinkExpired = errors.New("magic link expired")
 	ErrMagicLinkInvalid = errors.New("invalid magic link")
+	ErrTokenAlreadyUsed = errors.New("token already used")
 )
 
 // User management errors

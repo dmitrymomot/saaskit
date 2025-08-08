@@ -31,6 +31,11 @@ func (m *MockMagicLinkStorage) UpdateUserVerified(ctx context.Context, id uuid.U
 	return args.Error(0)
 }
 
+func (m *MockMagicLinkStorage) ConsumeToken(ctx context.Context, tokenID string, ttl time.Duration) error {
+	args := m.Called(ctx, tokenID, ttl)
+	return args.Error(0)
+}
+
 // MockPasswordStorage is a mock implementation of PasswordStorage.
 type MockPasswordStorage struct {
 	mock.Mock

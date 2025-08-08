@@ -16,15 +16,13 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/validator"
 )
 
-// SubjectMagicLink is the token subject used for magic link tokens.
-const SubjectMagicLink = "magic_link"
-
 // MagicLinkTokenPayload represents the JWT payload for magic link tokens.
 type MagicLinkTokenPayload struct {
-	ID       string `json:"id"`    // Token ID for single-use tracking
+	UserID   string `json:"uid"`   // User ID
 	Email    string `json:"email"` // User email
 	Subject  string `json:"sub"`   // SubjectMagicLink
 	ExpireAt int64  `json:"exp"`   // Unix timestamp
+	TokenID  string `json:"jti"`   // Unique token ID for replay protection (JWT ID claim)
 }
 
 // MagicLinkRequest contains the generated magic link token and metadata.
@@ -45,6 +43,10 @@ type MagicLinkStorage interface {
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	CreateUser(ctx context.Context, user *User) error
 	UpdateUserVerified(ctx context.Context, id uuid.UUID, verified bool) error
+	// ConsumeToken atomically checks if token was used and marks it as consumed.
+	// Returns ErrTokenAlreadyUsed if token was already consumed.
+	// Token ID should be stored with TTL matching token expiration.
+	ConsumeToken(ctx context.Context, tokenID string, ttl time.Duration) error
 }
 
 type magicLinkService struct {
@@ -123,14 +125,14 @@ func (s *magicLinkService) RequestMagicLink(ctx context.Context, email string) (
 		return nil, err
 	}
 
-	_, err := s.storage.GetUserByEmail(ctx, email)
+	user, err := s.storage.GetUserByEmail(ctx, email)
 	if err != nil {
 		if !errors.Is(err, ErrUserNotFound) {
 			return nil, fmt.Errorf("failed to check user: %w", err)
 		}
 
 		// Auto-register new users to minimize onboarding friction
-		user := &User{
+		user = &User{
 			ID:         uuid.New(),
 			Email:      email,
 			AuthMethod: MethodMagicLink,
@@ -144,11 +146,13 @@ func (s *magicLinkService) RequestMagicLink(ctx context.Context, email string) (
 	}
 
 	expiresAt := time.Now().Add(s.magicLinkTTL)
+	tokenID := uuid.New().String() // Generate unique token ID for replay protection
 	payload := MagicLinkTokenPayload{
-		ID:       uuid.New().String(), // Unique ID enables future replay protection
+		UserID:   user.ID.String(), // User ID
 		Email:    email,
 		Subject:  SubjectMagicLink,
 		ExpireAt: expiresAt.Unix(),
+		TokenID:  tokenID, // Unique token ID for replay protection
 	}
 
 	tokenStr, err := token.GenerateToken(payload, s.tokenSecret)
@@ -217,6 +221,22 @@ func (s *magicLinkService) VerifyMagicLink(ctx context.Context, magicLinkToken s
 		return nil, ErrTokenExpired
 	}
 
+	// Replay protection: atomically check and consume token
+	if payload.TokenID != "" {
+		ttl := time.Until(time.Unix(payload.ExpireAt, 0))
+		if err := s.storage.ConsumeToken(ctx, payload.TokenID, ttl); err != nil {
+			if errors.Is(err, ErrTokenAlreadyUsed) {
+				return nil, ErrTokenAlreadyUsed
+			}
+			// Log error but continue - don't break auth if replay protection fails
+			s.logger.Error("failed to consume token for replay protection",
+				slog.String("token_id", payload.TokenID),
+				logger.Error(err),
+				logger.Component("magic_link"),
+			)
+		}
+	}
+
 	user, err := s.storage.GetUserByEmail(ctx, payload.Email)
 	if err != nil {
 		return nil, ErrUserNotFound
@@ -233,9 +253,6 @@ func (s *magicLinkService) VerifyMagicLink(ctx context.Context, magicLinkToken s
 		}
 		user.IsVerified = true
 	}
-
-	// MVP: Replay protection via token ID tracking deferred.
-	// 15-minute TTL provides reasonable security for initial launch.
 
 	// Execute after verify hook if set
 	if s.afterVerify != nil {
