@@ -353,3 +353,6 @@ func (s *userService) ConfirmEmailChange(ctx context.Context, emailChangeToken s
 
 	return updatedUser, nil
 }
+
+// Compile-time interface assertion
+var _ UserManager = (*userService)(nil)

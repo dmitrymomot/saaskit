@@ -265,3 +265,6 @@ func (s *magicLinkService) VerifyMagicLink(ctx context.Context, magicLinkToken s
 
 	return user, nil
 }
+
+// Compile-time interface assertion
+var _ MagicLinkAuthenticator = (*magicLinkService)(nil)

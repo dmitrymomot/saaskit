@@ -347,3 +347,6 @@ func (s *passwordService) ResetPassword(ctx context.Context, resetToken, newPass
 
 	return s.storage.GetUserByID(ctx, userID)
 }
+
+// Compile-time interface assertion
+var _ PasswordAuthenticator = (*passwordService)(nil)
