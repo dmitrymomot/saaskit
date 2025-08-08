@@ -67,46 +67,43 @@ func (a *githubAdapter) ResolveProfile(ctx context.Context, code string) (Provid
 		return ProviderProfile{}, fmt.Errorf("fetch github user: %w", err)
 	}
 
-	// GitHub may not return email in the /user endpoint; fetch from /user/emails
-	if u.Email == "" {
-		emails, err := a.fetchGitHubEmails(ctx, tok.AccessToken)
-		if err != nil {
-			return ProviderProfile{}, fmt.Errorf("fetch github emails: %w", err)
-		}
+	// Always fetch from /user/emails to get proper verification status
+	emails, err := a.fetchGitHubEmails(ctx, tok.AccessToken)
+	if err != nil {
+		return ProviderProfile{}, fmt.Errorf("fetch github emails: %w", err)
+	}
 
-		// Prefer primary verified
+	var email string
+	var verified bool
+
+	// Prefer primary verified
+	for _, e := range emails {
+		if e.Primary && e.Verified {
+			email = e.Email
+			verified = true
+			break
+		}
+	}
+	// Fallback to any verified
+	if email == "" {
 		for _, e := range emails {
-			if e.Primary && e.Verified {
-				u.Email = e.Email
-				u.VerifiedEmail = true
+			if e.Verified {
+				email = e.Email
+				verified = true
 				break
 			}
 		}
-		// Fallback to any verified
-		if u.Email == "" {
-			for _, e := range emails {
-				if e.Verified {
-					u.Email = e.Email
-					u.VerifiedEmail = true
-					break
-				}
-			}
-		}
-
-		if u.Email == "" {
-			return ProviderProfile{}, ErrNoPrimaryEmail
-		}
 	}
 
-	profile := ProviderProfile{
+	if email == "" {
+		return ProviderProfile{}, ErrNoPrimaryEmail
+	}
+
+	return ProviderProfile{
 		ProviderUserID: strconv.FormatInt(u.ID, 10),
-		Email:          u.Email,
-		EmailVerified:  u.VerifiedEmail,
-		Name:           firstNonEmpty(u.Name, u.Login),
-		// AvatarURL, Raw can be set in the future if needed
-	}
-
-	return profile, nil
+		Email:          email,
+		EmailVerified:  verified,
+	}, nil
 }
 
 func (a *githubAdapter) fetchGitHubUser(ctx context.Context, accessToken string) (*ghUser, error) {
@@ -117,12 +114,7 @@ func (a *githubAdapter) fetchGitHubUser(ctx context.Context, accessToken string)
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
-	client := a.httpClient
-	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
-	}
-
-	resp, err := client.Do(req)
+	resp, err := a.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -137,11 +129,6 @@ func (a *githubAdapter) fetchGitHubUser(ctx context.Context, accessToken string)
 		return nil, err
 	}
 
-	// If email is present in the user endpoint, assume it's verified.
-	if user.Email != "" {
-		user.VerifiedEmail = true
-	}
-
 	return &user, nil
 }
 
@@ -153,12 +140,7 @@ func (a *githubAdapter) fetchGitHubEmails(ctx context.Context, accessToken strin
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
-	client := a.httpClient
-	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
-	}
-
-	resp, err := client.Do(req)
+	resp, err := a.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -177,11 +159,7 @@ func (a *githubAdapter) fetchGitHubEmails(ctx context.Context, accessToken strin
 }
 
 type ghUser struct {
-	ID            int64  `json:"id"`
-	Login         string `json:"login"`
-	Email         string `json:"email"`
-	Name          string `json:"name"`
-	VerifiedEmail bool   // derived from presence/verified flags
+	ID int64 `json:"id"`
 }
 
 type ghEmail struct {
@@ -190,11 +168,5 @@ type ghEmail struct {
 	Verified bool   `json:"verified"`
 }
 
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
-}
+// Compile-time interface assertion
+var _ ProviderAdapter = (*githubAdapter)(nil)

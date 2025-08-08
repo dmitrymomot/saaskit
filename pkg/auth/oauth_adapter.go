@@ -47,12 +47,4 @@ type ProviderProfile struct {
 
 	// EmailVerified indicates whether the provider asserts the email is verified.
 	EmailVerified bool
-
-	// Optional fields for convenience and future use. Implementations may leave them empty.
-	Name      string
-	AvatarURL string
-
-	// Raw may contain the raw provider payload for debugging or advanced use cases.
-	// Avoid relying on it for core flows.
-	Raw map[string]any
 }

@@ -71,7 +71,6 @@ func (a *googleAdapter) ResolveProfile(ctx context.Context, code string) (Provid
 		ProviderUserID: u.ID,
 		Email:          u.Email,
 		EmailVerified:  u.VerifiedEmail,
-		// Name, AvatarURL, Raw can be set in the future if needed
 	}, nil
 }
 
@@ -82,12 +81,7 @@ func (a *googleAdapter) fetchGoogleUser(ctx context.Context, accessToken string)
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	client := a.httpClient
-	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
-	}
-
-	resp, err := client.Do(req)
+	resp, err := a.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -109,3 +103,6 @@ type gUser struct {
 	Email         string `json:"email"`
 	VerifiedEmail bool   `json:"verified_email"`
 }
+
+// Compile-time interface assertion
+var _ ProviderAdapter = (*googleAdapter)(nil)
