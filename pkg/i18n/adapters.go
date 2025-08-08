@@ -213,7 +213,6 @@ func (a *DirectoryAdapter) processDirectory(ctx context.Context, allTranslations
 		err := a.processFile(ctx, filePath, allTranslations)
 		if err != nil {
 			// Continue processing other files for resilient loading
-			fmt.Printf("Warning: failed to process file '%s': %v\n", filePath, err)
 			continue
 		}
 	}
@@ -344,8 +343,7 @@ func (a *EmbeddedFsAdapter) Load(ctx context.Context) (map[string]map[string]any
 
 		// Process the file and merge translations
 		if err := a.processFile(ctx, filePath, allTranslations); err != nil {
-			// Log the error but continue processing other files
-			fmt.Printf("Warning: failed to process file '%s': %v\n", filePath, err)
+			// Continue processing other files for resilient loading
 			continue
 		}
 
