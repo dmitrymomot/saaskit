@@ -250,23 +250,17 @@ func TestUserService_ChangePassword(t *testing.T) {
 		t.Parallel()
 
 		storage := &MockUserStorage{}
-		beforeUpdateChan := make(chan struct{}, 1)
-		afterUpdateChan := make(chan struct{}, 1)
+		beforeUpdateCalled := false
+		afterUpdateCalled := false
 
 		beforeUpdate := func(ctx context.Context, userID uuid.UUID) error {
-			select {
-			case beforeUpdateChan <- struct{}{}:
-			default:
-			}
+			beforeUpdateCalled = true
 			return nil
 		}
 
 		afterUpdate := func(ctx context.Context, user *User) error {
 			assert.NotNil(t, user)
-			select {
-			case afterUpdateChan <- struct{}{}:
-			default:
-			}
+			afterUpdateCalled = true
 			return nil
 		}
 
@@ -291,22 +285,8 @@ func TestUserService_ChangePassword(t *testing.T) {
 		err = svc.ChangePassword(ctx, userID, oldPassword, newPassword)
 
 		require.NoError(t, err)
-
-		// Check beforeUpdate was called
-		select {
-		case <-beforeUpdateChan:
-			// Hook was called
-		default:
-			t.Fatal("beforeUpdate hook was not called")
-		}
-
-		// Check afterUpdate was called
-		select {
-		case <-afterUpdateChan:
-			// Hook was called
-		case <-time.After(100 * time.Millisecond):
-			t.Fatal("afterUpdate hook was not called")
-		}
+		assert.True(t, beforeUpdateCalled)
+		assert.True(t, afterUpdateCalled)
 
 		storage.AssertExpectations(t)
 	})
@@ -827,23 +807,17 @@ func TestUserService_ConfirmEmailChange(t *testing.T) {
 		t.Parallel()
 
 		storage := &MockUserStorage{}
-		beforeUpdateChan := make(chan struct{}, 1)
-		afterUpdateChan := make(chan struct{}, 1)
+		beforeUpdateCalled := false
+		afterUpdateCalled := false
 
 		beforeUpdate := func(ctx context.Context, userID uuid.UUID) error {
-			select {
-			case beforeUpdateChan <- struct{}{}:
-			default:
-			}
+			beforeUpdateCalled = true
 			return nil
 		}
 
 		afterUpdate := func(ctx context.Context, user *User) error {
 			assert.NotNil(t, user)
-			select {
-			case afterUpdateChan <- struct{}{}:
-			default:
-			}
+			afterUpdateCalled = true
 			return nil
 		}
 
@@ -870,22 +844,8 @@ func TestUserService_ConfirmEmailChange(t *testing.T) {
 		_, err := svc.ConfirmEmailChange(ctx, validToken)
 
 		require.NoError(t, err)
-
-		// Check beforeUpdate was called
-		select {
-		case <-beforeUpdateChan:
-			// Hook was called
-		default:
-			t.Fatal("beforeUpdate hook was not called")
-		}
-
-		// Check afterUpdate was called
-		select {
-		case <-afterUpdateChan:
-			// Hook was called
-		case <-time.After(100 * time.Millisecond):
-			t.Fatal("afterUpdate hook was not called")
-		}
+		assert.True(t, beforeUpdateCalled)
+		assert.True(t, afterUpdateCalled)
 
 		storage.AssertExpectations(t)
 	})

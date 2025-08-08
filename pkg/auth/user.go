@@ -185,28 +185,16 @@ func (s *userService) ChangePassword(ctx context.Context, userID uuid.UUID, oldP
 	if s.afterUpdate != nil {
 		user, _ := s.storage.GetUserByID(ctx, userID)
 		if user != nil {
-			go func() {
-				defer func() {
-					if r := recover(); r != nil {
-						s.logger.Error("afterUpdate hook panicked",
-							logger.UserID(userID.String()),
-							slog.Any("panic", r),
-							logger.Component("user"),
-						)
-					}
-				}()
+			hookCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
 
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
-
-				if err := s.afterUpdate(ctx, user); err != nil {
-					s.logger.Error("afterUpdate hook failed",
-						logger.UserID(userID.String()),
-						logger.Error(err),
-						logger.Component("user"),
-					)
-				}
-			}()
+			if err := s.afterUpdate(hookCtx, user); err != nil {
+				s.logger.Error("afterUpdate hook failed",
+					logger.UserID(userID.String()),
+					logger.Error(err),
+					logger.Component("user"),
+				)
+			}
 		}
 	}
 
@@ -328,28 +316,16 @@ func (s *userService) ConfirmEmailChange(ctx context.Context, emailChangeToken s
 
 	// Execute after update hook if set
 	if s.afterUpdate != nil {
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					s.logger.Error("afterUpdate hook panicked",
-						logger.UserID(userID.String()),
-						slog.Any("panic", r),
-						logger.Component("user"),
-					)
-				}
-			}()
+		hookCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-
-			if err := s.afterUpdate(ctx, updatedUser); err != nil {
-				s.logger.Error("afterUpdate hook failed",
-					logger.UserID(userID.String()),
-					logger.Error(err),
-					logger.Component("user"),
-				)
-			}
-		}()
+		if err := s.afterUpdate(hookCtx, updatedUser); err != nil {
+			s.logger.Error("afterUpdate hook failed",
+				logger.UserID(userID.String()),
+				logger.Error(err),
+				logger.Component("user"),
+			)
+		}
 	}
 
 	return updatedUser, nil
