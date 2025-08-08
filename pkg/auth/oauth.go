@@ -34,6 +34,9 @@ type OAuthStorage interface {
 
 	// State management for CSRF protection
 	StoreState(ctx context.Context, state string, expiresAt time.Time) error
+	// ConsumeState atomically checks if state exists and removes it.
+	// Returns ErrStateNotFound if state doesn't exist or was already consumed.
+	// Must be atomic to prevent race conditions with concurrent requests.
 	ConsumeState(ctx context.Context, state string) error
 }
 

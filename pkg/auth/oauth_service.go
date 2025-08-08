@@ -146,6 +146,14 @@ func (s *oauthService) Auth(ctx context.Context, code, state string, linkToUserI
 		return nil, fmt.Errorf("failed to resolve provider profile: %w", err)
 	}
 
+	// Validate profile data
+	if profile.ProviderUserID == "" {
+		return nil, fmt.Errorf("invalid profile: missing provider user ID")
+	}
+	if profile.Email == "" {
+		return nil, fmt.Errorf("invalid profile: missing email address")
+	}
+
 	// Normalize email centrally
 	profile.Email = sanitizer.NormalizeEmail(profile.Email)
 
