@@ -17,13 +17,6 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/validator"
 )
 
-// Token subjects used in JWT tokens for various password-related operations.
-const (
-	SubjectPasswordReset = "password_reset"
-	SubjectEmailVerify   = "email_verify" // for future use
-	SubjectEmailChange   = "email_change" // for email update verification
-)
-
 // PasswordResetTokenPayload represents the JWT payload for password reset tokens.
 type PasswordResetTokenPayload struct {
 	ID       string `json:"id"`    // User ID

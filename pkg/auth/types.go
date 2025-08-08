@@ -14,6 +14,14 @@ const (
 	MethodOAuthGithub = "oauth_github"
 )
 
+// Token subjects used in JWT tokens for various authentication operations.
+const (
+	SubjectPasswordReset = "password_reset"
+	SubjectEmailVerify   = "email_verify" // for future use
+	SubjectEmailChange   = "email_change" // for email update verification
+	SubjectMagicLink     = "magic_link"
+)
+
 // User represents a user account in the authentication system.
 type User struct {
 	ID         uuid.UUID
