@@ -228,4 +228,4 @@ Or visit [pkg.go.dev](https://pkg.go.dev/github.com/dmitrymomot/saaskit/pkg/auth
 - JWT tokens are used for password reset, email change, and magic link flows
 - OAuth adapters handle provider-specific implementations
 - Storage operations should be atomic where indicated to prevent race conditions
-- Hook functions run asynchronously (except beforeX hooks) and should not block main flow
+- Hook functions run synchronously but do not block authentication on errors
