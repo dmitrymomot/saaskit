@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/dmitrymomot/saaskit/pkg/logger"
 	"github.com/dmitrymomot/saaskit/pkg/sanitizer"
 	"github.com/dmitrymomot/saaskit/pkg/token"
 	"github.com/dmitrymomot/saaskit/pkg/validator"
@@ -188,9 +189,9 @@ func (s *userService) ChangePassword(ctx context.Context, userID uuid.UUID, oldP
 				defer func() {
 					if r := recover(); r != nil {
 						s.logger.Error("afterUpdate hook panicked",
-							slog.String("user_id", userID.String()),
+							logger.UserID(userID.String()),
 							slog.Any("panic", r),
-							slog.String("component", "user"),
+							logger.Component("user"),
 						)
 					}
 				}()
@@ -200,9 +201,9 @@ func (s *userService) ChangePassword(ctx context.Context, userID uuid.UUID, oldP
 
 				if err := s.afterUpdate(ctx, user); err != nil {
 					s.logger.Error("afterUpdate hook failed",
-						slog.String("user_id", userID.String()),
-						slog.Any("error", err),
-						slog.String("component", "user"),
+						logger.UserID(userID.String()),
+						logger.Error(err),
+						logger.Component("user"),
 					)
 				}
 			}()
@@ -331,9 +332,9 @@ func (s *userService) ConfirmEmailChange(ctx context.Context, emailChangeToken s
 			defer func() {
 				if r := recover(); r != nil {
 					s.logger.Error("afterUpdate hook panicked",
-						slog.String("user_id", userID.String()),
+						logger.UserID(userID.String()),
 						slog.Any("panic", r),
-						slog.String("component", "user"),
+						logger.Component("user"),
 					)
 				}
 			}()
@@ -343,9 +344,9 @@ func (s *userService) ConfirmEmailChange(ctx context.Context, emailChangeToken s
 
 			if err := s.afterUpdate(ctx, updatedUser); err != nil {
 				s.logger.Error("afterUpdate hook failed",
-					slog.String("user_id", userID.String()),
-					slog.Any("error", err),
-					slog.String("component", "user"),
+					logger.UserID(userID.String()),
+					logger.Error(err),
+					logger.Component("user"),
 				)
 			}
 		}()
