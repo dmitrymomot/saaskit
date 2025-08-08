@@ -247,21 +247,27 @@ func TestMagicLinkService_RequestMagicLink(t *testing.T) {
 	})
 }
 
+// Helper function to create valid magic link tokens for testing
+func createValidMagicLinkToken(t *testing.T, tokenSecret, email string, expiresIn time.Duration) string {
+	payload := MagicLinkTokenPayload{
+		UserID:   uuid.New().String(),
+		Email:    email,
+		Subject:  SubjectMagicLink,
+		ExpireAt: time.Now().Add(expiresIn).Unix(),
+		TokenID:  uuid.New().String(),
+	}
+	tokenStr, err := token.GenerateToken(payload, tokenSecret)
+	require.NoError(t, err)
+	return tokenStr
+}
+
 func TestMagicLinkService_VerifyMagicLink(t *testing.T) {
 	t.Parallel()
 
 	const tokenSecret = "test-secret-32-chars-long-12345"
 
 	createValidToken := func(email string, expiresIn time.Duration) string {
-		payload := MagicLinkTokenPayload{
-			ID:       uuid.New().String(),
-			Email:    email,
-			Subject:  SubjectMagicLink,
-			ExpireAt: time.Now().Add(expiresIn).Unix(),
-		}
-		tokenStr, err := token.GenerateToken(payload, tokenSecret)
-		require.NoError(t, err)
-		return tokenStr
+		return createValidMagicLinkToken(t, tokenSecret, email, expiresIn)
 	}
 
 	t.Run("verifies valid token for existing verified user", func(t *testing.T) {
@@ -282,6 +288,7 @@ func TestMagicLinkService_VerifyMagicLink(t *testing.T) {
 		validToken := createValidToken(email, 15*time.Minute)
 
 		storage.On("GetUserByEmail", mock.Anything, email).Return(user, nil)
+		storage.On("ConsumeToken", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).Return(nil)
 
 		ctx := context.Background()
 		resultUser, err := svc.VerifyMagicLink(ctx, validToken)
@@ -314,6 +321,7 @@ func TestMagicLinkService_VerifyMagicLink(t *testing.T) {
 
 		storage.On("GetUserByEmail", mock.Anything, email).Return(user, nil)
 		storage.On("UpdateUserVerified", mock.Anything, user.ID, true).Return(nil)
+		storage.On("ConsumeToken", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).Return(nil)
 
 		ctx := context.Background()
 		resultUser, err := svc.VerifyMagicLink(ctx, validToken)
@@ -340,7 +348,7 @@ func TestMagicLinkService_VerifyMagicLink(t *testing.T) {
 			{"malformed token", "invalid-token"},
 			{"wrong secret", func() string {
 				payload := MagicLinkTokenPayload{
-					ID:      uuid.New().String(),
+					UserID:  uuid.New().String(),
 					Email:   "test@example.com",
 					Subject: SubjectMagicLink,
 				}
@@ -370,7 +378,7 @@ func TestMagicLinkService_VerifyMagicLink(t *testing.T) {
 
 		// Create token with wrong subject
 		payload := MagicLinkTokenPayload{
-			ID:       uuid.New().String(),
+			UserID:   uuid.New().String(),
 			Email:    "test@example.com",
 			Subject:  "wrong-subject",
 			ExpireAt: time.Now().Add(15 * time.Minute).Unix(),
@@ -415,6 +423,7 @@ func TestMagicLinkService_VerifyMagicLink(t *testing.T) {
 		validToken := createValidToken(email, 15*time.Minute)
 
 		storage.On("GetUserByEmail", mock.Anything, email).Return(nil, ErrUserNotFound)
+		storage.On("ConsumeToken", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).Return(nil)
 
 		ctx := context.Background()
 		user, err := svc.VerifyMagicLink(ctx, validToken)
@@ -435,6 +444,7 @@ func TestMagicLinkService_VerifyMagicLink(t *testing.T) {
 		validToken := createValidToken(email, 15*time.Minute)
 
 		storage.On("GetUserByEmail", mock.Anything, email).Return(nil, errors.New("db error"))
+		storage.On("ConsumeToken", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).Return(nil)
 
 		ctx := context.Background()
 		user, err := svc.VerifyMagicLink(ctx, validToken)
@@ -464,6 +474,7 @@ func TestMagicLinkService_VerifyMagicLink(t *testing.T) {
 
 		storage.On("GetUserByEmail", mock.Anything, email).Return(user, nil)
 		storage.On("UpdateUserVerified", mock.Anything, user.ID, true).Return(errors.New("update error"))
+		storage.On("ConsumeToken", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).Return(nil)
 
 		ctx := context.Background()
 		resultUser, err := svc.VerifyMagicLink(ctx, validToken)
@@ -494,6 +505,7 @@ func TestMagicLinkService_VerifyMagicLink(t *testing.T) {
 		validToken := createValidToken(email, 15*time.Minute)
 
 		storage.On("GetUserByEmail", mock.Anything, email).Return(user, nil)
+		storage.On("ConsumeToken", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).Return(nil)
 
 		ctx := context.Background()
 		_, err := svc.VerifyMagicLink(ctx, validToken)
@@ -550,6 +562,7 @@ func TestMagicLinkService_VerifyMagicLink(t *testing.T) {
 		validToken := createValidToken(email, 15*time.Minute)
 
 		storage.On("GetUserByEmail", mock.Anything, email).Return(user, nil)
+		storage.On("ConsumeToken", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).Return(nil)
 
 		ctx := context.Background()
 		_, err := svc.VerifyMagicLink(ctx, validToken)
@@ -582,7 +595,8 @@ func TestMagicLinkTokenValidation(t *testing.T) {
 		email := "test@example.com"
 		user := &User{ID: uuid.New(), Email: email, IsVerified: true}
 
-		storage.On("GetUserByEmail", mock.Anything, email).Return(user, nil)
+		storage.On("GetUserByEmail", mock.Anything, email).Return(user, nil).Times(2)
+		storage.On("ConsumeToken", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).Return(nil)
 
 		ctx := context.Background()
 
@@ -603,7 +617,7 @@ func TestMagicLinkTokenValidation(t *testing.T) {
 
 		email := "test@example.com"
 		payload := MagicLinkTokenPayload{
-			ID:       uuid.New().String(),
+			UserID:   uuid.New().String(),
 			Email:    email,
 			Subject:  SubjectMagicLink,
 			ExpireAt: time.Now().Add(15 * time.Minute).Unix(),
@@ -616,7 +630,7 @@ func TestMagicLinkTokenValidation(t *testing.T) {
 		parsedPayload, err := token.ParseToken[MagicLinkTokenPayload](tokenStr, tokenSecret)
 		require.NoError(t, err)
 
-		assert.Equal(t, payload.ID, parsedPayload.ID)
+		assert.Equal(t, payload.UserID, parsedPayload.UserID)
 		assert.Equal(t, payload.Email, parsedPayload.Email)
 		assert.Equal(t, payload.Subject, parsedPayload.Subject)
 		assert.Equal(t, payload.ExpireAt, parsedPayload.ExpireAt)
@@ -658,8 +672,8 @@ func TestMagicLinkSecurityFeatures(t *testing.T) {
 		payload2, err := token.ParseToken[MagicLinkTokenPayload](req2.Token, tokenSecret)
 		require.NoError(t, err)
 
-		// IDs should be unique
-		assert.NotEqual(t, payload1.ID, payload2.ID)
+		// Token IDs should be unique for replay protection
+		assert.NotEqual(t, payload1.TokenID, payload2.TokenID)
 
 		storage.AssertExpectations(t)
 	})
@@ -683,6 +697,45 @@ func TestMagicLinkSecurityFeatures(t *testing.T) {
 		assert.True(t, req.ExpiresAt.Before(time.Now().Add(2*time.Minute)))
 		assert.True(t, req.ExpiresAt.After(time.Now().Add(30*time.Second)))
 
+		storage.AssertExpectations(t)
+	})
+
+	t.Run("replay protection prevents token reuse", func(t *testing.T) {
+		t.Parallel()
+
+		storage := &MockMagicLinkStorage{}
+		svc := NewMagicLinkService(storage, tokenSecret)
+
+		email := "test@example.com"
+		validToken := createValidMagicLinkToken(t, tokenSecret, email, 15*time.Minute)
+
+		storage.On("ConsumeToken", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).Return(ErrTokenAlreadyUsed)
+
+		ctx := context.Background()
+		_, err := svc.VerifyMagicLink(ctx, validToken)
+
+		assert.Equal(t, ErrTokenAlreadyUsed, err)
+		storage.AssertExpectations(t)
+	})
+
+	t.Run("continues auth if replay protection fails", func(t *testing.T) {
+		t.Parallel()
+
+		storage := &MockMagicLinkStorage{}
+		svc := NewMagicLinkService(storage, tokenSecret)
+
+		email := "test@example.com"
+		user := &User{ID: uuid.New(), Email: email, IsVerified: true}
+		validToken := createValidMagicLinkToken(t, tokenSecret, email, 15*time.Minute)
+
+		storage.On("GetUserByEmail", mock.Anything, email).Return(user, nil)
+		storage.On("ConsumeToken", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).Return(errors.New("storage error"))
+
+		ctx := context.Background()
+		resultUser, err := svc.VerifyMagicLink(ctx, validToken)
+
+		require.NoError(t, err) // Should still succeed despite storage error
+		assert.Equal(t, user.ID, resultUser.ID)
 		storage.AssertExpectations(t)
 	})
 }
