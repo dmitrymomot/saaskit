@@ -16,7 +16,7 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/validator"
 )
 
-// EmailChangeRequest contains data for email change verification
+// EmailChangeRequest contains the generated email change token and metadata.
 type EmailChangeRequest struct {
 	CurrentEmail string
 	NewEmail     string
@@ -24,7 +24,7 @@ type EmailChangeRequest struct {
 	ExpiresAt    time.Time
 }
 
-// EmailChangeTokenPayload contains the data encoded in email change tokens
+// EmailChangeTokenPayload represents the JWT payload for email change tokens.
 type EmailChangeTokenPayload struct {
 	ID       string `json:"id"`  // User ID
 	OldEmail string `json:"old"` // Current email
@@ -33,7 +33,7 @@ type EmailChangeTokenPayload struct {
 	ExpireAt int64  `json:"exp"` // Unix timestamp
 }
 
-// UserManager defines user management operations
+// UserManager defines the interface for user account management operations.
 type UserManager interface {
 	GetUser(ctx context.Context, userID uuid.UUID) (*User, error)
 	ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error
@@ -41,7 +41,7 @@ type UserManager interface {
 	ConfirmEmailChange(ctx context.Context, emailChangeToken string) (*User, error)
 }
 
-// UserStorage defines the storage operations required for user management
+// UserStorage defines the storage interface required by user management services.
 type UserStorage interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (*User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
@@ -50,7 +50,6 @@ type UserStorage interface {
 	UpdatePasswordHash(ctx context.Context, userID uuid.UUID, hash []byte) error
 }
 
-// userService handles authenticated user account management
 type userService struct {
 	storage          UserStorage
 	tokenSecret      string
@@ -65,58 +64,59 @@ type userService struct {
 	afterDelete  func(ctx context.Context, userID uuid.UUID) error
 }
 
+// UserOption configures a user service during construction.
 type UserOption func(*userService)
 
-// WithUserLogger sets a custom logger for the service
+// WithUserLogger configures the logger for the user service.
 func WithUserLogger(logger *slog.Logger) UserOption {
 	return func(s *userService) {
 		s.logger = logger
 	}
 }
 
-// WithUserBcryptCost sets the bcrypt cost for password hashing
+// WithUserBcryptCost configures the bcrypt cost parameter for password hashing.
 func WithUserBcryptCost(cost int) UserOption {
 	return func(s *userService) {
 		s.bcryptCost = cost
 	}
 }
 
-// WithEmailChangeTTL sets the TTL for email change tokens
+// WithEmailChangeTTL configures the time-to-live for email change tokens.
 func WithEmailChangeTTL(ttl time.Duration) UserOption {
 	return func(s *userService) {
 		s.emailChangeTTL = ttl
 	}
 }
 
-// WithUserPasswordStrength sets custom password strength requirements
+// WithUserPasswordStrength configures password strength requirements for user operations.
 func WithUserPasswordStrength(config validator.PasswordStrengthConfig) UserOption {
 	return func(s *userService) {
 		s.passwordStrength = config
 	}
 }
 
-// WithBeforeUpdate sets a hook that runs before any user update
+// WithBeforeUpdate configures a hook that runs before user updates (sync).
 func WithBeforeUpdate(fn func(context.Context, uuid.UUID) error) UserOption {
 	return func(s *userService) {
 		s.beforeUpdate = fn
 	}
 }
 
-// WithAfterUpdate sets a hook that runs after successful user update
+// WithAfterUpdate configures a hook that runs after successful user updates (async).
 func WithAfterUpdate(fn func(context.Context, *User) error) UserOption {
 	return func(s *userService) {
 		s.afterUpdate = fn
 	}
 }
 
-// WithAfterDelete sets a hook that runs after user deletion
+// WithAfterDelete configures a hook that runs after user deletion (async).
 func WithAfterDelete(fn func(context.Context, uuid.UUID) error) UserOption {
 	return func(s *userService) {
 		s.afterDelete = fn
 	}
 }
 
-// NewUserService creates a new user management service
+// NewUserService creates a user management service with configurable options.
 func NewUserService(storage UserStorage, tokenSecret string, opts ...UserOption) UserManager {
 	s := &userService{
 		storage:        storage,
@@ -138,7 +138,7 @@ func NewUserService(storage UserStorage, tokenSecret string, opts ...UserOption)
 	return s
 }
 
-// GetUser retrieves the user information for an authenticated user
+// GetUser retrieves a user by their unique identifier.
 func (s *userService) GetUser(ctx context.Context, userID uuid.UUID) (*User, error) {
 	user, err := s.storage.GetUserByID(ctx, userID)
 	if err != nil {
@@ -147,7 +147,7 @@ func (s *userService) GetUser(ctx context.Context, userID uuid.UUID) (*User, err
 	return user, nil
 }
 
-// ChangePassword updates the password for an authenticated user
+// ChangePassword updates a user's password after verifying the current password.
 func (s *userService) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error {
 	// Execute before update hook if set
 	if s.beforeUpdate != nil {
@@ -271,7 +271,7 @@ func (s *userService) RequestEmailChange(ctx context.Context, userID uuid.UUID, 
 	}, nil
 }
 
-// ConfirmEmailChange validates the email change token and updates the email in the database
+// ConfirmEmailChange validates an email change token and updates the user's email address.
 func (s *userService) ConfirmEmailChange(ctx context.Context, emailChangeToken string) (*User, error) {
 	payload, err := token.ParseToken[EmailChangeTokenPayload](emailChangeToken, s.tokenSecret)
 	if err != nil {

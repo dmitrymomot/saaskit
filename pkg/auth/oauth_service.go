@@ -19,8 +19,6 @@ import (
 // Ensure oauthService implements OAuthAuthenticator.
 var _ OAuthAuthenticator = (*oauthService)(nil)
 
-// oauthService is a provider-agnostic OAuth core that relies on a ProviderAdapter
-// for provider-specific details (auth URL construction, code exchange, and profile fetching).
 type oauthService struct {
 	storage      OAuthStorage
 	adapter      ProviderAdapter
@@ -34,10 +32,10 @@ type oauthService struct {
 	afterLink  func(ctx context.Context, user *User) error
 }
 
-// OAuthOption configures the oauthService.
+// OAuthOption configures an OAuth service during construction.
 type OAuthOption func(*oauthService)
 
-// WithLogger sets a custom logger for the service.
+// WithLogger configures the logger for the OAuth service.
 func WithLogger(l *slog.Logger) OAuthOption {
 	return func(s *oauthService) {
 		s.logger = l
@@ -62,21 +60,21 @@ func WithVerifiedOnly(verifiedOnly bool) OAuthOption {
 	}
 }
 
-// WithAfterAuth sets a hook that runs after successful OAuth authentication (sign-in/sign-up).
+// WithAfterAuth configures a hook that runs after successful OAuth authentication (async).
 func WithAfterAuth(fn func(context.Context, *User) error) OAuthOption {
 	return func(s *oauthService) {
 		s.afterAuth = fn
 	}
 }
 
-// WithBeforeLink sets a hook that runs before linking an OAuth account to an existing user.
+// WithBeforeLink configures a hook that runs before linking an OAuth account (sync).
 func WithBeforeLink(fn func(context.Context, uuid.UUID) error) OAuthOption {
 	return func(s *oauthService) {
 		s.beforeLink = fn
 	}
 }
 
-// WithAfterLink sets a hook that runs after successfully linking an OAuth account.
+// WithAfterLink configures a hook that runs after successful OAuth account linking (async).
 func WithAfterLink(fn func(context.Context, *User) error) OAuthOption {
 	return func(s *oauthService) {
 		s.afterLink = fn

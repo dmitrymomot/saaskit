@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// Authentication method identifiers used to track how users authenticate.
 const (
 	MethodPassword    = "password"
 	MethodMagicLink   = "magic_link"
@@ -13,7 +14,7 @@ const (
 	MethodOAuthGithub = "oauth_github"
 )
 
-// User represents an authenticated user in the system
+// User represents a user account in the authentication system.
 type User struct {
 	ID         uuid.UUID
 	Email      string

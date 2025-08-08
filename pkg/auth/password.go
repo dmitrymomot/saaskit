@@ -17,13 +17,14 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/validator"
 )
 
+// Token subjects used in JWT tokens for various password-related operations.
 const (
 	SubjectPasswordReset = "password_reset"
 	SubjectEmailVerify   = "email_verify" // for future use
 	SubjectEmailChange   = "email_change" // for email update verification
 )
 
-// PasswordResetTokenPayload contains the data encoded in password reset tokens
+// PasswordResetTokenPayload represents the JWT payload for password reset tokens.
 type PasswordResetTokenPayload struct {
 	ID       string `json:"id"`    // User ID
 	Email    string `json:"email"` // User email
@@ -31,7 +32,7 @@ type PasswordResetTokenPayload struct {
 	ExpireAt int64  `json:"exp"`   // Unix timestamp
 }
 
-// PasswordAuthenticator defines password-based authentication operations
+// PasswordAuthenticator defines the interface for password-based authentication.
 type PasswordAuthenticator interface {
 	Register(ctx context.Context, email, password string) (*User, error)
 	Authenticate(ctx context.Context, email, password string) (*User, error)
@@ -39,7 +40,7 @@ type PasswordAuthenticator interface {
 	ResetPassword(ctx context.Context, resetToken, newPassword string) (*User, error)
 }
 
-// PasswordStorage defines the storage operations required for password authentication
+// PasswordStorage defines the storage interface required by password services.
 type PasswordStorage interface {
 	CreateUser(ctx context.Context, user *User) error
 	GetUserByID(ctx context.Context, id uuid.UUID) (*User, error)
@@ -49,7 +50,6 @@ type PasswordStorage interface {
 	GetPasswordHash(ctx context.Context, userID uuid.UUID) ([]byte, error)
 }
 
-// passwordService provides password-based authentication with configurable security requirements
 type passwordService struct {
 	storage          PasswordStorage
 	tokenSecret      string
@@ -64,58 +64,59 @@ type passwordService struct {
 	afterLogin    func(ctx context.Context, user *User) error
 }
 
+// PasswordOption configures a password service during construction.
 type PasswordOption func(*passwordService)
 
-// WithPasswordLogger sets a custom logger for the service
+// WithPasswordLogger configures the logger for the password service.
 func WithPasswordLogger(logger *slog.Logger) PasswordOption {
 	return func(s *passwordService) {
 		s.logger = logger
 	}
 }
 
-// WithBcryptCost sets the bcrypt cost for password hashing
+// WithBcryptCost configures the bcrypt cost parameter for password hashing.
 func WithBcryptCost(cost int) PasswordOption {
 	return func(s *passwordService) {
 		s.bcryptCost = cost
 	}
 }
 
-// WithResetTokenTTL sets the TTL for password reset tokens
+// WithResetTokenTTL configures the time-to-live for password reset tokens.
 func WithResetTokenTTL(ttl time.Duration) PasswordOption {
 	return func(s *passwordService) {
 		s.resetTokenTTL = ttl
 	}
 }
 
-// WithPasswordStrength sets custom password strength requirements
+// WithPasswordStrength configures password strength requirements.
 func WithPasswordStrength(config validator.PasswordStrengthConfig) PasswordOption {
 	return func(s *passwordService) {
 		s.passwordStrength = config
 	}
 }
 
-// WithAfterRegister sets a hook that runs after successful registration
+// WithAfterRegister configures a hook that runs after successful user registration (async).
 func WithAfterRegister(fn func(context.Context, *User) error) PasswordOption {
 	return func(s *passwordService) {
 		s.afterRegister = fn
 	}
 }
 
-// WithBeforeLogin sets a hook that runs before login attempt
+// WithBeforeLogin configures a hook that runs before password authentication (sync).
 func WithBeforeLogin(fn func(context.Context, string) error) PasswordOption {
 	return func(s *passwordService) {
 		s.beforeLogin = fn
 	}
 }
 
-// WithAfterLogin sets a hook that runs after successful login
+// WithAfterLogin configures a hook that runs after successful login (async).
 func WithAfterLogin(fn func(context.Context, *User) error) PasswordOption {
 	return func(s *passwordService) {
 		s.afterLogin = fn
 	}
 }
 
-// NewPasswordService creates a new password authentication service
+// NewPasswordService creates a password service with bcrypt hashing and configurable options.
 func NewPasswordService(storage PasswordStorage, tokenSecret string, opts ...PasswordOption) PasswordAuthenticator {
 	s := &passwordService{
 		storage:       storage,
@@ -137,7 +138,7 @@ func NewPasswordService(storage PasswordStorage, tokenSecret string, opts ...Pas
 	return s
 }
 
-// Register creates a new user with email and password
+// Register creates a new user with password authentication after validating email uniqueness and password strength.
 func (s *passwordService) Register(ctx context.Context, email, password string) (*User, error) {
 	email = sanitizer.NormalizeEmail(email)
 
@@ -271,7 +272,7 @@ func (s *passwordService) Authenticate(ctx context.Context, email, password stri
 	return user, nil
 }
 
-// PasswordResetRequest contains data needed for password reset
+// PasswordResetRequest contains the generated password reset token and metadata.
 type PasswordResetRequest struct {
 	Email     string
 	Token     string
@@ -308,7 +309,7 @@ func (s *passwordService) ForgotPassword(ctx context.Context, email string) (*Pa
 	}, nil
 }
 
-// ResetPassword resets the password using a valid reset token
+// ResetPassword validates a reset token and updates the user's password.
 func (s *passwordService) ResetPassword(ctx context.Context, resetToken, newPassword string) (*User, error) {
 	if err := validator.Apply(
 		validator.StrongPassword("password", newPassword, s.passwordStrength),

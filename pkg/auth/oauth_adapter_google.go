@@ -11,9 +11,7 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
-// GoogleOAuthConfig holds the configuration for the Google OAuth adapter.
-// Keep only provider-specific fields here; policies like VerifiedOnly and StateTTL
-// are configured in the core OAuth service options.
+// GoogleOAuthConfig holds configuration for Google OAuth provider.
 type GoogleOAuthConfig struct {
 	ClientID     string        `env:"GOOGLE_OAUTH_CLIENT_ID,required"`
 	ClientSecret string        `env:"GOOGLE_OAUTH_CLIENT_SECRET,required"`
@@ -23,15 +21,12 @@ type GoogleOAuthConfig struct {
 	VerifiedOnly bool          `env:"GOOGLE_OAUTH_VERIFIED_ONLY" envDefault:"true"`
 }
 
-// googleAdapter implements ProviderAdapter for Google.
-// It encapsulates oauth2.Config and Google userinfo API calls.
 type googleAdapter struct {
 	conf       *oauth2.Config
 	httpClient *http.Client
 }
 
-// NewGoogleAdapter constructs a Google ProviderAdapter using the provided config.
-// The adapter hides oauth2 details and exposes only the ProviderAdapter surface.
+// NewGoogleAdapter creates a new Google OAuth provider adapter.
 func NewGoogleAdapter(cfg GoogleOAuthConfig) ProviderAdapter {
 	return &googleAdapter{
 		conf: &oauth2.Config{
@@ -45,15 +40,18 @@ func NewGoogleAdapter(cfg GoogleOAuthConfig) ProviderAdapter {
 	}
 }
 
+// ProviderID returns the Google provider identifier.
 func (a *googleAdapter) ProviderID() string {
 	return OAuthProviderGoogle
 }
 
+// AuthURL builds the Google authorization URL with the given state token.
 func (a *googleAdapter) AuthURL(state string) (string, error) {
 	// Provider-specific options can be added here without leaking details to the core service.
 	return a.conf.AuthCodeURL(state, oauth2.AccessTypeOffline), nil
 }
 
+// ResolveProfile exchanges the authorization code for user profile information from Google.
 func (a *googleAdapter) ResolveProfile(ctx context.Context, code string) (ProviderProfile, error) {
 	tok, err := a.conf.Exchange(ctx, code)
 	if err != nil {

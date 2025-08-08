@@ -16,9 +16,10 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/validator"
 )
 
+// SubjectMagicLink is the token subject used for magic link tokens.
 const SubjectMagicLink = "magic_link"
 
-// MagicLinkTokenPayload contains the data encoded in magic link tokens
+// MagicLinkTokenPayload represents the JWT payload for magic link tokens.
 type MagicLinkTokenPayload struct {
 	ID       string `json:"id"`    // Token ID for single-use tracking
 	Email    string `json:"email"` // User email
@@ -26,27 +27,26 @@ type MagicLinkTokenPayload struct {
 	ExpireAt int64  `json:"exp"`   // Unix timestamp
 }
 
-// MagicLinkRequest contains the magic link data
+// MagicLinkRequest contains the generated magic link token and metadata.
 type MagicLinkRequest struct {
 	Email     string
 	Token     string
 	ExpiresAt time.Time
 }
 
-// MagicLinkAuthenticator defines magic link authentication operations
+// MagicLinkAuthenticator defines the interface for passwordless authentication via magic links.
 type MagicLinkAuthenticator interface {
 	RequestMagicLink(ctx context.Context, email string) (*MagicLinkRequest, error)
 	VerifyMagicLink(ctx context.Context, magicLinkToken string) (*User, error)
 }
 
-// MagicLinkStorage defines the storage operations required for magic link authentication
+// MagicLinkStorage defines the storage interface required by magic link services.
 type MagicLinkStorage interface {
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	CreateUser(ctx context.Context, user *User) error
 	UpdateUserVerified(ctx context.Context, id uuid.UUID, verified bool) error
 }
 
-// magicLinkService handles passwordless authentication via magic links
 type magicLinkService struct {
 	storage      MagicLinkStorage
 	tokenSecret  string
@@ -59,44 +59,45 @@ type magicLinkService struct {
 	afterVerify   func(ctx context.Context, user *User) error
 }
 
+// MagicLinkOption configures a magic link service during construction.
 type MagicLinkOption func(*magicLinkService)
 
-// WithMagicLinkLogger sets a custom logger for the service
+// WithMagicLinkLogger configures the logger for the magic link service.
 func WithMagicLinkLogger(logger *slog.Logger) MagicLinkOption {
 	return func(s *magicLinkService) {
 		s.logger = logger
 	}
 }
 
-// WithMagicLinkTTL sets the TTL for magic link tokens
+// WithMagicLinkTTL configures the time-to-live for magic link tokens.
 func WithMagicLinkTTL(ttl time.Duration) MagicLinkOption {
 	return func(s *magicLinkService) {
 		s.magicLinkTTL = ttl
 	}
 }
 
-// WithAfterGenerate sets a hook that runs after generating a magic link
+// WithAfterGenerate configures a hook that runs after magic link generation (async).
 func WithAfterGenerate(fn func(context.Context, *User, string) error) MagicLinkOption {
 	return func(s *magicLinkService) {
 		s.afterGenerate = fn
 	}
 }
 
-// WithBeforeVerify sets a hook that runs before verifying a magic link
+// WithBeforeVerify configures a hook that runs before magic link verification (sync).
 func WithBeforeVerify(fn func(context.Context, string) error) MagicLinkOption {
 	return func(s *magicLinkService) {
 		s.beforeVerify = fn
 	}
 }
 
-// WithAfterVerify sets a hook that runs after successful verification
+// WithAfterVerify configures a hook that runs after successful magic link verification (async).
 func WithAfterVerify(fn func(context.Context, *User) error) MagicLinkOption {
 	return func(s *magicLinkService) {
 		s.afterVerify = fn
 	}
 }
 
-// NewMagicLinkService creates a new magic link authentication service
+// NewMagicLinkService creates a magic link service with bcrypt for hashing and configurable options.
 func NewMagicLinkService(storage MagicLinkStorage, tokenSecret string, opts ...MagicLinkOption) MagicLinkAuthenticator {
 	s := &magicLinkService{
 		storage:      storage,
@@ -194,7 +195,8 @@ func (s *magicLinkService) RequestMagicLink(ctx context.Context, email string) (
 	return req, nil
 }
 
-// VerifyMagicLink validates a magic link token and returns the authenticated user
+// VerifyMagicLink validates a magic link token and returns the authenticated user.
+// Automatically marks new users as verified on first successful verification.
 func (s *magicLinkService) VerifyMagicLink(ctx context.Context, magicLinkToken string) (*User, error) {
 	// Execute before verify hook if set
 	if s.beforeVerify != nil {

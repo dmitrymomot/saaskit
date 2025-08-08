@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// OAuthAuthenticator defines the interface for OAuth authentication providers
+// OAuthAuthenticator defines the interface for OAuth-based authentication.
 type OAuthAuthenticator interface {
 	// GetAuthURL generates an OAuth authorization URL with CSRF protection
 	GetAuthURL(ctx context.Context) (string, error)
@@ -19,7 +19,7 @@ type OAuthAuthenticator interface {
 	Unlink(ctx context.Context, userID uuid.UUID) error
 }
 
-// OAuthStorage defines storage operations for OAuth authentication
+// OAuthStorage defines the storage interface required by OAuth services.
 type OAuthStorage interface {
 	// User operations
 	CreateUser(ctx context.Context, user *User) error
@@ -37,14 +37,14 @@ type OAuthStorage interface {
 	ConsumeState(ctx context.Context, state string) error
 }
 
-// OAuthState represents OAuth state for CSRF protection
+// OAuthState represents OAuth state information used for CSRF protection.
 type OAuthState struct {
 	State       string
 	RedirectURL string
 	ExpiresAt   time.Time
 }
 
-// OAuthLink represents a link between a user and an OAuth provider
+// OAuthLink represents the connection between a local user and an OAuth provider account.
 type OAuthLink struct {
 	UserID         uuid.UUID
 	Provider       string

@@ -2,6 +2,7 @@ package auth
 
 import "context"
 
+// OAuth provider identifiers used across the auth system.
 const (
 	OAuthProviderGoogle = "google"
 	OAuthProviderGithub = "github"

@@ -12,10 +12,7 @@ import (
 	"golang.org/x/oauth2/github"
 )
 
-// GitHubOAuthConfig holds the configuration for the GitHub OAuth adapter.
-// Fields include provider credentials, scopes, and optional provider policy fields.
-// Policy fields (StateTTL, VerifiedOnly) are intended to be consumed by the core
-// OAuth service options (e.g., WithStateTTL, WithVerifiedOnly) during wiring.
+// GitHubOAuthConfig holds configuration for GitHub OAuth provider.
 type GitHubOAuthConfig struct {
 	ClientID     string        `env:"GITHUB_OAUTH_CLIENT_ID,required"`
 	ClientSecret string        `env:"GITHUB_OAUTH_CLIENT_SECRET,required"`
@@ -25,15 +22,12 @@ type GitHubOAuthConfig struct {
 	VerifiedOnly bool          `env:"GITHUB_OAUTH_VERIFIED_ONLY" envDefault:"true"`
 }
 
-// githubAdapter implements ProviderAdapter for GitHub.
-// It encapsulates oauth2.Config and all GitHub-specific API calls.
 type githubAdapter struct {
 	conf       *oauth2.Config
 	httpClient *http.Client
 }
 
-// NewGitHubAdapter constructs a GitHub ProviderAdapter using the provided config.
-// The adapter hides oauth2 details and exposes only the ProviderAdapter surface.
+// NewGitHubAdapter creates a new GitHub OAuth provider adapter.
 func NewGitHubAdapter(cfg GitHubOAuthConfig) ProviderAdapter {
 	return &githubAdapter{
 		conf: &oauth2.Config{
@@ -47,16 +41,20 @@ func NewGitHubAdapter(cfg GitHubOAuthConfig) ProviderAdapter {
 	}
 }
 
+// ProviderID returns the GitHub provider identifier.
 func (a *githubAdapter) ProviderID() string {
 	return OAuthProviderGithub
 }
 
+// AuthURL builds the GitHub authorization URL with the given state token.
 func (a *githubAdapter) AuthURL(state string) (string, error) {
 	// We intentionally keep this minimal. Provider-specific options (like offline access)
 	// can be added here without leaking details to the core service.
 	return a.conf.AuthCodeURL(state, oauth2.AccessTypeOffline), nil
 }
 
+// ResolveProfile exchanges the authorization code for user profile information from GitHub.
+// Handles both user endpoint and emails endpoint to find verified email addresses.
 func (a *githubAdapter) ResolveProfile(ctx context.Context, code string) (ProviderProfile, error) {
 	tok, err := a.conf.Exchange(ctx, code)
 	if err != nil {
