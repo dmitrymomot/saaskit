@@ -279,7 +279,7 @@ func TestLogger_WithMetadataFilter(t *testing.T) {
 			config, hasConfig := event.Metadata["config"]
 
 			// The nested structure should remain unchanged since "user_data" is not a PII field
-			userDataMap, isMap := userData.(map[string]interface{})
+			userDataMap, isMap := userData.(map[string]any)
 
 			return hasUserData && isMap &&
 				userDataMap["name"] == "John Doe" &&
@@ -288,7 +288,7 @@ func TestLogger_WithMetadataFilter(t *testing.T) {
 		})).Return(nil).Once()
 
 		err := logger.Log(ctx, "data.process",
-			WithMetadata("user_data", map[string]interface{}{
+			WithMetadata("user_data", map[string]any{
 				"name":     "John Doe",
 				"password": "secret",
 			}),
