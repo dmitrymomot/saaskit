@@ -168,19 +168,15 @@ func (s *magicLinkService) RequestMagicLink(ctx context.Context, email string) (
 
 	// Execute after generate hook if set
 	if s.afterGenerate != nil {
-		// Get user for hook
-		user, _ := s.storage.GetUserByEmail(ctx, email)
-		if user != nil {
-			hookCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			defer cancel()
+		hookCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 
-			if err := s.afterGenerate(hookCtx, user, tokenStr); err != nil {
-				s.logger.Error("afterGenerate hook failed",
-					slog.String("email", email),
-					logger.Error(err),
-					logger.Component("magic_link"),
-				)
-			}
+		if err := s.afterGenerate(hookCtx, user, tokenStr); err != nil {
+			s.logger.Error("afterGenerate hook failed",
+				slog.String("email", email),
+				logger.Error(err),
+				logger.Component("magic_link"),
+			)
 		}
 	}
 

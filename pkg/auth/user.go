@@ -40,6 +40,7 @@ type UserManager interface {
 	ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error
 	RequestEmailChange(ctx context.Context, userID uuid.UUID, newEmail, currentPassword string) (*EmailChangeRequest, error)
 	ConfirmEmailChange(ctx context.Context, emailChangeToken string) (*User, error)
+	DeleteUser(ctx context.Context, userID uuid.UUID) error
 }
 
 // UserStorage defines the storage interface required by user management services.
@@ -49,6 +50,7 @@ type UserStorage interface {
 	UpdateUserEmail(ctx context.Context, id uuid.UUID, email string) error
 	GetPasswordHash(ctx context.Context, userID uuid.UUID) ([]byte, error)
 	UpdatePasswordHash(ctx context.Context, userID uuid.UUID, hash []byte) error
+	DeleteUser(ctx context.Context, id uuid.UUID) error
 }
 
 type userService struct {
@@ -62,6 +64,7 @@ type userService struct {
 	// Hooks for extending user management behavior
 	beforeUpdate func(ctx context.Context, userID uuid.UUID) error
 	afterUpdate  func(ctx context.Context, user *User) error
+	beforeDelete func(ctx context.Context, userID uuid.UUID) error
 	afterDelete  func(ctx context.Context, userID uuid.UUID) error
 }
 
@@ -107,6 +110,14 @@ func WithBeforeUpdate(fn func(context.Context, uuid.UUID) error) UserOption {
 func WithAfterUpdate(fn func(context.Context, *User) error) UserOption {
 	return func(s *userService) {
 		s.afterUpdate = fn
+	}
+}
+
+// WithBeforeDelete configures a hook that runs before user deletion (sync).
+// If the hook returns an error, the deletion is blocked.
+func WithBeforeDelete(fn func(context.Context, uuid.UUID) error) UserOption {
+	return func(s *userService) {
+		s.beforeDelete = fn
 	}
 }
 
@@ -163,6 +174,12 @@ func (s *userService) ChangePassword(ctx context.Context, userID uuid.UUID, oldP
 		return err
 	}
 
+	// Get user once at the beginning for both validation and hook
+	user, err := s.storage.GetUserByID(ctx, userID)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
 	hash, err := s.storage.GetPasswordHash(ctx, userID)
 	if err != nil {
 		return ErrUserNotFound
@@ -183,18 +200,15 @@ func (s *userService) ChangePassword(ctx context.Context, userID uuid.UUID, oldP
 
 	// Execute after update hook if set
 	if s.afterUpdate != nil {
-		user, _ := s.storage.GetUserByID(ctx, userID)
-		if user != nil {
-			hookCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			defer cancel()
+		hookCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 
-			if err := s.afterUpdate(hookCtx, user); err != nil {
-				s.logger.Error("afterUpdate hook failed",
-					logger.UserID(userID.String()),
-					logger.Error(err),
-					logger.Component("user"),
-				)
-			}
+		if err := s.afterUpdate(hookCtx, user); err != nil {
+			s.logger.Error("afterUpdate hook failed",
+				logger.UserID(userID.String()),
+				logger.Error(err),
+				logger.Component("user"),
+			)
 		}
 	}
 
@@ -329,6 +343,42 @@ func (s *userService) ConfirmEmailChange(ctx context.Context, emailChangeToken s
 	}
 
 	return updatedUser, nil
+}
+
+// DeleteUser permanently removes a user account after running validation hooks.
+// The beforeDelete hook can prevent deletion by returning an error (e.g., for business rule validation).
+// The afterDelete hook runs asynchronously for cleanup operations that shouldn't block the deletion.
+func (s *userService) DeleteUser(ctx context.Context, userID uuid.UUID) error {
+	// Execute before delete hook if set (synchronous - can block deletion)
+	if s.beforeDelete != nil {
+		if err := s.beforeDelete(ctx, userID); err != nil {
+			return fmt.Errorf("deletion blocked: %w", err)
+		}
+	}
+
+	// Delete the user from storage
+	if err := s.storage.DeleteUser(ctx, userID); err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return ErrUserNotFound
+		}
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	// Execute after delete hook if set (asynchronous - doesn't block)
+	if s.afterDelete != nil {
+		hookCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
+		if err := s.afterDelete(hookCtx, userID); err != nil {
+			s.logger.Error("afterDelete hook failed",
+				logger.UserID(userID.String()),
+				logger.Error(err),
+				logger.Component("user"),
+			)
+		}
+	}
+
+	return nil
 }
 
 // Compile-time interface assertion
