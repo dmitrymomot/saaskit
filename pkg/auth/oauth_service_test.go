@@ -407,9 +407,6 @@ func TestOAuthService_Auth_NewUser(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, user)
-
-		// Give hook goroutine time to execute
-		time.Sleep(100 * time.Millisecond)
 		assert.True(t, hookCalled)
 
 		storage.AssertExpectations(t)
@@ -593,23 +590,17 @@ func TestOAuthService_Auth_Linking(t *testing.T) {
 
 		storage := &MockOAuthStorage{}
 		adapter := &MockProviderAdapter{}
-		beforeLinkCalled := make(chan bool, 1)
-		afterLinkCalled := make(chan bool, 1)
+		beforeLinkCalled := false
+		afterLinkCalled := false
 
 		beforeLink := func(ctx context.Context, userID uuid.UUID) error {
-			select {
-			case beforeLinkCalled <- true:
-			default:
-			}
+			beforeLinkCalled = true
 			return nil
 		}
 
 		afterLink := func(ctx context.Context, user *User) error {
 			assert.NotNil(t, user)
-			select {
-			case afterLinkCalled <- true:
-			default:
-			}
+			afterLinkCalled = true
 			return nil
 		}
 
@@ -642,22 +633,8 @@ func TestOAuthService_Auth_Linking(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, user)
-
-		// Wait for before link hook
-		select {
-		case called := <-beforeLinkCalled:
-			assert.True(t, called)
-		case <-time.After(1 * time.Second):
-			t.Fatal("Before link hook was not called within timeout")
-		}
-
-		// Wait for after link hook
-		select {
-		case called := <-afterLinkCalled:
-			assert.True(t, called)
-		case <-time.After(1 * time.Second):
-			t.Fatal("After link hook was not called within timeout")
-		}
+		assert.True(t, beforeLinkCalled)
+		assert.True(t, afterLinkCalled)
 
 		storage.AssertExpectations(t)
 		adapter.AssertExpectations(t)

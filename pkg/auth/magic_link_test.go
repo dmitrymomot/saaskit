@@ -211,15 +211,12 @@ func TestMagicLinkService_RequestMagicLink(t *testing.T) {
 		t.Parallel()
 
 		storage := &MockMagicLinkStorage{}
-		hookCalled := make(chan bool, 1)
+		hookCalled := false
 
 		afterGenerate := func(ctx context.Context, user *User, token string) error {
 			assert.NotNil(t, user)
 			assert.NotEmpty(t, token)
-			select {
-			case hookCalled <- true:
-			default:
-			}
+			hookCalled = true
 			return nil
 		}
 
@@ -234,14 +231,7 @@ func TestMagicLinkService_RequestMagicLink(t *testing.T) {
 		_, err := svc.RequestMagicLink(ctx, email)
 
 		require.NoError(t, err)
-
-		// Wait for hook to execute
-		select {
-		case called := <-hookCalled:
-			assert.True(t, called)
-		case <-time.After(1 * time.Second):
-			t.Fatal("Hook was not called within timeout")
-		}
+		assert.True(t, hookCalled)
 
 		storage.AssertExpectations(t)
 	})
@@ -544,14 +534,11 @@ func TestMagicLinkService_VerifyMagicLink(t *testing.T) {
 		t.Parallel()
 
 		storage := &MockMagicLinkStorage{}
-		hookCalled := make(chan bool, 1)
+		hookCalled := false
 
 		afterVerify := func(ctx context.Context, user *User) error {
 			assert.NotNil(t, user)
-			select {
-			case hookCalled <- true:
-			default:
-			}
+			hookCalled = true
 			return nil
 		}
 
@@ -568,14 +555,7 @@ func TestMagicLinkService_VerifyMagicLink(t *testing.T) {
 		_, err := svc.VerifyMagicLink(ctx, validToken)
 
 		require.NoError(t, err)
-
-		// Wait for hook to execute
-		select {
-		case called := <-hookCalled:
-			assert.True(t, called)
-		case <-time.After(1 * time.Second):
-			t.Fatal("Hook was not called within timeout")
-		}
+		assert.True(t, hookCalled)
 
 		storage.AssertExpectations(t)
 	})

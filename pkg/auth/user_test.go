@@ -135,10 +135,16 @@ func TestUserService_ChangePassword(t *testing.T) {
 		oldPassword := "OldPassword123!"
 		newPassword := "NewPassword456!"
 
+		user := &User{
+			ID:    userID,
+			Email: "test@example.com",
+		}
+
 		// Pre-hash the old password for the test
 		oldHash, err := bcrypt.GenerateFromPassword([]byte(oldPassword), bcrypt.DefaultCost)
 		require.NoError(t, err)
 
+		storage.On("GetUserByID", mock.Anything, userID).Return(user, nil)
 		storage.On("GetPasswordHash", mock.Anything, userID).Return(oldHash, nil)
 		storage.On("UpdatePasswordHash", mock.Anything, userID, mock.AnythingOfType("[]uint8")).Return(nil)
 
@@ -187,10 +193,16 @@ func TestUserService_ChangePassword(t *testing.T) {
 		wrongOldPassword := "WrongPassword123!"
 		newPassword := "NewPassword456!"
 
+		user := &User{
+			ID:    userID,
+			Email: "test@example.com",
+		}
+
 		// Hash a different password
 		actualHash, err := bcrypt.GenerateFromPassword([]byte("ActualPassword123!"), bcrypt.DefaultCost)
 		require.NoError(t, err)
 
+		storage.On("GetUserByID", mock.Anything, userID).Return(user, nil)
 		storage.On("GetPasswordHash", mock.Anything, userID).Return(actualHash, nil)
 
 		ctx := context.Background()
@@ -211,7 +223,7 @@ func TestUserService_ChangePassword(t *testing.T) {
 		oldPassword := "OldPassword123!"
 		newPassword := "NewPassword456!"
 
-		storage.On("GetPasswordHash", mock.Anything, userID).Return(nil, errors.New("user not found"))
+		storage.On("GetUserByID", mock.Anything, userID).Return(nil, ErrUserNotFound)
 
 		ctx := context.Background()
 		err := svc.ChangePassword(ctx, userID, oldPassword, newPassword)
@@ -231,9 +243,15 @@ func TestUserService_ChangePassword(t *testing.T) {
 		oldPassword := "OldPassword123!"
 		newPassword := "NewPassword456!"
 
+		user := &User{
+			ID:    userID,
+			Email: "test@example.com",
+		}
+
 		oldHash, err := bcrypt.GenerateFromPassword([]byte(oldPassword), bcrypt.DefaultCost)
 		require.NoError(t, err)
 
+		storage.On("GetUserByID", mock.Anything, userID).Return(user, nil)
 		storage.On("GetPasswordHash", mock.Anything, userID).Return(oldHash, nil)
 		storage.On("UpdatePasswordHash", mock.Anything, userID, mock.AnythingOfType("[]uint8")).Return(errors.New("update error"))
 
@@ -250,23 +268,17 @@ func TestUserService_ChangePassword(t *testing.T) {
 		t.Parallel()
 
 		storage := &MockUserStorage{}
-		beforeUpdateChan := make(chan struct{}, 1)
-		afterUpdateChan := make(chan struct{}, 1)
+		beforeUpdateCalled := false
+		afterUpdateCalled := false
 
 		beforeUpdate := func(ctx context.Context, userID uuid.UUID) error {
-			select {
-			case beforeUpdateChan <- struct{}{}:
-			default:
-			}
+			beforeUpdateCalled = true
 			return nil
 		}
 
 		afterUpdate := func(ctx context.Context, user *User) error {
 			assert.NotNil(t, user)
-			select {
-			case afterUpdateChan <- struct{}{}:
-			default:
-			}
+			afterUpdateCalled = true
 			return nil
 		}
 
@@ -291,22 +303,8 @@ func TestUserService_ChangePassword(t *testing.T) {
 		err = svc.ChangePassword(ctx, userID, oldPassword, newPassword)
 
 		require.NoError(t, err)
-
-		// Check beforeUpdate was called
-		select {
-		case <-beforeUpdateChan:
-			// Hook was called
-		default:
-			t.Fatal("beforeUpdate hook was not called")
-		}
-
-		// Check afterUpdate was called
-		select {
-		case <-afterUpdateChan:
-			// Hook was called
-		case <-time.After(100 * time.Millisecond):
-			t.Fatal("afterUpdate hook was not called")
-		}
+		assert.True(t, beforeUpdateCalled)
+		assert.True(t, afterUpdateCalled)
 
 		storage.AssertExpectations(t)
 	})
@@ -827,23 +825,17 @@ func TestUserService_ConfirmEmailChange(t *testing.T) {
 		t.Parallel()
 
 		storage := &MockUserStorage{}
-		beforeUpdateChan := make(chan struct{}, 1)
-		afterUpdateChan := make(chan struct{}, 1)
+		beforeUpdateCalled := false
+		afterUpdateCalled := false
 
 		beforeUpdate := func(ctx context.Context, userID uuid.UUID) error {
-			select {
-			case beforeUpdateChan <- struct{}{}:
-			default:
-			}
+			beforeUpdateCalled = true
 			return nil
 		}
 
 		afterUpdate := func(ctx context.Context, user *User) error {
 			assert.NotNil(t, user)
-			select {
-			case afterUpdateChan <- struct{}{}:
-			default:
-			}
+			afterUpdateCalled = true
 			return nil
 		}
 
@@ -870,22 +862,8 @@ func TestUserService_ConfirmEmailChange(t *testing.T) {
 		_, err := svc.ConfirmEmailChange(ctx, validToken)
 
 		require.NoError(t, err)
-
-		// Check beforeUpdate was called
-		select {
-		case <-beforeUpdateChan:
-			// Hook was called
-		default:
-			t.Fatal("beforeUpdate hook was not called")
-		}
-
-		// Check afterUpdate was called
-		select {
-		case <-afterUpdateChan:
-			// Hook was called
-		case <-time.After(100 * time.Millisecond):
-			t.Fatal("afterUpdate hook was not called")
-		}
+		assert.True(t, beforeUpdateCalled)
+		assert.True(t, afterUpdateCalled)
 
 		storage.AssertExpectations(t)
 	})
@@ -917,6 +895,205 @@ func TestUserService_ConfirmEmailChange(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "update blocked")
 		assert.Nil(t, resultUser)
+
+		storage.AssertExpectations(t)
+	})
+}
+
+func TestUserService_DeleteUser(t *testing.T) {
+	t.Parallel()
+
+	const tokenSecret = "test-secret-32-chars-long-12345"
+
+	t.Run("deletes user successfully", func(t *testing.T) {
+		t.Parallel()
+
+		storage := &MockUserStorage{}
+		svc := NewUserService(storage, tokenSecret)
+
+		userID := uuid.New()
+
+		storage.On("DeleteUser", mock.Anything, userID).Return(nil)
+
+		ctx := context.Background()
+		err := svc.DeleteUser(ctx, userID)
+
+		require.NoError(t, err)
+
+		storage.AssertExpectations(t)
+	})
+
+	t.Run("handles user not found", func(t *testing.T) {
+		t.Parallel()
+
+		storage := &MockUserStorage{}
+		svc := NewUserService(storage, tokenSecret)
+
+		userID := uuid.New()
+
+		storage.On("DeleteUser", mock.Anything, userID).Return(ErrUserNotFound)
+
+		ctx := context.Background()
+		err := svc.DeleteUser(ctx, userID)
+
+		assert.Equal(t, ErrUserNotFound, err)
+
+		storage.AssertExpectations(t)
+	})
+
+	t.Run("handles storage errors", func(t *testing.T) {
+		t.Parallel()
+
+		storage := &MockUserStorage{}
+		svc := NewUserService(storage, tokenSecret)
+
+		userID := uuid.New()
+
+		storage.On("DeleteUser", mock.Anything, userID).Return(errors.New("database error"))
+
+		ctx := context.Background()
+		err := svc.DeleteUser(ctx, userID)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to delete user")
+
+		storage.AssertExpectations(t)
+	})
+
+	t.Run("beforeDelete hook can block deletion", func(t *testing.T) {
+		t.Parallel()
+
+		storage := &MockUserStorage{}
+		beforeDeleteCalled := false
+
+		beforeDelete := func(ctx context.Context, userID uuid.UUID) error {
+			beforeDeleteCalled = true
+			return errors.New("user has active subscription")
+		}
+
+		svc := NewUserService(storage, tokenSecret,
+			WithBeforeDelete(beforeDelete),
+		)
+
+		userID := uuid.New()
+
+		// DeleteUser should NOT be called if beforeDelete blocks it
+		// storage.On("DeleteUser", mock.Anything, userID).Return(nil) - NOT setting this expectation
+
+		ctx := context.Background()
+		err := svc.DeleteUser(ctx, userID)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "deletion blocked")
+		assert.Contains(t, err.Error(), "user has active subscription")
+		assert.True(t, beforeDeleteCalled)
+
+		storage.AssertExpectations(t)
+	})
+
+	t.Run("executes hooks successfully", func(t *testing.T) {
+		t.Parallel()
+
+		storage := &MockUserStorage{}
+		beforeDeleteCalled := false
+		afterDeleteCalled := false
+		var beforeDeleteUserID uuid.UUID
+		var afterDeleteUserID uuid.UUID
+
+		beforeDelete := func(ctx context.Context, userID uuid.UUID) error {
+			beforeDeleteCalled = true
+			beforeDeleteUserID = userID
+			return nil
+		}
+
+		afterDelete := func(ctx context.Context, userID uuid.UUID) error {
+			afterDeleteCalled = true
+			afterDeleteUserID = userID
+			return nil
+		}
+
+		svc := NewUserService(storage, tokenSecret,
+			WithBeforeDelete(beforeDelete),
+			WithAfterDelete(afterDelete),
+		)
+
+		userID := uuid.New()
+
+		storage.On("DeleteUser", mock.Anything, userID).Return(nil)
+
+		ctx := context.Background()
+		err := svc.DeleteUser(ctx, userID)
+
+		require.NoError(t, err)
+		assert.True(t, beforeDeleteCalled)
+		assert.True(t, afterDeleteCalled)
+		assert.Equal(t, userID, beforeDeleteUserID)
+		assert.Equal(t, userID, afterDeleteUserID)
+
+		storage.AssertExpectations(t)
+	})
+
+	t.Run("afterDelete hook error does not block deletion", func(t *testing.T) {
+		t.Parallel()
+
+		storage := &MockUserStorage{}
+		afterDeleteCalled := false
+
+		afterDelete := func(ctx context.Context, userID uuid.UUID) error {
+			afterDeleteCalled = true
+			return errors.New("cleanup failed")
+		}
+
+		svc := NewUserService(storage, tokenSecret,
+			WithAfterDelete(afterDelete),
+		)
+
+		userID := uuid.New()
+
+		storage.On("DeleteUser", mock.Anything, userID).Return(nil)
+
+		ctx := context.Background()
+		err := svc.DeleteUser(ctx, userID)
+
+		// Deletion should succeed even if afterDelete hook fails
+		require.NoError(t, err)
+		assert.True(t, afterDeleteCalled)
+
+		storage.AssertExpectations(t)
+	})
+
+	t.Run("hook execution order", func(t *testing.T) {
+		t.Parallel()
+
+		storage := &MockUserStorage{}
+		var executionOrder []string
+
+		beforeDelete := func(ctx context.Context, userID uuid.UUID) error {
+			executionOrder = append(executionOrder, "beforeDelete")
+			return nil
+		}
+
+		afterDelete := func(ctx context.Context, userID uuid.UUID) error {
+			executionOrder = append(executionOrder, "afterDelete")
+			return nil
+		}
+
+		svc := NewUserService(storage, tokenSecret,
+			WithBeforeDelete(beforeDelete),
+			WithAfterDelete(afterDelete),
+		)
+
+		userID := uuid.New()
+
+		storage.On("DeleteUser", mock.Anything, userID).Return(nil).Run(func(args mock.Arguments) {
+			executionOrder = append(executionOrder, "deleteUser")
+		})
+
+		ctx := context.Background()
+		err := svc.DeleteUser(ctx, userID)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"beforeDelete", "deleteUser", "afterDelete"}, executionOrder)
 
 		storage.AssertExpectations(t)
 	})

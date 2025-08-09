@@ -168,31 +168,15 @@ func (s *magicLinkService) RequestMagicLink(ctx context.Context, email string) (
 
 	// Execute after generate hook if set
 	if s.afterGenerate != nil {
-		// Get user for hook
-		user, _ := s.storage.GetUserByEmail(ctx, email)
-		if user != nil {
-			go func() {
-				defer func() {
-					if r := recover(); r != nil {
-						s.logger.Error("afterGenerate hook panicked",
-							slog.String("email", email),
-							slog.Any("panic", r),
-							logger.Component("magic_link"),
-						)
-					}
-				}()
+		hookCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
-
-				if err := s.afterGenerate(ctx, user, tokenStr); err != nil {
-					s.logger.Error("afterGenerate hook failed",
-						slog.String("email", email),
-						logger.Error(err),
-						logger.Component("magic_link"),
-					)
-				}
-			}()
+		if err := s.afterGenerate(hookCtx, user, tokenStr); err != nil {
+			s.logger.Error("afterGenerate hook failed",
+				slog.String("email", email),
+				logger.Error(err),
+				logger.Component("magic_link"),
+			)
 		}
 	}
 
@@ -256,28 +240,16 @@ func (s *magicLinkService) VerifyMagicLink(ctx context.Context, magicLinkToken s
 
 	// Execute after verify hook if set
 	if s.afterVerify != nil {
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					s.logger.Error("afterVerify hook panicked",
-						logger.UserID(user.ID.String()),
-						slog.Any("panic", r),
-						logger.Component("magic_link"),
-					)
-				}
-			}()
+		hookCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-
-			if err := s.afterVerify(ctx, user); err != nil {
-				s.logger.Error("afterVerify hook failed",
-					logger.UserID(user.ID.String()),
-					logger.Error(err),
-					logger.Component("magic_link"),
-				)
-			}
-		}()
+		if err := s.afterVerify(hookCtx, user); err != nil {
+			s.logger.Error("afterVerify hook failed",
+				logger.UserID(user.ID.String()),
+				logger.Error(err),
+				logger.Component("magic_link"),
+			)
+		}
 	}
 
 	return user, nil

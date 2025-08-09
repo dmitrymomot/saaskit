@@ -211,30 +211,17 @@ func (s *oauthService) handleLinking(ctx context.Context, userID uuid.UUID, prof
 
 	// Execute after link hook if set (only if actually linked)
 	if s.afterLink != nil {
-		go func(u *User) {
-			defer func() {
-				if r := recover(); r != nil {
-					s.logger.Error("afterLink hook panicked",
-						logger.UserID(u.ID.String()),
-						slog.Any("panic", r),
-						logger.Component("oauth"),
-						slog.String("provider", s.adapter.ProviderID()),
-					)
-				}
-			}()
+		hookCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-
-			if err := s.afterLink(ctx, u); err != nil {
-				s.logger.Error("afterLink hook failed",
-					logger.UserID(u.ID.String()),
-					logger.Error(err),
-					logger.Component("oauth"),
-					slog.String("provider", s.adapter.ProviderID()),
-				)
-			}
-		}(user)
+		if err := s.afterLink(hookCtx, user); err != nil {
+			s.logger.Error("afterLink hook failed",
+				logger.UserID(user.ID.String()),
+				logger.Error(err),
+				logger.Component("oauth"),
+				slog.String("provider", s.adapter.ProviderID()),
+			)
+		}
 	}
 
 	return user, nil
@@ -294,30 +281,17 @@ func (s *oauthService) handleAuth(ctx context.Context, profile ProviderProfile) 
 
 	// Execute after auth hook if set
 	if s.afterAuth != nil {
-		go func(u *User) {
-			defer func() {
-				if r := recover(); r != nil {
-					s.logger.Error("afterAuth hook panicked",
-						logger.UserID(u.ID.String()),
-						slog.Any("panic", r),
-						logger.Component("oauth"),
-						slog.String("provider", s.adapter.ProviderID()),
-					)
-				}
-			}()
+		hookCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-
-			if err := s.afterAuth(ctx, u); err != nil {
-				s.logger.Error("afterAuth hook failed",
-					logger.UserID(u.ID.String()),
-					logger.Error(err),
-					logger.Component("oauth"),
-					slog.String("provider", s.adapter.ProviderID()),
-				)
-			}
-		}(user)
+		if err := s.afterAuth(hookCtx, user); err != nil {
+			s.logger.Error("afterAuth hook failed",
+				logger.UserID(user.ID.String()),
+				logger.Error(err),
+				logger.Component("oauth"),
+				slog.String("provider", s.adapter.ProviderID()),
+			)
+		}
 	}
 
 	return user, nil

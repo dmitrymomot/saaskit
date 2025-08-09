@@ -119,6 +119,11 @@ func (m *MockUserStorage) UpdatePasswordHash(ctx context.Context, userID uuid.UU
 	return args.Error(0)
 }
 
+func (m *MockUserStorage) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
 // MockOAuthStorage is a mock implementation of OAuthStorage.
 type MockOAuthStorage struct {
 	mock.Mock

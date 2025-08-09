@@ -183,28 +183,16 @@ func (s *passwordService) Register(ctx context.Context, email, password string) 
 
 	// Execute after register hook if set
 	if s.afterRegister != nil {
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					s.logger.Error("afterRegister hook panicked",
-						logger.UserID(user.ID.String()),
-						slog.Any("panic", r),
-						logger.Component("password"),
-					)
-				}
-			}()
+		hookCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-
-			if err := s.afterRegister(ctx, user); err != nil {
-				s.logger.Error("afterRegister hook failed",
-					logger.UserID(user.ID.String()),
-					logger.Error(err),
-					logger.Component("password"),
-				)
-			}
-		}()
+		if err := s.afterRegister(hookCtx, user); err != nil {
+			s.logger.Error("afterRegister hook failed",
+				logger.UserID(user.ID.String()),
+				logger.Error(err),
+				logger.Component("password"),
+			)
+		}
 	}
 
 	return user, nil
@@ -238,28 +226,16 @@ func (s *passwordService) Authenticate(ctx context.Context, email, password stri
 
 	// Execute after login hook if set
 	if s.afterLogin != nil {
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					s.logger.Error("afterLogin hook panicked",
-						logger.UserID(user.ID.String()),
-						slog.Any("panic", r),
-						logger.Component("password"),
-					)
-				}
-			}()
+		hookCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-
-			if err := s.afterLogin(ctx, user); err != nil {
-				s.logger.Error("afterLogin hook failed",
-					logger.UserID(user.ID.String()),
-					logger.Error(err),
-					logger.Component("password"),
-				)
-			}
-		}()
+		if err := s.afterLogin(hookCtx, user); err != nil {
+			s.logger.Error("afterLogin hook failed",
+				logger.UserID(user.ID.String()),
+				logger.Error(err),
+				logger.Component("password"),
+			)
+		}
 	}
 
 	return user, nil

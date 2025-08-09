@@ -312,14 +312,11 @@ func TestPasswordService_Register(t *testing.T) {
 		t.Parallel()
 
 		storage := &MockPasswordStorage{}
-		hookChan := make(chan struct{}, 1)
+		hookCalled := false
 
 		afterRegister := func(ctx context.Context, user *User) error {
 			assert.NotNil(t, user)
-			select {
-			case hookChan <- struct{}{}:
-			default:
-			}
+			hookCalled = true
 			return nil
 		}
 
@@ -337,14 +334,7 @@ func TestPasswordService_Register(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, user)
-
-		// Wait for hook to be called
-		select {
-		case <-hookChan:
-			// Hook was called
-		case <-time.After(100 * time.Millisecond):
-			t.Fatal("afterRegister hook was not called")
-		}
+		assert.True(t, hookCalled)
 
 		storage.AssertExpectations(t)
 	})
@@ -474,24 +464,18 @@ func TestPasswordService_Authenticate(t *testing.T) {
 		t.Parallel()
 
 		storage := &MockPasswordStorage{}
-		beforeLoginChan := make(chan struct{}, 1)
-		afterLoginChan := make(chan struct{}, 1)
+		beforeLoginCalled := false
+		afterLoginCalled := false
 
 		beforeLogin := func(ctx context.Context, email string) error {
 			assert.Equal(t, "test@example.com", email)
-			select {
-			case beforeLoginChan <- struct{}{}:
-			default:
-			}
+			beforeLoginCalled = true
 			return nil
 		}
 
 		afterLogin := func(ctx context.Context, user *User) error {
 			assert.NotNil(t, user)
-			select {
-			case afterLoginChan <- struct{}{}:
-			default:
-			}
+			afterLoginCalled = true
 			return nil
 		}
 
@@ -514,22 +498,8 @@ func TestPasswordService_Authenticate(t *testing.T) {
 		_, err = svc.Authenticate(ctx, email, password)
 
 		require.NoError(t, err)
-
-		// Check beforeLogin was called
-		select {
-		case <-beforeLoginChan:
-			// Hook was called
-		default:
-			t.Fatal("beforeLogin hook was not called")
-		}
-
-		// Check afterLogin was called
-		select {
-		case <-afterLoginChan:
-			// Hook was called
-		case <-time.After(100 * time.Millisecond):
-			t.Fatal("afterLogin hook was not called")
-		}
+		assert.True(t, beforeLoginCalled)
+		assert.True(t, afterLoginCalled)
 
 		storage.AssertExpectations(t)
 	})
