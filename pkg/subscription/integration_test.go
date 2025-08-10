@@ -1,7 +1,10 @@
 package subscription_test
 
 import (
+	"bytes"
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -119,7 +122,7 @@ func TestWorkflow_TrialToPaidJourney(t *testing.T) {
 
 	checkoutReq := subscription.CheckoutRequest{
 		PriceID:    "pro",
-		CustomerID: tenantID.String(),
+		TenantID:   tenantID,
 		SuccessURL: "https://app.example.com/success",
 		CancelURL:  "https://app.example.com/cancel",
 	}
@@ -139,17 +142,18 @@ func TestWorkflow_TrialToPaidJourney(t *testing.T) {
 
 	// Webhook confirms subscription
 	payload := []byte(`{"event": "subscription.created"}`)
-	signature := "valid_sig"
+	req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(payload))
+	req.Header.Set("Paddle-Signature", "valid_sig")
 	event := &subscription.WebhookEvent{
 		Type:           subscription.EventSubscriptionCreated,
-		CustomerID:     tenantID.String(),
+		TenantID:       tenantID,
 		SubscriptionID: "sub_pro_123",
 		PlanID:         "pro",
 		Status:         string(subscription.StatusActive),
 	}
-	provider.On("ParseWebhook", mock.Anything, payload, signature).Return(event, nil).Once()
+	provider.On("ParseWebhook", req).Return(event, nil).Once()
 
-	err = svc.HandleWebhook(ctx, payload, signature)
+	err = svc.HandleWebhook(req)
 	assert.NoError(t, err)
 
 	// Step 6: Full Pro access restored
@@ -221,17 +225,18 @@ func TestWorkflow_UpgradePath(t *testing.T) {
 	})).Return(nil).Once()
 
 	payload := []byte(`{"event": "subscription.updated"}`)
-	signature := "valid_sig"
+	req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(payload))
+	req.Header.Set("Paddle-Signature", "valid_sig")
 	event := &subscription.WebhookEvent{
 		Type:           subscription.EventSubscriptionUpdated,
-		CustomerID:     tenantID.String(),
+		TenantID:       tenantID,
 		SubscriptionID: "sub_basic_123",
 		PlanID:         "pro",
 		Status:         string(subscription.StatusActive),
 	}
-	provider.On("ParseWebhook", mock.Anything, payload, signature).Return(event, nil).Once()
+	provider.On("ParseWebhook", req).Return(event, nil).Once()
 
-	err = svc.HandleWebhook(ctx, payload, signature)
+	err = svc.HandleWebhook(req)
 	assert.NoError(t, err)
 
 	// Step 5: Immediately can create resources up to Pro limits
@@ -337,14 +342,15 @@ func TestWorkflow_PaymentFailureRecovery(t *testing.T) {
 	})).Return(nil).Once()
 
 	payload := []byte(`{"event": "payment.failed"}`)
-	signature := "valid_sig"
+	req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(payload))
+	req.Header.Set("Paddle-Signature", "valid_sig")
 	event := &subscription.WebhookEvent{
-		Type:       subscription.EventPaymentFailed,
-		CustomerID: tenantID.String(),
+		Type:     subscription.EventPaymentFailed,
+		TenantID: tenantID,
 	}
-	provider.On("ParseWebhook", mock.Anything, payload, signature).Return(event, nil).Once()
+	provider.On("ParseWebhook", req).Return(event, nil).Once()
 
-	err = svc.HandleWebhook(ctx, payload, signature)
+	err = svc.HandleWebhook(req)
 	assert.NoError(t, err)
 
 	// Step 3: User access restricted to Free plan limits
@@ -374,16 +380,18 @@ func TestWorkflow_PaymentFailureRecovery(t *testing.T) {
 
 	// Step 5: Payment succeeds - full access restored
 	successPayload := []byte(`{"event": "subscription.updated"}`)
+	successReq := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(successPayload))
+	successReq.Header.Set("Paddle-Signature", "valid_sig")
 	successEvent := &subscription.WebhookEvent{
 		Type:           subscription.EventSubscriptionUpdated,
-		CustomerID:     tenantID.String(),
+		TenantID:       tenantID,
 		SubscriptionID: "sub_pro_123",
 		PlanID:         "pro",
 		Status:         string(subscription.StatusActive),
 	}
-	provider.On("ParseWebhook", ctx, successPayload, signature).Return(successEvent, nil).Once()
+	provider.On("ParseWebhook", successReq).Return(successEvent, nil).Once()
 
-	err = svc.HandleWebhook(ctx, successPayload, signature)
+	err = svc.HandleWebhook(successReq)
 	assert.NoError(t, err)
 
 	// Full Pro access restored
