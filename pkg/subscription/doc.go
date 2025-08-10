@@ -225,16 +225,10 @@
 // Process billing provider webhooks to sync subscription state:
 //
 //	func webhookHandler(w http.ResponseWriter, r *http.Request) {
-//		body, err := io.ReadAll(r.Body)
-//		if err != nil {
-//			http.Error(w, "Invalid request", http.StatusBadRequest)
-//			return
-//		}
-//
-//		signature := r.Header.Get("Paddle-Signature") // or appropriate header
-//
-//		// Process webhook
-//		err = svc.HandleWebhook(r.Context(), body, signature)
+//		// Process webhook directly with the request
+//		// The provider will extract signature from appropriate header
+//		// (e.g., Paddle-Signature, Stripe-Signature, etc.)
+//		err := svc.HandleWebhook(r)
 //		if err != nil {
 //			log.Printf("Webhook error: %v", err)
 //			http.Error(w, "Webhook processing failed", http.StatusBadRequest)

@@ -95,8 +95,8 @@ link, err := svc.CreateCheckoutLink(ctx, tenantID, "price_pro_monthly",
 )
 // Redirect to link.URL
 
-// Handle webhook from provider
-err = svc.HandleWebhook(ctx, payload, signature)
+// Handle webhook from provider (in HTTP handler)
+err = svc.HandleWebhook(r) // r is *http.Request
 
 // Get customer portal link
 portal, err := svc.GetCustomerPortalLink(ctx, tenantID)
