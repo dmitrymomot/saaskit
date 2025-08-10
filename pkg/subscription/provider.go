@@ -43,10 +43,12 @@ type CheckoutLink struct {
 	ExpiresAt time.Time // link expiration
 }
 
-// PortalLink represents a customer portal session.
+// PortalLink represents a customer portal session with optional action-specific URLs.
 type PortalLink struct {
-	URL       string    // pre-authenticated customer portal URL
-	ExpiresAt time.Time // link expiration (usually 24 hours)
+	URL              string    // general portal URL (always populated)
+	CancelURL        string    // optional: direct to cancellation flow
+	UpdatePaymentURL string    // optional: direct to payment method update
+	ExpiresAt        time.Time // link expiration (usually 24 hours)
 }
 
 // WebhookEvent represents a normalized webhook event from the billing provider.
