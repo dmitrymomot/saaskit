@@ -23,4 +23,15 @@ var (
 
 	ErrFailedToLoadPlans          = errors.New("failed to load subscription plans")
 	ErrFailedToCountResourceUsage = errors.New("failed to count resource usage")
+
+	// Provider-specific errors
+	ErrMissingAPIKey              = errors.New("billing provider API key is required")
+	ErrMissingWebhookSecret       = errors.New("billing provider webhook secret is required")
+	ErrInvalidProviderEnvironment = errors.New("invalid billing provider environment")
+	ErrWebhookVerificationFailed  = errors.New("webhook signature verification failed")
+	ErrNoCheckoutURL              = errors.New("no checkout URL returned from provider")
+	ErrNoPortalURL                = errors.New("no portal URL returned from provider")
+	ErrMissingProviderCustomerID  = errors.New("provider customer ID not available")
+	ErrMissingTenantID            = errors.New("tenant ID is required")
+	ErrMissingPriceID             = errors.New("price ID is required")
 )

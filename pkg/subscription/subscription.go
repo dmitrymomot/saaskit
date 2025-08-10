@@ -9,14 +9,15 @@ import (
 // Subscription represents a tenant's subscription to a plan.
 // Each tenant has exactly one active subscription at a time.
 type Subscription struct {
-	TenantID      uuid.UUID // primary key - one subscription per tenant
-	PlanID        string
-	Status        SubscriptionStatus
-	ProviderSubID string // provider's subscription ID (empty for free plans)
-	CreatedAt     time.Time
-	TrialEndsAt   *time.Time // set only for plans with trials
-	UpdatedAt     time.Time
-	CancelledAt   *time.Time // set when subscription is cancelled
+	TenantID           uuid.UUID // primary key - one subscription per tenant
+	PlanID             string
+	Status             SubscriptionStatus
+	ProviderSubID      string // provider's subscription ID (empty for free plans)
+	ProviderCustomerID string // provider's customer ID (ctm_xxx, cus_xxx, etc)
+	CreatedAt          time.Time
+	TrialEndsAt        *time.Time // set only for plans with trials
+	UpdatedAt          time.Time
+	CancelledAt        *time.Time // set when subscription is cancelled
 }
 
 func (s *Subscription) IsTrialing() bool {
