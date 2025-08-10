@@ -44,7 +44,10 @@
 //	    secret, _ := totp.GenerateSecretKey()
 //
 //	    // 2. Persist the secret encrypted in your datastore
-//	    key, _ := totp.LoadEncryptionKey()
+//	    var cfg totp.Config
+//	    // Load config from environment using github.com/caarlos0/env
+//	    // env.Parse(&cfg)
+//	    key, _ := totp.GetEncryptionKey(cfg)
 //	    encSecret, _ := totp.EncryptSecret(secret, key)
 //
 //	    // 3. Display the bootstrap URI/QR code to the user

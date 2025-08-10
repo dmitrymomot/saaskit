@@ -2,7 +2,17 @@ package subscription
 
 import (
 	"context"
+	"net/http"
 	"time"
+
+	"github.com/google/uuid"
+)
+
+// Common durations for all billing providers
+const (
+	DefaultCheckoutExpiry = 24 * time.Hour // Default checkout link expiration
+	DefaultPortalExpiry   = 24 * time.Hour // Default portal link expiration
+	FreeCheckoutExpiry    = 5 * time.Minute
 )
 
 // BillingProvider defines the minimal interface for payment provider integrations.
@@ -21,19 +31,20 @@ type BillingProvider interface {
 	// The provider implementation decides which fields to use (e.g., Paddle uses TenantID as customer ID)
 	GetCustomerPortalLink(ctx context.Context, subscription *Subscription) (*PortalLink, error)
 
-	// ParseWebhook validates and parses incoming webhook data.
-	// Must validate signature to prevent webhook spoofing attacks.
-	// Returns normalized event type and raw provider data
-	ParseWebhook(ctx context.Context, payload []byte, signature string) (*WebhookEvent, error)
+	// ParseWebhook validates and parses incoming webhook data from HTTP request.
+	// Must validate signature headers to prevent webhook spoofing attacks.
+	// Each provider looks for their specific signature headers (e.g., Paddle-Signature).
+	// Returns normalized event type and raw provider data.
+	ParseWebhook(r *http.Request) (*WebhookEvent, error)
 }
 
 // CheckoutRequest contains data needed to create a checkout session.
 type CheckoutRequest struct {
-	PriceID    string // provider's price/plan identifier
-	CustomerID string // your internal user/tenant ID
-	Email      string // optional billing email
-	SuccessURL string // redirect after successful payment
-	CancelURL  string // redirect if customer cancels
+	PriceID    string    // provider's price/plan identifier
+	TenantID   uuid.UUID // your internal tenant ID
+	Email      string    // optional billing email
+	SuccessURL string    // redirect after successful payment
+	CancelURL  string    // redirect if customer cancels
 }
 
 // CheckoutLink represents a hosted checkout session.
@@ -43,10 +54,12 @@ type CheckoutLink struct {
 	ExpiresAt time.Time // link expiration
 }
 
-// PortalLink represents a customer portal session.
+// PortalLink represents a customer portal session with optional action-specific URLs.
 type PortalLink struct {
-	URL       string    // pre-authenticated customer portal URL
-	ExpiresAt time.Time // link expiration (usually 24 hours)
+	URL              string    // general portal URL (always populated)
+	CancelURL        string    // optional: direct to cancellation flow
+	UpdatePaymentURL string    // optional: direct to payment method update
+	ExpiresAt        time.Time // link expiration (usually 24 hours)
 }
 
 // WebhookEvent represents a normalized webhook event from the billing provider.
@@ -54,7 +67,8 @@ type WebhookEvent struct {
 	Type           EventType      // normalized event type
 	ProviderEvent  string         // original provider event name
 	SubscriptionID string         // provider's subscription ID
-	CustomerID     string         // your user ID from metadata
+	TenantID       uuid.UUID      // your internal tenant ID (from custom_data)
+	CustomerID     string         // provider's customer ID (ctm_xxx, cus_xxx, etc)
 	Status         string         // subscription status
 	PlanID         string         // the plan/price they subscribed to
 	Raw            map[string]any // full webhook data
