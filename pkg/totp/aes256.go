@@ -96,14 +96,10 @@ func GenerateEncodedEncryptionKey() (string, error) {
 	return base64.StdEncoding.EncodeToString(key), nil
 }
 
-// LoadEncryptionKey loads the encryption key from the configuration.
-// The key must be a 32-byte base64-encoded string stored in the environment variable.
-// Returns the decoded key bytes or an error if loading/decoding fails or the key length is invalid.
-func LoadEncryptionKey() ([]byte, error) {
-	cfg, err := LoadConfig()
-	if err != nil {
-		return nil, err
-	}
+// GetEncryptionKey decodes the encryption key from the configuration.
+// The key must be a 32-byte base64-encoded string.
+// Returns the decoded key bytes or an error if decoding fails or the key length is invalid.
+func GetEncryptionKey(cfg Config) ([]byte, error) {
 	if cfg.EncryptionKey == "" {
 		return nil, errors.Join(ErrFailedToLoadEncryptionKey, ErrEncryptionKeyNotSet)
 	}

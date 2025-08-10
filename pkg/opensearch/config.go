@@ -7,6 +7,6 @@ type Config struct {
 	Addresses    []string `env:"OPENSEARCH_ADDRESSES,required"`
 	Username     string   `env:"OPENSEARCH_USERNAME,notEmpty"`
 	Password     string   `env:"OPENSEARCH_PASSWORD,notEmpty"`
-	MaxRetries   int      `env:"OPENSEARCH_MAX_RETRIES" default:"3"`
-	DisableRetry bool     `env:"OPENSEARCH_DISABLE_RETRY" default:"false"`
+	MaxRetries   int      `env:"OPENSEARCH_MAX_RETRIES" envDefault:"3"`
+	DisableRetry bool     `env:"OPENSEARCH_DISABLE_RETRY" envDefault:"false"`
 }
