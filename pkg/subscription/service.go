@@ -334,14 +334,14 @@ func (s *service) CreateCheckoutLink(ctx context.Context, tenantID uuid.UUID, pl
 		}
 
 		if err := s.store.Save(ctx, subscription); err != nil {
-			return nil, fmt.Errorf("failed to save free plan subscription: %w", err)
+			return nil, errors.Join(ErrFailedToSaveSubscription, err)
 		}
 
 		// Redirect to success URL immediately (no payment needed)
 		return &CheckoutLink{
 			URL:       opts.SuccessURL,
 			SessionID: "",
-			ExpiresAt: time.Now().Add(5 * time.Minute),
+			ExpiresAt: time.Now().Add(FreeCheckoutExpiry),
 		}, nil
 	}
 
@@ -367,7 +367,7 @@ func (s *service) GetCustomerPortalLink(ctx context.Context, tenantID uuid.UUID)
 
 	// Free plans have no provider subscription to manage
 	if subscription.ProviderSubID == "" {
-		return nil, fmt.Errorf("no customer portal available for free plans")
+		return nil, ErrNoPortalForFreePlan
 	}
 
 	// Provider implementation determines which subscription fields to use
@@ -385,7 +385,7 @@ func (s *service) HandleWebhook(r *http.Request) error {
 
 	// Validate tenant ID from webhook
 	if event.TenantID == uuid.Nil {
-		return fmt.Errorf("missing tenant ID in webhook event")
+		return ErrMissingTenantIDInWebhook
 	}
 	tenantID := event.TenantID
 
@@ -412,7 +412,7 @@ func (s *service) HandleWebhook(r *http.Request) error {
 		}
 
 		if err := s.store.Save(ctx, subscription); err != nil {
-			return fmt.Errorf("failed to save subscription: %w", err)
+			return errors.Join(ErrFailedToSaveSubscription, err)
 		}
 
 	case EventSubscriptionUpdated:
@@ -426,7 +426,7 @@ func (s *service) HandleWebhook(r *http.Request) error {
 		subscription.UpdatedAt = time.Now().UTC()
 
 		if err := s.store.Save(ctx, subscription); err != nil {
-			return fmt.Errorf("failed to update subscription: %w", err)
+			return errors.Join(ErrFailedToUpdateSubscription, err)
 		}
 
 	case EventSubscriptionCancelled:
@@ -441,7 +441,7 @@ func (s *service) HandleWebhook(r *http.Request) error {
 		subscription.UpdatedAt = now
 
 		if err := s.store.Save(ctx, subscription); err != nil {
-			return fmt.Errorf("failed to cancel subscription: %w", err)
+			return errors.Join(ErrFailedToCancelSubscription, err)
 		}
 
 	case EventPaymentFailed:
@@ -451,7 +451,7 @@ func (s *service) HandleWebhook(r *http.Request) error {
 			subscription.UpdatedAt = time.Now().UTC()
 
 			if err := s.store.Save(ctx, subscription); err != nil {
-				return fmt.Errorf("failed to update subscription status: %w", err)
+				return errors.Join(ErrFailedToUpdateSubscriptionStatus, err)
 			}
 		} else if !errors.Is(err, ErrSubscriptionNotFound) {
 			return fmt.Errorf("failed to get subscription: %w", err)
@@ -467,12 +467,12 @@ func validatePlans(plans map[string]Plan) error {
 	for planID, plan := range plans {
 		if plan.ID != planID {
 			return errors.Join(ErrInvalidPlanConfiguration,
-				fmt.Errorf("plan ID mismatch: map key %s != plan.ID %s", planID, plan.ID))
+				fmt.Errorf("%w: map key %s != plan.ID %s", ErrPlanIDMismatch, planID, plan.ID))
 		}
 
 		if plan.TrialDays < 0 {
 			return errors.Join(ErrInvalidPlanConfiguration,
-				fmt.Errorf("plan %s has negative trial days: %d", planID, plan.TrialDays))
+				fmt.Errorf("%w: plan %s has %d trial days", ErrNegativeTrialDays, planID, plan.TrialDays))
 		}
 	}
 	return nil

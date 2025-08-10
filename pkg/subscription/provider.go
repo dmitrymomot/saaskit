@@ -12,6 +12,7 @@ import (
 const (
 	DefaultCheckoutExpiry = 24 * time.Hour // Default checkout link expiration
 	DefaultPortalExpiry   = 24 * time.Hour // Default portal link expiration
+	FreeCheckoutExpiry    = 5 * time.Minute
 )
 
 // BillingProvider defines the minimal interface for payment provider integrations.
