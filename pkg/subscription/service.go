@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"time"
 
@@ -29,7 +30,7 @@ type Service interface {
 	// Billing provider interactions
 	CreateCheckoutLink(ctx context.Context, tenantID uuid.UUID, planID string, opts CheckoutOptions) (*CheckoutLink, error)
 	GetCustomerPortalLink(ctx context.Context, tenantID uuid.UUID) (*PortalLink, error)
-	HandleWebhook(ctx context.Context, payload []byte, signature string) error
+	HandleWebhook(r *http.Request) error
 }
 
 // PlansListSource defines how plans are loaded into the subscription service.
@@ -347,7 +348,7 @@ func (s *service) CreateCheckoutLink(ctx context.Context, tenantID uuid.UUID, pl
 	// Delegate to payment provider for paid plans
 	return s.provider.CreateCheckoutLink(ctx, CheckoutRequest{
 		PriceID:    plan.ID, // must match provider's price ID
-		CustomerID: tenantID.String(),
+		TenantID:   tenantID,
 		Email:      opts.Email,
 		SuccessURL: opts.SuccessURL,
 		CancelURL:  opts.CancelURL,
@@ -374,28 +375,31 @@ func (s *service) GetCustomerPortalLink(ctx context.Context, tenantID uuid.UUID)
 	return s.provider.GetCustomerPortalLink(ctx, subscription)
 }
 
-func (s *service) HandleWebhook(ctx context.Context, payload []byte, signature string) error {
-	event, err := s.provider.ParseWebhook(ctx, payload, signature)
+func (s *service) HandleWebhook(r *http.Request) error {
+	ctx := r.Context()
+
+	event, err := s.provider.ParseWebhook(r)
 	if err != nil {
 		return err
 	}
 
-	// Customer ID must be a valid UUID matching our tenant ID format
-	tenantID, err := uuid.Parse(event.CustomerID)
-	if err != nil {
-		return fmt.Errorf("invalid tenant ID in webhook: %w", err)
+	// Validate tenant ID from webhook
+	if event.TenantID == uuid.Nil {
+		return fmt.Errorf("missing tenant ID in webhook event")
 	}
+	tenantID := event.TenantID
 
 	switch event.Type {
 	case EventSubscriptionCreated:
 		now := time.Now().UTC()
 		subscription := &Subscription{
-			TenantID:      tenantID,
-			PlanID:        event.PlanID,
-			Status:        SubscriptionStatus(event.Status),
-			ProviderSubID: event.SubscriptionID,
-			CreatedAt:     now,
-			UpdatedAt:     now,
+			TenantID:           tenantID,
+			PlanID:             event.PlanID,
+			Status:             SubscriptionStatus(event.Status),
+			ProviderSubID:      event.SubscriptionID,
+			ProviderCustomerID: event.CustomerID,
+			CreatedAt:          now,
+			UpdatedAt:          now,
 		}
 
 		// Set trial end date based on plan configuration

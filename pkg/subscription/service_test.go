@@ -1,8 +1,11 @@
 package subscription_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -47,8 +50,8 @@ func (m *mockProvider) GetCustomerPortalLink(ctx context.Context, sub *subscript
 	return args.Get(0).(*subscription.PortalLink), args.Error(1)
 }
 
-func (m *mockProvider) ParseWebhook(ctx context.Context, payload []byte, signature string) (*subscription.WebhookEvent, error) {
-	args := m.Called(ctx, payload, signature)
+func (m *mockProvider) ParseWebhook(r *http.Request) (*subscription.WebhookEvent, error) {
+	args := m.Called(r)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -537,7 +540,7 @@ func TestService_CreateCheckoutLink_PaidPlan(t *testing.T) {
 
 		checkoutReq := subscription.CheckoutRequest{
 			PriceID:    "basic",
-			CustomerID: tenantID.String(),
+			TenantID:   tenantID,
 			Email:      "user@example.com",
 			SuccessURL: "https://example.com/success",
 			CancelURL:  "https://example.com/cancel",
@@ -627,17 +630,19 @@ func TestService_HandleWebhook_SubscriptionCreated(t *testing.T) {
 		src.On("Load", mock.Anything).Return(plans, nil)
 
 		payload := []byte(`{"event": "subscription.created"}`)
-		signature := "valid_signature"
+		req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(payload))
+		req.Header.Set("Paddle-Signature", "valid_signature")
 
 		event := &subscription.WebhookEvent{
 			Type:           subscription.EventSubscriptionCreated,
-			CustomerID:     tenantID.String(),
+			TenantID:       tenantID,
+			CustomerID:     "cus_test123",
 			SubscriptionID: "sub_123",
 			PlanID:         "pro",
 			Status:         string(subscription.StatusTrialing),
 		}
 
-		provider.On("ParseWebhook", ctx, payload, signature).Return(event, nil)
+		provider.On("ParseWebhook", req).Return(event, nil)
 
 		store.On("Save", ctx, mock.MatchedBy(func(sub *subscription.Subscription) bool {
 			return sub.TenantID == tenantID &&
@@ -650,7 +655,7 @@ func TestService_HandleWebhook_SubscriptionCreated(t *testing.T) {
 		svc, err := subscription.NewService(ctx, src, provider, store)
 		require.NoError(t, err)
 
-		err = svc.HandleWebhook(ctx, payload, signature)
+		err = svc.HandleWebhook(req)
 		assert.NoError(t, err)
 
 		src.AssertExpectations(t)
@@ -675,11 +680,13 @@ func TestService_HandleWebhook_SubscriptionUpdated(t *testing.T) {
 		src.On("Load", mock.Anything).Return(plans, nil)
 
 		payload := []byte(`{"event": "subscription.updated"}`)
-		signature := "valid_signature"
+		req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(payload))
+		req.Header.Set("Paddle-Signature", "valid_signature")
 
 		event := &subscription.WebhookEvent{
 			Type:           subscription.EventSubscriptionUpdated,
-			CustomerID:     tenantID.String(),
+			TenantID:       tenantID,
+			CustomerID:     "cus_test123",
 			SubscriptionID: "sub_123",
 			PlanID:         "pro",
 			Status:         string(subscription.StatusActive),
@@ -692,7 +699,7 @@ func TestService_HandleWebhook_SubscriptionUpdated(t *testing.T) {
 			ProviderSubID: "sub_123",
 		}
 
-		provider.On("ParseWebhook", ctx, payload, signature).Return(event, nil)
+		provider.On("ParseWebhook", req).Return(event, nil)
 		store.On("Get", ctx, tenantID).Return(existingSub, nil)
 
 		store.On("Save", ctx, mock.MatchedBy(func(sub *subscription.Subscription) bool {
@@ -705,7 +712,7 @@ func TestService_HandleWebhook_SubscriptionUpdated(t *testing.T) {
 		svc, err := subscription.NewService(ctx, src, provider, store)
 		require.NoError(t, err)
 
-		err = svc.HandleWebhook(ctx, payload, signature)
+		err = svc.HandleWebhook(req)
 		assert.NoError(t, err)
 
 		src.AssertExpectations(t)
@@ -730,11 +737,12 @@ func TestService_HandleWebhook_PaymentFailed(t *testing.T) {
 		src.On("Load", mock.Anything).Return(plans, nil)
 
 		payload := []byte(`{"event": "payment.failed"}`)
-		signature := "valid_signature"
+		req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(payload))
+		req.Header.Set("Paddle-Signature", "valid_signature")
 
 		event := &subscription.WebhookEvent{
-			Type:       subscription.EventPaymentFailed,
-			CustomerID: tenantID.String(),
+			Type:     subscription.EventPaymentFailed,
+			TenantID: tenantID,
 		}
 
 		existingSub := &subscription.Subscription{
@@ -744,7 +752,7 @@ func TestService_HandleWebhook_PaymentFailed(t *testing.T) {
 			ProviderSubID: "sub_123",
 		}
 
-		provider.On("ParseWebhook", ctx, payload, signature).Return(event, nil)
+		provider.On("ParseWebhook", req).Return(event, nil)
 		store.On("Get", ctx, tenantID).Return(existingSub, nil)
 
 		store.On("Save", ctx, mock.MatchedBy(func(sub *subscription.Subscription) bool {
@@ -754,7 +762,7 @@ func TestService_HandleWebhook_PaymentFailed(t *testing.T) {
 		svc, err := subscription.NewService(ctx, src, provider, store)
 		require.NoError(t, err)
 
-		err = svc.HandleWebhook(ctx, payload, signature)
+		err = svc.HandleWebhook(req)
 		assert.NoError(t, err)
 
 		src.AssertExpectations(t)
@@ -778,14 +786,15 @@ func TestService_HandleWebhook_InvalidSignature(t *testing.T) {
 		src.On("Load", mock.Anything).Return(plans, nil)
 
 		payload := []byte(`{"event": "subscription.created"}`)
-		signature := "invalid_signature"
+		req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(payload))
+		req.Header.Set("Paddle-Signature", "invalid_signature")
 
-		provider.On("ParseWebhook", ctx, payload, signature).Return(nil, errors.New("invalid signature"))
+		provider.On("ParseWebhook", req).Return(nil, errors.New("invalid signature"))
 
 		svc, err := subscription.NewService(ctx, src, provider, store)
 		require.NoError(t, err)
 
-		err = svc.HandleWebhook(ctx, payload, signature)
+		err = svc.HandleWebhook(req)
 		assert.Error(t, err)
 
 		src.AssertExpectations(t)
