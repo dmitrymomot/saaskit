@@ -3,7 +3,7 @@ package subscription
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -61,7 +61,7 @@ func NewPaddleProvider(config PaddleConfig) (*PaddleProvider, error) {
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to create paddle client: %w", err)
+		return nil, errors.Join(ErrFailedToCreatePaddleClient, err)
 	}
 
 	verifier := paddle.NewWebhookVerifier(config.WebhookSecret)
@@ -82,13 +82,11 @@ func (p *PaddleProvider) CreateCheckoutLink(ctx context.Context, req CheckoutReq
 		return nil, ErrMissingTenantID
 	}
 
-	// Create transaction item from catalog
 	item := paddle.NewCreateTransactionItemsTransactionItemFromCatalog(&paddle.TransactionItemFromCatalog{
 		PriceID:  req.PriceID,
 		Quantity: 1,
 	})
 
-	// Create transaction request with custom data
 	transactionReq := &paddle.CreateTransactionRequest{
 		Items: []paddle.CreateTransactionItems{*item},
 		CustomData: paddle.CustomData{
@@ -96,26 +94,22 @@ func (p *PaddleProvider) CreateCheckoutLink(ctx context.Context, req CheckoutReq
 		},
 	}
 
-	// Add customer email if provided
 	if req.Email != "" {
 		// Store email in custom_data for reference
 		transactionReq.CustomData["email"] = req.Email
 	}
 
-	// Add checkout configuration
 	if req.SuccessURL != "" {
 		transactionReq.Checkout = &paddle.TransactionCheckout{
 			URL: paddle.PtrTo(req.SuccessURL),
 		}
 	}
 
-	// Create the transaction
 	transaction, err := p.client.CreateTransaction(ctx, transactionReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create paddle transaction: %w", err)
+		return nil, errors.Join(ErrFailedToCreateTransaction, err)
 	}
 
-	// Extract checkout URL
 	var checkoutURL string
 	if transaction.Checkout != nil && transaction.Checkout.URL != nil {
 		checkoutURL = *transaction.Checkout.URL
@@ -136,13 +130,12 @@ func (p *PaddleProvider) GetCustomerPortalLink(ctx context.Context, subscription
 		return nil, ErrSubscriptionNotFound
 	}
 	if subscription.ProviderSubID == "" {
-		return nil, fmt.Errorf("subscription provider ID is required")
+		return nil, ErrMissingProviderSubID
 	}
 	if subscription.ProviderCustomerID == "" {
 		return nil, ErrMissingProviderCustomerID
 	}
 
-	// Create a customer portal session request
 	portalSessionReq := &paddle.CreateCustomerPortalSessionRequest{
 		CustomerID:      subscription.ProviderCustomerID,
 		SubscriptionIDs: []string{subscription.ProviderSubID},
@@ -150,7 +143,7 @@ func (p *PaddleProvider) GetCustomerPortalLink(ctx context.Context, subscription
 
 	portalSession, err := p.client.CreateCustomerPortalSession(ctx, portalSessionReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create paddle customer portal session: %w", err)
+		return nil, errors.Join(ErrFailedToCreatePortalSession, err)
 	}
 
 	// Start with the general overview URL for the customer portal
@@ -191,25 +184,22 @@ func (p *PaddleProvider) GetCustomerPortalLink(ctx context.Context, subscription
 
 // ParseWebhook validates and parses incoming webhook data from HTTP request.
 func (p *PaddleProvider) ParseWebhook(req *http.Request) (*WebhookEvent, error) {
-	// Verify the webhook signature
 	valid, err := p.verifier.Verify(req)
 	if err != nil {
-		return nil, fmt.Errorf("webhook verification error: %w", err)
+		return nil, errors.Join(ErrWebhookVerification, err)
 	}
 	if !valid {
 		return nil, ErrWebhookVerificationFailed
 	}
 
-	// Read the request body
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read request body: %w", err)
+		return nil, errors.Join(ErrFailedToReadRequestBody, err)
 	}
 
-	// Parse the webhook payload
 	var paddleEvent paddleWebhookEvent
 	if err := json.Unmarshal(body, &paddleEvent); err != nil {
-		return nil, fmt.Errorf("failed to parse webhook payload: %w", err)
+		return nil, errors.Join(ErrFailedToParseWebhook, err)
 	}
 
 	return p.extractWebhookData(paddleEvent)
@@ -233,17 +223,14 @@ func (p *PaddleProvider) extractWebhookData(paddleEvent paddleWebhookEvent) (*We
 
 	// Handle subscription events
 	if strings.HasPrefix(paddleEvent.EventType, "subscription.") {
-		// Extract provider's customer ID
 		if custID, ok := paddleEvent.Data["customer_id"].(string); ok {
 			event.CustomerID = custID
 		}
 
-		// Extract and map status
 		if status, ok := paddleEvent.Data["status"].(string); ok {
 			event.Status = string(mapPaddleStatus(status))
 		}
 
-		// Extract tenant ID from custom_data
 		if customData, ok := paddleEvent.Data["custom_data"].(map[string]any); ok {
 			if tenantIDStr, ok := customData["tenant_id"].(string); ok {
 				if tenantID, err := uuid.Parse(tenantIDStr); err == nil {
@@ -252,38 +239,31 @@ func (p *PaddleProvider) extractWebhookData(paddleEvent paddleWebhookEvent) (*We
 			}
 		}
 
-		// Extract subscription ID
 		if subID, ok := paddleEvent.Data["id"].(string); ok {
 			event.SubscriptionID = subID
 		}
 
-		// Extract plan/price ID from items
 		event.PlanID = extractPriceIDFromItems(paddleEvent.Data["items"])
 	}
 
 	// Handle transaction events
 	if strings.HasPrefix(paddleEvent.EventType, "transaction.") {
-		// Extract transaction ID as subscription ID for transaction events
 		if txnID, ok := paddleEvent.Data["id"].(string); ok {
 			event.SubscriptionID = txnID
 		}
 
-		// Extract subscription ID if this transaction is related to a subscription
 		if subID, ok := paddleEvent.Data["subscription_id"].(string); ok {
 			event.SubscriptionID = subID
 		}
 
-		// Extract provider's customer ID
 		if custID, ok := paddleEvent.Data["customer_id"].(string); ok {
 			event.CustomerID = custID
 		}
 
-		// Extract and map status
 		if status, ok := paddleEvent.Data["status"].(string); ok {
 			event.Status = string(mapPaddleStatus(status))
 		}
 
-		// Extract tenant ID from custom_data
 		if customData, ok := paddleEvent.Data["custom_data"].(map[string]any); ok {
 			if tenantIDStr, ok := customData["tenant_id"].(string); ok {
 				if tenantID, err := uuid.Parse(tenantIDStr); err == nil {
@@ -292,7 +272,6 @@ func (p *PaddleProvider) extractWebhookData(paddleEvent paddleWebhookEvent) (*We
 			}
 		}
 
-		// Extract plan/price ID from items
 		if items, ok := paddleEvent.Data["items"].([]any); ok && len(items) > 0 {
 			if item, ok := items[0].(map[string]any); ok {
 				if priceID, ok := item["price_id"].(string); ok {
