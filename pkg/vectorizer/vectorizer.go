@@ -33,19 +33,32 @@ type Provider interface {
 }
 
 // Vectorizer provides high-level text vectorization operations.
-// It uses a Provider for the actual embedding generation and adds
-// convenience methods for chunking and batch processing.
+// It uses a Provider for the actual embedding generation and a Chunker
+// for text splitting, adding convenience methods for batch processing.
 type Vectorizer struct {
 	provider Provider
+	chunker  Chunker
 }
 
-// New creates a new Vectorizer with the specified provider.
-// Returns an error if provider is nil.
-func New(provider Provider) (*Vectorizer, error) {
+// New creates a new Vectorizer with the specified provider and chunker.
+// Returns an error if provider or chunker is nil.
+func New(provider Provider, chunker Chunker) (*Vectorizer, error) {
 	if provider == nil {
 		return nil, ErrProviderNotSet
 	}
-	return &Vectorizer{provider: provider}, nil
+	if chunker == nil {
+		return nil, fmt.Errorf("chunker cannot be nil")
+	}
+	return &Vectorizer{
+		provider: provider,
+		chunker:  chunker,
+	}, nil
+}
+
+// NewWithDefaults creates a new Vectorizer with the specified provider
+// and a default SimpleChunker for convenience.
+func NewWithDefaults(provider Provider) (*Vectorizer, error) {
+	return New(provider, NewSimpleChunker())
 }
 
 // ToVector converts a single text string into a vector embedding.
@@ -109,8 +122,8 @@ func (v *Vectorizer) Process(ctx context.Context, text string, options ChunkOpti
 		return nil, ErrProviderNotSet
 	}
 
-	// Split text into chunks
-	textChunks := SplitIntoChunks(text, options)
+	// Split text into chunks using the configured chunker
+	textChunks := v.chunker.Split(text, options)
 	if len(textChunks) == 0 {
 		return []Chunk{}, nil
 	}
@@ -140,4 +153,58 @@ func (v *Vectorizer) Dimensions() int {
 		return 0
 	}
 	return v.provider.Dimensions()
+}
+
+// Chunk splits text into chunks using the configured chunker.
+// This is useful when you want to chunk text without vectorizing it.
+func (v *Vectorizer) Chunk(text string, options ChunkOptions) []string {
+	if v.chunker == nil {
+		return []string{}
+	}
+	return v.chunker.Split(text, options)
+}
+
+// SetChunker changes the chunker used by this vectorizer.
+// This allows runtime switching of chunking strategies.
+func (v *Vectorizer) SetChunker(chunker Chunker) error {
+	if chunker == nil {
+		return fmt.Errorf("chunker cannot be nil")
+	}
+	v.chunker = chunker
+	return nil
+}
+
+// ProcessWithChunker processes text with a specific chunker for one-off use.
+// The vectorizer's default chunker remains unchanged.
+func (v *Vectorizer) ProcessWithChunker(ctx context.Context, text string, chunker Chunker, options ChunkOptions) ([]Chunk, error) {
+	if v.provider == nil {
+		return nil, ErrProviderNotSet
+	}
+	if chunker == nil {
+		return nil, fmt.Errorf("chunker cannot be nil")
+	}
+
+	// Split text into chunks using the provided chunker
+	textChunks := chunker.Split(text, options)
+	if len(textChunks) == 0 {
+		return []Chunk{}, nil
+	}
+
+	// Vectorize all chunks
+	vectors, err := v.ChunksToVectors(ctx, textChunks)
+	if err != nil {
+		return nil, err
+	}
+
+	// Combine texts and vectors into Chunk structs
+	chunks := make([]Chunk, len(textChunks))
+	for i := range len(textChunks) {
+		chunks[i] = Chunk{
+			Text:   textChunks[i],
+			Vector: vectors[i],
+			Index:  i,
+		}
+	}
+
+	return chunks, nil
 }
