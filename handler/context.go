@@ -51,30 +51,25 @@ func (c *httpContext) SSE() *datastar.ServerSentEventGenerator {
 	return c.sse
 }
 
-// Deadline returns the time when work done on behalf of this context
-// should be canceled.
+// Delegate context.Context methods to the request's context
 func (c *httpContext) Deadline() (deadline time.Time, ok bool) {
 	return c.r.Context().Deadline()
 }
 
-// Done returns a channel that's closed when work done on behalf of this
-// context should be canceled.
 func (c *httpContext) Done() <-chan struct{} {
 	return c.r.Context().Done()
 }
 
-// Err returns a non-nil error value after Done is closed.
 func (c *httpContext) Err() error {
 	return c.r.Context().Err()
 }
 
-// Value returns the value associated with this context for key.
 func (c *httpContext) Value(key any) any {
 	return c.r.Context().Value(key)
 }
 
-// ContextKey is a key for context values.
-// It should be created as a package-level variable.
+// ContextKey provides type-safe context keys to prevent key collisions.
+// Should be created as package-level variables for consistent access.
 type ContextKey struct{ name string }
 
 // String returns a string representation of the context key for debugging.

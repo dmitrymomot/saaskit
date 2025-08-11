@@ -48,8 +48,7 @@ func IsDataStar(r *http.Request) bool {
 	return strings.Contains(contentType, "application/x-datastar")
 }
 
-// NewSSE creates a new Server-Sent Event generator for DataStar responses.
-// This is a wrapper around the DataStar SDK's NewSSE function.
+// NewSSE creates a Server-Sent Event generator for DataStar responses.
 func NewSSE(w http.ResponseWriter, r *http.Request) *datastar.ServerSentEventGenerator {
 	return datastar.NewSSE(w, r)
 }

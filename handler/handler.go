@@ -202,8 +202,7 @@ func Wrap[C Context, R any](h HandlerFunc[C, R], opts ...WrapOption[C, R]) http.
 
 		var req R
 
-		// Apply binders in order
-		// Each binder processes only its specific tags
+		// Apply binders in order - each processes only its specific tags
 		for _, binder := range cfg.binders {
 			if err := binder(r, &req); err != nil {
 				cfg.errorHandler(ctx, err)
@@ -213,7 +212,6 @@ func Wrap[C Context, R any](h HandlerFunc[C, R], opts ...WrapOption[C, R]) http.
 
 		response := finalHandler(ctx, req)
 		if response == nil {
-			// Handler returned nil response
 			cfg.errorHandler(ctx, ErrNilResponse)
 			return
 		}

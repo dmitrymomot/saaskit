@@ -6,8 +6,7 @@ import (
 	"strings"
 )
 
-// ValidationError represents field validation errors.
-// It's based on url.Values to leverage built-in string slice handling.
+// ValidationError represents field validation errors using url.Values for efficient string slice handling.
 type ValidationError url.Values
 
 // Error implements the error interface.

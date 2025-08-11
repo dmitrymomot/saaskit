@@ -39,8 +39,7 @@ type sseResponse struct {
 	handler SSEHandler
 }
 
-// Render sets up the SSE connection and runs the handler.
-// It ensures the request is from DataStar before proceeding.
+// Render validates DataStar connection and executes the SSE handler.
 func (s sseResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	// Verify this is a DataStar SSE request
 	if !IsDataStar(r) {

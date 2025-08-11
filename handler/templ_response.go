@@ -47,7 +47,7 @@ type templResponse struct {
 	options   []datastar.PatchElementOption
 }
 
-// Render renders the templ component appropriately for the request type
+// Render outputs component via SSE for DataStar or HTML for regular requests
 func (t templResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	// For DataStar requests, use SSE
 	if IsDataStar(r) {
@@ -96,7 +96,7 @@ type templPartialResponse struct {
 	options []datastar.PatchElementOption
 }
 
-// Render renders either the partial component for DataStar requests or the full component
+// Render outputs partial for DataStar SSE or full component for regular HTML
 func (t templPartialResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	// For DataStar requests, render only the partial component via SSE
 	if IsDataStar(r) {
@@ -145,7 +145,7 @@ type templMultiResponse struct {
 	patches []TemplPatch
 }
 
-// Render renders multiple components based on request type
+// Render sends multiple SSE patches for DataStar or concatenated HTML
 func (t templMultiResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	// For DataStar requests, send multiple SSE patches
 	if IsDataStar(r) {
