@@ -5,16 +5,16 @@ Text-to-vector conversion with intelligent chunking and multiple provider suppor
 ## Features
 
 - 🚀 **Simple API** - Convert text to vectors with minimal configuration
-- 📚 **Smart Chunking** - Automatically split long texts while preserving context
+- 📚 **Pluggable Chunkers** - Extensible chunking interface with custom strategies
 - 🔌 **Provider Pattern** - Support for multiple embedding providers (OpenAI included)
 - ⚡ **Batch Processing** - Efficient vectorization of multiple texts
-- 🎯 **Type Safe** - Full type safety with generics where applicable
-- 🧩 **Zero Dependencies** - Core package has minimal external dependencies
+- 🎯 **Type Safe** - Full type safety with clean interfaces
+- 🧩 **Extensible** - Easy to add custom chunkers and providers
 
 ## Installation
 
-```go
-import "github.com/dmitrymomot/saaskit/pkg/vectorizer"
+```bash
+go get github.com/dmitrymomot/saaskit/pkg/vectorizer
 ```
 
 ## Quick Start
@@ -26,7 +26,7 @@ import (
     "context"
     "fmt"
     "os"
-    
+
     "github.com/dmitrymomot/saaskit/pkg/vectorizer"
 )
 
@@ -38,15 +38,15 @@ func main() {
     if err != nil {
         panic(err)
     }
-    
-    // Create vectorizer
-    v, err := vectorizer.New(provider)
+
+    // Create vectorizer with default chunker
+    v, err := vectorizer.NewWithDefaults(provider)
     if err != nil {
         panic(err)
     }
-    
+
     ctx := context.Background()
-    
+
     // Simple text to vector
     vector, err := v.ToVector(ctx, "Hello, world!")
     if err != nil {
@@ -61,6 +61,13 @@ func main() {
 ### Basic Text Vectorization
 
 ```go
+// Create with default chunker (SimpleChunker)
+v, err := vectorizer.NewWithDefaults(provider)
+
+// Or create with explicit chunker
+chunker := vectorizer.NewSimpleChunker()
+v, err := vectorizer.New(provider, chunker)
+
 // Single text
 vector, err := v.ToVector(ctx, "Convert this text to a vector")
 
@@ -81,12 +88,12 @@ longText := "Your very long document text here..."
 
 chunks, err := v.Process(ctx, longText, vectorizer.DefaultChunkOptions())
 if err != nil {
-    return err
+    panic(err)
 }
 
 // Each chunk contains text and its vector
 for i, chunk := range chunks {
-    fmt.Printf("Chunk %d: %d chars, vector dim: %d\n", 
+    fmt.Printf("Chunk %d: %d chars, vector dim: %d\n",
         i, len(chunk.Text), len(chunk.Vector))
 }
 ```
@@ -109,32 +116,55 @@ chunks, err := v.Process(ctx, document, options)
 ```go
 // Use larger model for better accuracy
 provider, err := vectorizer.NewOpenAIProvider(vectorizer.OpenAIConfig{
-    APIKey: apiKey,
+    APIKey: os.Getenv("OPENAI_API_KEY"),
     Model:  "text-embedding-3-large", // 3072 dimensions
 })
+if err != nil {
+    panic(err)
+}
 
 // Check model dimensions
-v, _ := vectorizer.New(provider)
+v, err := vectorizer.NewWithDefaults(provider)
+if err != nil {
+    panic(err)
+}
 fmt.Printf("Vector dimensions: %d\n", v.Dimensions()) // Output: 3072
 ```
 
-### Manual Text Chunking
+### Working with Chunkers
 
 ```go
-// Split text without vectorization
-chunks := vectorizer.SplitIntoChunks(text, vectorizer.ChunkOptions{
-    MaxTokens:       500,
-    Overlap:         50,
-    SplitBySentence: true,
+// Use chunker directly without vectorization
+chunker := vectorizer.NewSimpleChunker()
+chunks := chunker.Split(text, vectorizer.ChunkOptions{
+    MaxTokens:    500,
+    Overlap:      50,
+    MinChunkSize: 10,
 })
 
-// Vectorize chunks later
-vectors, err := v.ChunksToVectors(ctx, chunks)
+// Or use through vectorizer
+chunks = v.Chunk(text, options)
+
+// Change chunker at runtime
+newChunker := vectorizer.NewSimpleChunkerWithOptions(false) // No sentence splitting
+err := v.SetChunker(newChunker)
+
+// Process with a one-off custom chunker
+chunks, err := v.ProcessWithChunker(ctx, text, customChunker, options)
 ```
 
 ## Semantic Search Example
 
 ```go
+import (
+    "context"
+    "fmt"
+    "math"
+    "sort"
+
+    "github.com/dmitrymomot/saaskit/pkg/vectorizer"
+)
+
 // Build a simple semantic search
 type Document struct {
     ID     string
@@ -145,20 +175,20 @@ type Document struct {
 func buildSearchIndex(v *vectorizer.Vectorizer, texts []string) ([]Document, error) {
     ctx := context.Background()
     docs := make([]Document, len(texts))
-    
+
     for i, text := range texts {
         vector, err := v.ToVector(ctx, text)
         if err != nil {
             return nil, err
         }
-        
+
         docs[i] = Document{
             ID:     fmt.Sprintf("doc-%d", i),
             Text:   text,
             Vector: vector,
         }
     }
-    
+
     return docs, nil
 }
 
@@ -167,37 +197,37 @@ func cosineSimilarity(a, b vectorizer.Vector) float64 {
     if len(a) != len(b) {
         return 0
     }
-    
+
     var dotProduct, normA, normB float64
     for i := range a {
         dotProduct += a[i] * b[i]
         normA += a[i] * a[i]
         normB += b[i] * b[i]
     }
-    
+
     if normA == 0 || normB == 0 {
         return 0
     }
-    
+
     return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
 }
 
 // Search for similar documents
 func search(v *vectorizer.Vectorizer, docs []Document, query string, topK int) ([]Document, error) {
     ctx := context.Background()
-    
+
     // Vectorize query
     queryVector, err := v.ToVector(ctx, query)
     if err != nil {
         return nil, err
     }
-    
+
     // Calculate similarities
     type result struct {
         doc  Document
         score float64
     }
-    
+
     results := make([]result, len(docs))
     for i, doc := range docs {
         results[i] = result{
@@ -205,27 +235,68 @@ func search(v *vectorizer.Vectorizer, docs []Document, query string, topK int) (
             score: cosineSimilarity(queryVector, doc.Vector),
         }
     }
-    
+
     // Sort by similarity
     sort.Slice(results, func(i, j int) bool {
         return results[i].score > results[j].score
     })
-    
+
     // Return top K
     if topK > len(results) {
         topK = len(results)
     }
-    
+
     topDocs := make([]Document, topK)
     for i := 0; i < topK; i++ {
         topDocs[i] = results[i].doc
     }
-    
+
     return topDocs, nil
 }
 ```
 
-## Custom Provider Implementation
+## Architecture
+
+The package uses a clean separation of concerns with two main interfaces:
+
+1. **Provider Interface** - Handles text-to-vector conversion
+2. **Chunker Interface** - Handles text splitting strategies
+
+This design allows you to mix and match different providers and chunkers:
+
+```go
+// OpenAI + Simple chunking (default)
+v1, _ := vectorizer.NewWithDefaults(openAIProvider)
+
+// OpenAI + Custom markdown chunker
+v2, _ := vectorizer.New(openAIProvider, markdownChunker)
+
+// Custom provider + Custom chunker
+v3, _ := vectorizer.New(customProvider, customChunker)
+```
+
+## Custom Implementations
+
+### Custom Chunker
+
+```go
+// Implement your own chunking strategy
+type MarkdownChunker struct {
+    // Your configuration
+}
+
+func (c *MarkdownChunker) Split(text string, options vectorizer.ChunkOptions) []string {
+    // Your chunking logic (e.g., split by headers)
+    // Access custom options: options.Custom["key"]
+    return []string{/* chunks */}
+}
+
+// Use custom chunker
+chunker := &MarkdownChunker{}
+v, err := vectorizer.New(provider, chunker)
+```
+
+### Custom Provider
 
 ```go
 // Implement your own embedding provider
@@ -254,15 +325,34 @@ func (p *CustomProvider) Dimensions() int {
     return 768 // Your model's dimensions
 }
 
-// Use custom provider
-v, err := vectorizer.New(&CustomProvider{})
+// Use custom provider with custom chunker
+v, err := vectorizer.New(&CustomProvider{}, &MarkdownChunker{})
 ```
 
 ## Configuration
 
+### Chunk Options
+
+```go
+options := vectorizer.ChunkOptions{
+    MaxTokens:    500,  // Max tokens per chunk
+    Overlap:      50,   // Token overlap between chunks
+    MinChunkSize: 10,   // Minimum chunk size
+    Custom: map[string]interface{}{
+        "splitBySentence": true,  // SimpleChunker option
+        // Add custom options for your chunker
+    },
+}
+```
+
 ### OpenAI Provider Options
 
 ```go
+import (
+    "net/http"
+    "time"
+)
+
 provider, err := vectorizer.NewOpenAIProvider(vectorizer.OpenAIConfig{
     APIKey: "your-api-key",
     Model:  "text-embedding-3-small", // or text-embedding-3-large
@@ -270,30 +360,51 @@ provider, err := vectorizer.NewOpenAIProvider(vectorizer.OpenAIConfig{
         Timeout: 60 * time.Second, // Custom timeout for large batches
     },
 })
+if err != nil {
+    panic(err)
+}
 ```
 
 ### Available Models
 
-| Model | Dimensions | Description |
-|-------|------------|-------------|
-| text-embedding-3-small | 1536 | Fast, cost-effective, good quality |
-| text-embedding-3-large | 3072 | Higher quality, more dimensions |
-| text-embedding-ada-002 | 1536 | Legacy model, still supported |
+| Model                  | Dimensions | Description                        |
+| ---------------------- | ---------- | ---------------------------------- |
+| text-embedding-3-small | 1536       | Fast, cost-effective, good quality |
+| text-embedding-3-large | 3072       | Higher quality, more dimensions    |
+| text-embedding-ada-002 | 1536       | Legacy model, still supported      |
 
 ## Error Handling
 
 ```go
+import "errors"
+
 vector, err := v.ToVector(ctx, text)
 if err != nil {
     switch {
     case errors.Is(err, vectorizer.ErrEmptyText):
         // Handle empty input
+        fmt.Println("Text cannot be empty")
+    case errors.Is(err, vectorizer.ErrProviderNotSet):
+        // Provider configuration issue
+        fmt.Println("Vectorization provider not configured")
     case errors.Is(err, vectorizer.ErrRateLimitExceeded):
         // Implement backoff/retry
+        fmt.Println("Rate limit exceeded, retrying later")
     case errors.Is(err, vectorizer.ErrContextLengthExceeded):
         // Text too long, use chunking
+        fmt.Println("Text too long, consider using Process() method")
+    case errors.Is(err, vectorizer.ErrVectorizationFailed):
+        // General vectorization failure
+        fmt.Println("Failed to vectorize text:", err)
+    case errors.Is(err, vectorizer.ErrAPIKeyRequired):
+        // Missing API key
+        fmt.Println("OpenAI API key is required")
+    case errors.Is(err, vectorizer.ErrInvalidModel):
+        // Invalid model name
+        fmt.Println("Invalid OpenAI model specified")
     default:
         // Generic error
+        fmt.Println("Unexpected error:", err)
     }
 }
 ```
