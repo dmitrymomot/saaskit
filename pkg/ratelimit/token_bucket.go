@@ -6,15 +6,15 @@ import (
 	"time"
 )
 
-// TokenBucket implements a token bucket rate limiter.
-// It allows bursts of traffic while maintaining an average rate.
+// TokenBucket implements a token bucket rate limiter that refills tokens
+// at a constant rate and allows bursts up to the bucket capacity.
+// Memory-efficient as it only stores counters, not individual timestamps.
 type TokenBucket struct {
 	store    Store
 	rate     int           // Tokens added per interval
 	interval time.Duration // Interval for token refill
 	burst    int           // Maximum bucket capacity
 
-	// Track token refill times per key
 	mu         sync.RWMutex
 	lastRefill map[string]time.Time
 }
@@ -55,7 +55,6 @@ func NewTokenBucket(store Store, rate int, interval time.Duration, opts ...Token
 		opt(tb)
 	}
 
-	// Ensure burst is at least equal to rate
 	if tb.burst < tb.rate {
 		tb.burst = tb.rate
 	}
@@ -100,17 +99,14 @@ func (tb *TokenBucket) AllowN(ctx context.Context, key string, n int) (*Result, 
 		tb.mu.Unlock()
 	}
 
-	// Get current token count
 	current, ttl, err := tb.store.Get(ctx, key)
 	if err != nil {
 		return nil, err
 	}
 
-	// Calculate available tokens (can't exceed burst)
 	available := int(current)
 	if tokensToAdd > 0 {
 		available = min(tb.burst, available+tokensToAdd)
-		// Reset the counter with new value
 		if available > int(current) {
 			current, ttl, err = tb.store.IncrementAndGet(ctx, key, available-int(current), tb.interval)
 			if err != nil {
@@ -120,12 +116,10 @@ func (tb *TokenBucket) AllowN(ctx context.Context, key string, n int) (*Result, 
 		}
 	}
 
-	// Check if request is allowed
 	allowed := available >= n
 	remaining := available
 
 	if allowed {
-		// Consume tokens
 		consumed, _, err := tb.store.IncrementAndGet(ctx, key, -n, tb.interval)
 		if err != nil {
 			return nil, err
@@ -133,7 +127,6 @@ func (tb *TokenBucket) AllowN(ctx context.Context, key string, n int) (*Result, 
 		remaining = int(consumed)
 	}
 
-	// Calculate when next token will be available
 	var resetAt time.Time
 	if ttl > 0 {
 		resetAt = now.Add(ttl)
@@ -169,16 +162,13 @@ func (tb *TokenBucket) Status(ctx context.Context, key string) (*Result, error) 
 	intervals := elapsed / tb.interval
 	tokensToAdd := int(intervals) * tb.rate
 
-	// Get current token count
 	current, ttl, err := tb.store.Get(ctx, key)
 	if err != nil {
 		return nil, err
 	}
 
-	// Calculate available tokens (can't exceed burst)
 	available := min(tb.burst, int(current)+tokensToAdd)
 
-	// Calculate when next token will be available
 	var resetAt time.Time
 	if ttl > 0 {
 		resetAt = now.Add(ttl)

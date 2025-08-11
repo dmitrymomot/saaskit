@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-// SlidingWindow implements a sliding window rate limiter.
-// This provides the most accurate rate limiting by tracking individual
-// request timestamps within a moving time window.
+// SlidingWindow implements a sliding window rate limiter that tracks
+// individual request timestamps within a moving time window. More accurate
+// than token bucket but uses more memory due to timestamp storage.
 type SlidingWindow struct {
 	store  SlidingWindowStore
 	limit  int
@@ -49,13 +49,11 @@ func (sw *SlidingWindow) AllowN(ctx context.Context, key string, n int) (*Result
 
 	now := time.Now()
 
-	// Count current requests in window
 	count, err := sw.store.CountInWindow(ctx, key, sw.window)
 	if err != nil {
 		return nil, err
 	}
 
-	// Calculate result
 	remaining := sw.limit - int(count)
 	allowed := remaining >= n
 
@@ -66,7 +64,6 @@ func (sw *SlidingWindow) AllowN(ctx context.Context, key string, n int) (*Result
 		ResetAt:   now.Add(sw.window),
 	}
 
-	// Record timestamps if allowed
 	if allowed {
 		for range n {
 			if err := sw.store.RecordTimestamp(ctx, key, now, sw.window); err != nil {

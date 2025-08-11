@@ -6,8 +6,9 @@ import (
 	"time"
 )
 
-// MemoryStore implements an in-memory store for rate limiting.
-// It supports both token bucket and sliding window algorithms.
+// MemoryStore implements an in-memory store for rate limiting using
+// separate maps for token bucket counters and sliding window timestamps.
+// Includes automatic cleanup of expired entries to prevent memory leaks.
 type MemoryStore struct {
 	mu      sync.RWMutex
 	buckets map[string]*bucket
@@ -70,6 +71,7 @@ func NewMemoryStore(opts ...MemoryStoreOption) *MemoryStore {
 }
 
 // IncrementAndGet atomically increments the counter for token bucket algorithm.
+// Creates a new bucket if one doesn't exist or has expired.
 func (s *MemoryStore) IncrementAndGet(ctx context.Context, key string, incr int, window time.Duration) (int64, time.Duration, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -77,7 +79,6 @@ func (s *MemoryStore) IncrementAndGet(ctx context.Context, key string, incr int,
 	now := time.Now()
 	b, exists := s.buckets[key]
 
-	// Create new bucket or reset if expired
 	if !exists || now.After(b.expiresAt) {
 		b = &bucket{
 			count:     int64(incr),
@@ -87,12 +88,12 @@ func (s *MemoryStore) IncrementAndGet(ctx context.Context, key string, incr int,
 		return b.count, window, nil
 	}
 
-	// Increment existing bucket
 	b.count += int64(incr)
 	return b.count, time.Until(b.expiresAt), nil
 }
 
-// Get returns the current counter value for token bucket algorithm.
+// Get returns the current counter value and TTL for token bucket algorithm.
+// Returns (0, 0) if the bucket doesn't exist or has expired.
 func (s *MemoryStore) Get(ctx context.Context, key string) (int64, time.Duration, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -120,7 +121,8 @@ func (s *MemoryStore) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
-// RecordTimestamp adds a timestamp to the sliding window.
+// RecordTimestamp adds a timestamp to the sliding window and removes
+// expired timestamps to maintain accuracy and prevent memory growth.
 func (s *MemoryStore) RecordTimestamp(ctx context.Context, key string, timestamp time.Time, window time.Duration) error {
 	s.mu.Lock()
 	sw, exists := s.windows[key]
@@ -135,7 +137,6 @@ func (s *MemoryStore) RecordTimestamp(ctx context.Context, key string, timestamp
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
 
-	// Clean up old timestamps while adding new one
 	cutoff := timestamp.Add(-window)
 	validTimestamps := make([]time.Time, 0, len(sw.timestamps)+1)
 
@@ -151,7 +152,8 @@ func (s *MemoryStore) RecordTimestamp(ctx context.Context, key string, timestamp
 	return nil
 }
 
-// CountInWindow returns the number of timestamps within the sliding window.
+// CountInWindow returns the number of timestamps within the sliding window
+// and cleans up expired timestamps as a side effect for memory efficiency.
 func (s *MemoryStore) CountInWindow(ctx context.Context, key string, window time.Duration) (int64, error) {
 	s.mu.RLock()
 	sw, exists := s.windows[key]
@@ -167,7 +169,6 @@ func (s *MemoryStore) CountInWindow(ctx context.Context, key string, window time
 	cutoff := time.Now().Add(-window)
 	count := int64(0)
 
-	// Count timestamps within window and clean up expired ones
 	validTimestamps := make([]time.Time, 0, len(sw.timestamps))
 	for _, ts := range sw.timestamps {
 		if ts.After(cutoff) {
@@ -204,7 +205,6 @@ func (s *MemoryStore) CleanupExpired(ctx context.Context, key string, window tim
 
 	sw.timestamps = validTimestamps
 
-	// Remove empty windows
 	if len(sw.timestamps) == 0 {
 		s.mu.Lock()
 		delete(s.windows, key)
@@ -214,7 +214,8 @@ func (s *MemoryStore) CleanupExpired(ctx context.Context, key string, window tim
 	return nil
 }
 
-// cleanupLoop runs periodically to remove expired entries.
+// cleanupLoop runs in a separate goroutine to periodically remove
+// expired buckets and empty windows, preventing memory leaks.
 func (s *MemoryStore) cleanupLoop() {
 	ticker := time.NewTicker(s.cleanupInterval)
 	defer ticker.Stop()
@@ -229,7 +230,8 @@ func (s *MemoryStore) cleanupLoop() {
 	}
 }
 
-// cleanup removes expired buckets and empty windows.
+// cleanup removes expired token buckets and empty sliding windows.
+// Called periodically by cleanupLoop to prevent unbounded memory growth.
 func (s *MemoryStore) cleanup() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -242,7 +244,6 @@ func (s *MemoryStore) cleanup() {
 		}
 	}
 
-	// Clean up empty windows
 	for key, sw := range s.windows {
 		sw.mu.Lock()
 		if len(sw.timestamps) == 0 {

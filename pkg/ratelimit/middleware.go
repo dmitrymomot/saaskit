@@ -6,9 +6,9 @@ import (
 	"strconv"
 )
 
-// Middleware creates an HTTP middleware for rate limiting.
-// It uses the provided Limiter and KeyFunc to enforce rate limits.
-// The keyFunc parameter is required and defines how to extract the rate limit key from requests.
+// Middleware creates HTTP middleware that enforces rate limits using the
+// provided Limiter and KeyFunc. Implements "fail open" policy - allows
+// requests on errors to prevent outages from storage failures.
 func Middleware(limiter Limiter, keyFunc KeyFunc) func(http.Handler) http.Handler {
 	if keyFunc == nil {
 		panic("ratelimit.Middleware: keyFunc is required")
@@ -16,30 +16,23 @@ func Middleware(limiter Limiter, keyFunc KeyFunc) func(http.Handler) http.Handle
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Extract rate limit key from request
 			key := keyFunc(r)
 			if key == "" {
-				// If no key can be extracted, allow the request
-				next.ServeHTTP(w, r)
+					next.ServeHTTP(w, r)
 				return
 			}
 
-			// Check rate limit
 			result, err := limiter.Allow(r.Context(), key)
 			if err != nil {
-				// Allow request on error (fail open)
-				next.ServeHTTP(w, r)
+					next.ServeHTTP(w, r)
 				return
 			}
 
-			// Always set rate limit headers
 			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(result.Limit))
 			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(result.Remaining))
 			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(result.ResetAt.Unix(), 10))
 
-			// Check if request is allowed
 			if !result.Allowed {
-				// Calculate retry after in seconds
 				retryAfter := result.RetryAfter().Seconds()
 				if retryAfter < 1 {
 					retryAfter = 1
@@ -50,7 +43,6 @@ func Middleware(limiter Limiter, keyFunc KeyFunc) func(http.Handler) http.Handle
 				return
 			}
 
-			// Request allowed, continue to next handler
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -86,8 +78,8 @@ func WithSkipFunc(fn func(r *http.Request) bool) MiddlewareOption {
 	}
 }
 
-// MiddlewareWithOptions creates an HTTP middleware with custom options.
-// The keyFunc must be provided either as the first parameter or via WithKeyFunc option.
+// MiddlewareWithOptions creates configurable HTTP middleware for rate limiting
+// with custom error handlers, skip conditions, and key extraction functions.
 func MiddlewareWithOptions(limiter Limiter, keyFunc KeyFunc, opts ...MiddlewareOption) func(http.Handler) http.Handler {
 	config := &middlewareConfig{
 		keyFunc: keyFunc,
@@ -101,7 +93,6 @@ func MiddlewareWithOptions(limiter Limiter, keyFunc KeyFunc, opts ...MiddlewareO
 		},
 	}
 
-	// Apply options
 	for _, opt := range opts {
 		opt(config)
 	}
@@ -112,47 +103,38 @@ func MiddlewareWithOptions(limiter Limiter, keyFunc KeyFunc, opts ...MiddlewareO
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Check if rate limiting should be skipped
 			if config.skipFunc != nil && config.skipFunc(r) {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			// Extract rate limit key from request
 			key := config.keyFunc(r)
 			if key == "" {
-				// If no key can be extracted, allow the request
-				next.ServeHTTP(w, r)
+					next.ServeHTTP(w, r)
 				return
 			}
 
-			// Check rate limit
 			result, err := limiter.Allow(r.Context(), key)
 			if err != nil {
-				// Allow request on error (fail open)
-				next.ServeHTTP(w, r)
+					next.ServeHTTP(w, r)
 				return
 			}
 
-			// Always set rate limit headers
 			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(result.Limit))
 			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(result.Remaining))
 			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(result.ResetAt.Unix(), 10))
 
-			// Check if request is allowed
 			if !result.Allowed {
 				config.onLimitReached(w, r, result)
 				return
 			}
 
-			// Request allowed, continue to next handler
 			next.ServeHTTP(w, r)
 		})
 	}
 }
 
-// HandlerFunc wraps a handler function with rate limiting.
-// This is useful for applying rate limits to specific endpoints.
+// HandlerFunc wraps a single handler function with rate limiting.
 func HandlerFunc(limiter Limiter, keyFunc KeyFunc, handler http.HandlerFunc) http.HandlerFunc {
 	middleware := Middleware(limiter, keyFunc)
 	return middleware(handler).ServeHTTP
@@ -165,10 +147,9 @@ type EndpointConfig struct {
 	KeyFunc KeyFunc
 }
 
-// PerEndpoint creates a middleware with different rate limits for different endpoints.
-// Each endpoint must have its own KeyFunc defined.
+// PerEndpoint creates middleware with different rate limits per endpoint path.
+// Falls back to default limiter/keyFunc for unconfigured endpoints.
 func PerEndpoint(configs []EndpointConfig, defaultLimiter Limiter, defaultKeyFunc KeyFunc) func(http.Handler) http.Handler {
-	// Create a map for faster lookups
 	configMap := make(map[string]EndpointConfig)
 	for _, cfg := range configs {
 		if cfg.KeyFunc == nil {
@@ -182,7 +163,6 @@ func PerEndpoint(configs []EndpointConfig, defaultLimiter Limiter, defaultKeyFun
 			var limiter Limiter
 			var keyFunc KeyFunc
 
-			// Check if there's a specific config for this path
 			if cfg, ok := configMap[r.URL.Path]; ok {
 				limiter = cfg.Limiter
 				keyFunc = cfg.KeyFunc
@@ -191,13 +171,11 @@ func PerEndpoint(configs []EndpointConfig, defaultLimiter Limiter, defaultKeyFun
 				keyFunc = defaultKeyFunc
 			}
 
-			// If no limiter is configured, skip rate limiting
 			if limiter == nil || keyFunc == nil {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			// Apply rate limiting
 			key := keyFunc(r)
 			if key == "" {
 				next.ServeHTTP(w, r)
@@ -210,7 +188,6 @@ func PerEndpoint(configs []EndpointConfig, defaultLimiter Limiter, defaultKeyFun
 				return
 			}
 
-			// Set headers
 			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(result.Limit))
 			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(result.Remaining))
 			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(result.ResetAt.Unix(), 10))

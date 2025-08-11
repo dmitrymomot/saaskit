@@ -7,12 +7,12 @@ import (
 	"strings"
 )
 
-// KeyFunc extracts a rate limit key from an HTTP request.
+// KeyFunc extracts a unique identifier from an HTTP request for rate limiting.
 type KeyFunc func(*http.Request) string
 
 // Composite combines multiple key extraction functions into a single key.
-// If the combined key is too long (>64 chars), it uses SHA256 hashing
-// to create a fixed-length key that avoids collisions.
+// Long keys (>64 chars) are hashed to 32 hex chars using SHA256 to prevent
+// storage issues while avoiding collisions.
 func Composite(keyFuncs ...KeyFunc) KeyFunc {
 	return func(r *http.Request) string {
 		parts := make([]string, 0, len(keyFuncs))
@@ -26,18 +26,15 @@ func Composite(keyFuncs ...KeyFunc) KeyFunc {
 			return ""
 		}
 
-		// For single key, return as-is if short enough
 		if len(parts) == 1 && len(parts[0]) <= 64 {
 			return parts[0]
 		}
 
-		// Combine all parts
 		combined := strings.Join(parts, ":")
 
-		// Hash if too long to avoid storage issues
 		if len(combined) > 64 {
 			hash := sha256.Sum256([]byte(combined))
-			// Use first 16 bytes (32 hex chars) - enough to avoid collisions
+			// 128-bit hash provides sufficient collision resistance
 			return hex.EncodeToString(hash[:16])
 		}
 

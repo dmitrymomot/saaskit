@@ -20,8 +20,8 @@ type Result struct {
 	ResetAt time.Time
 }
 
-// RetryAfter returns the duration until the rate limit resets.
-// Returns 0 if the request is allowed.
+// RetryAfter returns how long to wait before the next request is allowed.
+// Returns 0 if the current request was allowed.
 func (r *Result) RetryAfter() time.Duration {
 	if r.Allowed {
 		return 0
