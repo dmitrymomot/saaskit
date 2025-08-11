@@ -109,12 +109,12 @@ func RedirectBackWithCode(fallback string, code int) Response {
 	}
 }
 
-// isValidRedirectURL checks if a URL is safe to redirect to
+// isValidRedirectURL prevents open redirect attacks by allowing only same-host redirects
 func isValidRedirectURL(urlStr string, r *http.Request) bool {
 	parsed, err := url.Parse(urlStr)
 	if err != nil {
 		return false
 	}
-	// Only allow same-host redirects (empty host means relative URL)
+	// Empty host indicates relative URL, same host ensures no external redirects
 	return parsed.Host == "" || parsed.Host == r.Host
 }

@@ -56,16 +56,14 @@ func JSON(v any, opts ...JSONOption) Response {
 		body:   JSONResponse{},
 	}
 
-	// Handle different input types
+	// Handle different input types for flexible JSON response creation
 	switch val := v.(type) {
 	case JSONResponse:
 		r.body = val
 	case *ErrorDetail:
-		// If ErrorDetail passed directly, treat as error
 		r.body.Error = val
 		r.status = http.StatusInternalServerError
 	case error:
-		// If error passed directly, convert it
 		r.body.Error = errorToDetail(val, &r.status)
 	default:
 		r.body.Data = v
@@ -86,13 +84,11 @@ func JSONError(err any, opts ...JSONOption) Response {
 		body:   JSONResponse{},
 	}
 
-	// Handle different error types
+	// Handle different error input types
 	switch e := err.(type) {
 	case *ErrorDetail:
-		// Direct ErrorDetail
 		r.body.Error = e
 	case error:
-		// Convert error to ErrorDetail
 		r.body.Error = errorToDetail(e, &r.status)
 	}
 
@@ -109,7 +105,7 @@ func errorToDetail(err error, status *int) *ErrorDetail {
 	code := "internal_error"
 	message := err.Error()
 
-	// Default status if not already set
+	// Set default error status if still at OK (200)
 	if *status == http.StatusOK {
 		*status = http.StatusInternalServerError
 	}

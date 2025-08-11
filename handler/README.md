@@ -33,44 +33,40 @@ type CreateUserRequest struct {
     Email string `json:"email"`
 }
 
-// Create a typed handler
-h := handler.HandlerFunc[handler.Context, CreateUserRequest](
-    func(ctx handler.Context, req CreateUserRequest) handler.Response {
-        user := createUser(req.Name, req.Email)
-        return handler.JSON(user) // Returns JSON response
-    },
-)
+// Create a typed handler function
+func createUser(ctx handler.Context, req CreateUserRequest) handler.Response {
+    user := createUser(req.Name, req.Email)
+    return handler.JSON(user) // Returns JSON response
+}
 
 // Wrap for standard http.HandlerFunc
-http.HandleFunc("/users", handler.Wrap(h))
+http.HandleFunc("/users", handler.Wrap(createUser))
 ```
 
 ### Real-time SSE Streaming
 
 ```go
 // Create an SSE handler for real-time updates
-chatHandler := handler.HandlerFunc[handler.Context, SubscribeRequest](
-    func(ctx handler.Context, req SubscribeRequest) handler.Response {
-        return handler.SSE(func(stream handler.StreamContext) error {
-            // Subscribe to chat messages
-            messages := chatRoom.Subscribe(req.RoomID, stream.Done())
-            defer chatRoom.Unsubscribe(req.RoomID)
-            
-            // Stream messages to client
-            for msg := range messages {
-                err := stream.SendComponent(
-                    templates.ChatMessage(msg),
-                    handler.WithTarget("#chat-messages"),
-                    handler.WithPatchMode(handler.PatchAppend),
-                )
-                if err != nil {
-                    return err
-                }
+func chatHandler(ctx handler.Context, req SubscribeRequest) handler.Response {
+    return handler.SSE(func(stream handler.StreamContext) error {
+        // Subscribe to chat messages
+        messages := chatRoom.Subscribe(req.RoomID, stream.Done())
+        defer chatRoom.Unsubscribe(req.RoomID)
+
+        // Stream messages to client
+        for msg := range messages {
+            err := stream.SendComponent(
+                templates.ChatMessage(msg),
+                handler.WithTarget("#chat-messages"),
+                handler.WithPatchMode(handler.PatchAppend),
+            )
+            if err != nil {
+                return err
             }
-            return nil
-        })
-    },
-)
+        }
+        return nil
+    })
+}
 
 // Mount the SSE endpoint
 http.HandleFunc("/chat/:roomId/subscribe", handler.Wrap(chatHandler))
@@ -86,17 +82,15 @@ type AppContext interface {
 }
 
 // Handler with custom context
-authHandler := handler.HandlerFunc[AppContext, UpdateRequest](
-    func(ctx AppContext, req UpdateRequest) handler.Response {
-        userID := ctx.UserID() // Access custom context methods
+func authHandler(ctx AppContext, req UpdateRequest) handler.Response {
+    userID := ctx.UserID() // Access custom context methods
 
-        // Return different response types
-        if req.Format == "html" {
-            return handler.Templ(templates.UserProfile(user))
-        }
-        return handler.JSON(user)
-    },
-)
+    // Return different response types
+    if req.Format == "html" {
+        return handler.Templ(templates.UserProfile(user))
+    }
+    return handler.JSON(user)
+}
 
 // Use with custom context factory
 http.HandleFunc("/profile", handler.Wrap(authHandler,
@@ -104,44 +98,40 @@ http.HandleFunc("/profile", handler.Wrap(authHandler,
 ))
 
 // Multiple response patches for DataStar
-complexHandler := handler.HandlerFunc[handler.Context, DeleteRequest](
-    func(ctx handler.Context, req DeleteRequest) handler.Response {
-        deleteItem(req.ID)
+func complexHandler(ctx handler.Context, req DeleteRequest) handler.Response {
+    deleteItem(req.ID)
 
-        // Update multiple UI sections
-        return handler.TemplMulti(
-            handler.Patch(templates.ItemList(items),
-                handler.WithTarget("#item-list")),
-            handler.Patch(templates.SuccessNotification("Item deleted"),
-                handler.WithTarget("#notifications"),
-                handler.WithPatchMode(handler.PatchPrepend)),
-        )
-    },
-)
+    // Update multiple UI sections
+    return handler.TemplMulti(
+        handler.Patch(templates.ItemList(items),
+            handler.WithTarget("#item-list")),
+        handler.Patch(templates.SuccessNotification("Item deleted"),
+            handler.WithTarget("#notifications"),
+            handler.WithPatchMode(handler.PatchPrepend)),
+    )
+}
 ```
 
 ### Error Handling
 
 ```go
 // Handler that returns errors
-handler := handler.HandlerFunc[handler.Context, LoginRequest](
-    func(ctx handler.Context, req LoginRequest) handler.Response {
-        if req.Email == "" {
-            // Return validation error
-            ve := handler.NewValidationError()
-            ve.Add("email", "Email is required")
-            return handler.JSONError(ve)
-        }
+func loginHandler(ctx handler.Context, req LoginRequest) handler.Response {
+    if req.Email == "" {
+        // Return validation error
+        ve := handler.NewValidationError()
+        ve.Add("email", "Email is required")
+        return handler.JSONError(ve)
+    }
 
-        user, err := findUser(req.Email)
-        if err != nil {
-            // Return HTTP error
-            return handler.JSONError(handler.ErrNotFound)
-        }
+    user, err := findUser(req.Email)
+    if err != nil {
+        // Return HTTP error
+        return handler.JSONError(handler.ErrNotFound)
+    }
 
-        return handler.JSON(user)
-    },
-)
+    return handler.JSON(user)
+}
 
 // Custom error handler
 customErrorHandler := func(ctx handler.Context, err error) {
@@ -152,7 +142,7 @@ customErrorHandler := func(ctx handler.Context, err error) {
     handler.JSONError(err).Render(ctx.ResponseWriter(), ctx.Request())
 }
 
-http.HandleFunc("/login", handler.Wrap(handler,
+http.HandleFunc("/login", handler.Wrap(loginHandler,
     handler.WithErrorHandler(customErrorHandler),
 ))
 ```
