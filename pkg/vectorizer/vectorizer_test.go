@@ -6,58 +6,52 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// mockProvider implements Provider interface for testing
-type mockProvider struct {
-	vectorizeFunc      func(ctx context.Context, text string) (Vector, error)
-	vectorizeBatchFunc func(ctx context.Context, texts []string) ([]Vector, error)
-	dimensions         int
+// MockProvider implements Provider interface for testing using testify/mock
+type MockProvider struct {
+	mock.Mock
 }
 
-func (m *mockProvider) Vectorize(ctx context.Context, text string) (Vector, error) {
-	if m.vectorizeFunc != nil {
-		return m.vectorizeFunc(ctx, text)
+func (m *MockProvider) Vectorize(ctx context.Context, text string) (Vector, error) {
+	args := m.Called(ctx, text)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
 	}
-	// Default implementation
-	return Vector{0.1, 0.2, 0.3}, nil
+	return args.Get(0).(Vector), args.Error(1)
 }
 
-func (m *mockProvider) VectorizeBatch(ctx context.Context, texts []string) ([]Vector, error) {
-	if m.vectorizeBatchFunc != nil {
-		return m.vectorizeBatchFunc(ctx, texts)
+func (m *MockProvider) VectorizeBatch(ctx context.Context, texts []string) ([]Vector, error) {
+	args := m.Called(ctx, texts)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
 	}
-	// Default implementation
-	vectors := make([]Vector, len(texts))
-	for i := range texts {
-		vectors[i] = Vector{float64(i) * 0.1, float64(i) * 0.2, float64(i) * 0.3}
-	}
-	return vectors, nil
+	return args.Get(0).([]Vector), args.Error(1)
 }
 
-func (m *mockProvider) Dimensions() int {
-	if m.dimensions > 0 {
-		return m.dimensions
-	}
-	return 3
+func (m *MockProvider) Dimensions() int {
+	args := m.Called()
+	return args.Int(0)
 }
 
-// mockChunker implements Chunker interface for testing
-type mockChunker struct {
-	splitFunc func(text string, options ChunkOptions) []string
+// MockChunker implements Chunker interface for testing using testify/mock
+type MockChunker struct {
+	mock.Mock
 }
 
-func (m *mockChunker) Split(text string, options ChunkOptions) []string {
-	if m.splitFunc != nil {
-		return m.splitFunc(text, options)
+func (m *MockChunker) Split(text string, options ChunkOptions) []string {
+	args := m.Called(text, options)
+	if args.Get(0) == nil {
+		return []string{}
 	}
-	return []string{text} // Default: return as single chunk
+	return args.Get(0).([]string)
 }
 
 func TestNew(t *testing.T) {
 	t.Run("with valid provider and chunker", func(t *testing.T) {
-		provider := &mockProvider{}
+		provider := &MockProvider{}
 		chunker := NewSimpleChunker()
 		v, err := New(provider, chunker)
 		require.NoError(t, err)
@@ -75,7 +69,7 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("with nil chunker", func(t *testing.T) {
-		provider := &mockProvider{}
+		provider := &MockProvider{}
 		v, err := New(provider, nil)
 		assert.Error(t, err)
 		assert.Nil(t, v)
@@ -85,7 +79,7 @@ func TestNew(t *testing.T) {
 
 func TestNewWithDefaults(t *testing.T) {
 	t.Run("creates vectorizer with default chunker", func(t *testing.T) {
-		provider := &mockProvider{}
+		provider := &MockProvider{}
 		v, err := NewWithDefaults(provider)
 		require.NoError(t, err)
 		assert.NotNil(t, v)
@@ -105,21 +99,18 @@ func TestVectorizer_ToVector(t *testing.T) {
 
 	t.Run("successful vectorization", func(t *testing.T) {
 		expectedVector := Vector{0.5, 0.6, 0.7}
-		provider := &mockProvider{
-			vectorizeFunc: func(ctx context.Context, text string) (Vector, error) {
-				assert.Equal(t, "test text", text)
-				return expectedVector, nil
-			},
-		}
+		provider := &MockProvider{}
+		provider.On("Vectorize", ctx, "test text").Return(expectedVector, nil)
 
 		v, _ := NewWithDefaults(provider)
 		vector, err := v.ToVector(ctx, "test text")
 		require.NoError(t, err)
 		assert.Equal(t, expectedVector, vector)
+		provider.AssertExpectations(t)
 	})
 
 	t.Run("empty text", func(t *testing.T) {
-		provider := &mockProvider{}
+		provider := &MockProvider{}
 		v, _ := NewWithDefaults(provider)
 
 		vector, err := v.ToVector(ctx, "")
@@ -129,7 +120,7 @@ func TestVectorizer_ToVector(t *testing.T) {
 	})
 
 	t.Run("whitespace only text", func(t *testing.T) {
-		provider := &mockProvider{}
+		provider := &MockProvider{}
 		v, _ := NewWithDefaults(provider)
 
 		vector, err := v.ToVector(ctx, "   \t\n  ")
@@ -140,17 +131,15 @@ func TestVectorizer_ToVector(t *testing.T) {
 
 	t.Run("provider error", func(t *testing.T) {
 		providerErr := errors.New("provider failed")
-		provider := &mockProvider{
-			vectorizeFunc: func(ctx context.Context, text string) (Vector, error) {
-				return nil, providerErr
-			},
-		}
+		provider := &MockProvider{}
+		provider.On("Vectorize", ctx, "test").Return((Vector)(nil), providerErr)
 
 		v, _ := NewWithDefaults(provider)
 		vector, err := v.ToVector(ctx, "test")
 		assert.Error(t, err)
 		assert.Nil(t, vector)
 		assert.True(t, errors.Is(err, ErrVectorizationFailed))
+		provider.AssertExpectations(t)
 	})
 }
 
@@ -165,21 +154,18 @@ func TestVectorizer_ChunksToVectors(t *testing.T) {
 			{3.0, 3.1, 3.2},
 		}
 
-		provider := &mockProvider{
-			vectorizeBatchFunc: func(ctx context.Context, texts []string) ([]Vector, error) {
-				assert.Equal(t, chunks, texts)
-				return expectedVectors, nil
-			},
-		}
+		provider := &MockProvider{}
+		provider.On("VectorizeBatch", ctx, chunks).Return(expectedVectors, nil)
 
 		v, _ := NewWithDefaults(provider)
 		vectors, err := v.ChunksToVectors(ctx, chunks)
 		require.NoError(t, err)
 		assert.Equal(t, expectedVectors, vectors)
+		provider.AssertExpectations(t)
 	})
 
 	t.Run("empty chunks", func(t *testing.T) {
-		provider := &mockProvider{}
+		provider := &MockProvider{}
 		v, _ := NewWithDefaults(provider)
 
 		vectors, err := v.ChunksToVectors(ctx, []string{})
@@ -190,18 +176,16 @@ func TestVectorizer_ChunksToVectors(t *testing.T) {
 	t.Run("filters empty chunks", func(t *testing.T) {
 		inputChunks := []string{"valid", "", "  ", "another", "\t\n"}
 		expectedChunks := []string{"valid", "another"}
+		expectedVectors := []Vector{{1.0}, {2.0}}
 
-		provider := &mockProvider{
-			vectorizeBatchFunc: func(ctx context.Context, texts []string) ([]Vector, error) {
-				assert.Equal(t, expectedChunks, texts)
-				return []Vector{{1.0}, {2.0}}, nil
-			},
-		}
+		provider := &MockProvider{}
+		provider.On("VectorizeBatch", ctx, expectedChunks).Return(expectedVectors, nil)
 
 		v, _ := NewWithDefaults(provider)
 		vectors, err := v.ChunksToVectors(ctx, inputChunks)
 		require.NoError(t, err)
 		assert.Len(t, vectors, 2)
+		provider.AssertExpectations(t)
 	})
 }
 
@@ -213,15 +197,10 @@ func TestVectorizer_Process(t *testing.T) {
 			"Each chunk will be vectorized separately. " +
 			"The process function handles both splitting and vectorization."
 
-		provider := &mockProvider{
-			vectorizeBatchFunc: func(ctx context.Context, texts []string) ([]Vector, error) {
-				vectors := make([]Vector, len(texts))
-				for i := range texts {
-					vectors[i] = Vector{float64(i), float64(i) + 0.1}
-				}
-				return vectors, nil
-			},
-		}
+		provider := &MockProvider{}
+		provider.On("VectorizeBatch", ctx, mock.Anything).Return(
+			[]Vector{{0, 0.1}, {1, 1.1}}, nil,
+		)
 
 		v, _ := NewWithDefaults(provider)
 		chunks, err := v.Process(ctx, longText, ChunkOptions{
@@ -238,10 +217,11 @@ func TestVectorizer_Process(t *testing.T) {
 			assert.NotNil(t, chunk.Vector)
 			assert.Equal(t, i, chunk.Index)
 		}
+		provider.AssertExpectations(t)
 	})
 
 	t.Run("empty text returns empty chunks", func(t *testing.T) {
-		provider := &mockProvider{}
+		provider := &MockProvider{}
 		v, _ := NewWithDefaults(provider)
 
 		chunks, err := v.Process(ctx, "", DefaultChunkOptions())
@@ -252,9 +232,11 @@ func TestVectorizer_Process(t *testing.T) {
 
 func TestVectorizer_Dimensions(t *testing.T) {
 	t.Run("returns provider dimensions", func(t *testing.T) {
-		provider := &mockProvider{dimensions: 1536}
+		provider := &MockProvider{}
+		provider.On("Dimensions").Return(1536)
 		v, _ := NewWithDefaults(provider)
 		assert.Equal(t, 1536, v.Dimensions())
+		provider.AssertExpectations(t)
 	})
 
 	t.Run("returns 0 for nil provider", func(t *testing.T) {
@@ -265,7 +247,7 @@ func TestVectorizer_Dimensions(t *testing.T) {
 
 func TestVectorizer_SetChunker(t *testing.T) {
 	t.Run("sets new chunker", func(t *testing.T) {
-		provider := &mockProvider{}
+		provider := &MockProvider{}
 		v, _ := NewWithDefaults(provider)
 
 		newChunker := NewSimpleChunkerWithOptions(false)
@@ -276,7 +258,7 @@ func TestVectorizer_SetChunker(t *testing.T) {
 	})
 
 	t.Run("rejects nil chunker", func(t *testing.T) {
-		provider := &mockProvider{}
+		provider := &MockProvider{}
 		v, _ := NewWithDefaults(provider)
 
 		err := v.SetChunker(nil)
@@ -287,7 +269,7 @@ func TestVectorizer_SetChunker(t *testing.T) {
 
 func TestVectorizer_Chunk(t *testing.T) {
 	t.Run("chunks text without vectorizing", func(t *testing.T) {
-		provider := &mockProvider{}
+		provider := &MockProvider{}
 		v, _ := NewWithDefaults(provider)
 
 		text := "This is a test. Another sentence. And one more."
@@ -299,7 +281,7 @@ func TestVectorizer_Chunk(t *testing.T) {
 	})
 
 	t.Run("returns empty for nil chunker", func(t *testing.T) {
-		v := &Vectorizer{provider: &mockProvider{}, chunker: nil}
+		v := &Vectorizer{provider: &MockProvider{}, chunker: nil}
 		chunks := v.Chunk("test", DefaultChunkOptions())
 		assert.Empty(t, chunks)
 	})
@@ -309,15 +291,10 @@ func TestVectorizer_ProcessWithChunker(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("processes with custom chunker", func(t *testing.T) {
-		provider := &mockProvider{
-			vectorizeBatchFunc: func(ctx context.Context, texts []string) ([]Vector, error) {
-				vectors := make([]Vector, len(texts))
-				for i := range texts {
-					vectors[i] = Vector{float64(i)}
-				}
-				return vectors, nil
-			},
-		}
+		provider := &MockProvider{}
+		provider.On("VectorizeBatch", ctx, mock.Anything).Return(
+			[]Vector{{0}, {1}}, nil,
+		)
 
 		v, _ := NewWithDefaults(provider)
 		customChunker := NewSimpleChunkerWithOptions(false)
@@ -327,10 +304,11 @@ func TestVectorizer_ProcessWithChunker(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.NotEmpty(t, chunks)
+		provider.AssertExpectations(t)
 	})
 
 	t.Run("rejects nil chunker", func(t *testing.T) {
-		provider := &mockProvider{}
+		provider := &MockProvider{}
 		v, _ := NewWithDefaults(provider)
 
 		_, err := v.ProcessWithChunker(ctx, "test", nil, DefaultChunkOptions())
@@ -344,22 +322,12 @@ func TestVectorizer_WithCustomChunker(t *testing.T) {
 
 	t.Run("uses custom chunker", func(t *testing.T) {
 		customChunks := []string{"chunk1", "chunk2", "chunk3"}
-		customChunker := &mockChunker{
-			splitFunc: func(text string, options ChunkOptions) []string {
-				return customChunks
-			},
-		}
+		customChunker := &MockChunker{}
+		customChunker.On("Split", "any text", DefaultChunkOptions()).Return(customChunks)
 
-		provider := &mockProvider{
-			vectorizeBatchFunc: func(ctx context.Context, texts []string) ([]Vector, error) {
-				assert.Equal(t, customChunks, texts)
-				vectors := make([]Vector, len(texts))
-				for i := range texts {
-					vectors[i] = Vector{float64(i)}
-				}
-				return vectors, nil
-			},
-		}
+		expectedVectors := []Vector{{0}, {1}, {2}}
+		provider := &MockProvider{}
+		provider.On("VectorizeBatch", ctx, customChunks).Return(expectedVectors, nil)
 
 		v, err := New(provider, customChunker)
 		require.NoError(t, err)
@@ -370,6 +338,8 @@ func TestVectorizer_WithCustomChunker(t *testing.T) {
 		assert.Equal(t, "chunk1", chunks[0].Text)
 		assert.Equal(t, "chunk2", chunks[1].Text)
 		assert.Equal(t, "chunk3", chunks[2].Text)
+		provider.AssertExpectations(t)
+		customChunker.AssertExpectations(t)
 	})
 }
 
