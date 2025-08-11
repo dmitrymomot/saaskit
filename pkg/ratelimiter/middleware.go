@@ -14,6 +14,26 @@ const maxKeyLength = 64
 // KeyFunc extracts a rate limit key from the request.
 type KeyFunc func(r *http.Request) string
 
+// ErrorResponder handles error responses for rate limiting.
+// If err is not nil, it indicates an internal error.
+// If err is nil and result.Allowed() is false, the rate limit was exceeded.
+type ErrorResponder func(w http.ResponseWriter, r *http.Request, result *Result, err error)
+
+// middlewareConfig holds middleware configuration.
+type middlewareConfig struct {
+	errorResponder ErrorResponder
+}
+
+// MiddlewareOption configures the rate limiting middleware.
+type MiddlewareOption func(*middlewareConfig)
+
+// WithErrorResponder sets a custom error responder.
+func WithErrorResponder(responder ErrorResponder) MiddlewareOption {
+	return func(c *middlewareConfig) {
+		c.errorResponder = responder
+	}
+}
+
 // Composite combines multiple key functions into one.
 // Long keys (>64 chars) are hashed using FNV-1a for storage efficiency.
 func Composite(keyFuncs ...KeyFunc) KeyFunc {
@@ -51,15 +71,44 @@ func Composite(keyFuncs ...KeyFunc) KeyFunc {
 	}
 }
 
+// defaultErrorResponder handles all rate limiting errors by default.
+func defaultErrorResponder(w http.ResponseWriter, r *http.Request, result *Result, err error) {
+	// Internal error
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Rate limit exceeded
+	if result != nil && !result.Allowed() {
+		// Set Retry-After header
+		retryAfter := int(result.RetryAfter().Seconds())
+		if retryAfter > 0 {
+			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+		}
+		http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+	}
+}
+
 // Middleware creates an HTTP middleware for rate limiting.
-func Middleware(tb *TokenBucket, keyFunc KeyFunc) func(http.Handler) http.Handler {
+func Middleware(limiter RateLimiter, keyFunc KeyFunc, opts ...MiddlewareOption) func(http.Handler) http.Handler {
+	// Apply default configuration
+	config := &middlewareConfig{
+		errorResponder: defaultErrorResponder,
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(config)
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			key := keyFunc(r)
 
-			result, err := tb.Allow(r.Context(), key)
+			result, err := limiter.Allow(r.Context(), key)
 			if err != nil {
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				config.errorResponder(w, r, nil, err)
 				return
 			}
 
@@ -69,13 +118,7 @@ func Middleware(tb *TokenBucket, keyFunc KeyFunc) func(http.Handler) http.Handle
 			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(result.ResetAt.Unix(), 10))
 
 			if !result.Allowed() {
-				// Set Retry-After header
-				retryAfter := int(result.RetryAfter().Seconds())
-				if retryAfter > 0 {
-					w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
-				}
-
-				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+				config.errorResponder(w, r, result, nil)
 				return
 			}
 
