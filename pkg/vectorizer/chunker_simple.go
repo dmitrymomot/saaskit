@@ -12,20 +12,63 @@ type SimpleChunker struct {
 	// splitBySentence controls whether to attempt sentence boundary splitting.
 	// When false, splits purely by token count.
 	splitBySentence bool
+	
+	// commonAbbreviations contains known abbreviations that don't end sentences
+	commonAbbreviations map[string]bool
 }
 
 // NewSimpleChunker creates a chunker that splits text intelligently.
 // By default, it attempts to maintain sentence boundaries.
 func NewSimpleChunker() *SimpleChunker {
 	return &SimpleChunker{
-		splitBySentence: true,
+		splitBySentence:     true,
+		commonAbbreviations: initCommonAbbreviations(),
 	}
 }
 
 // NewSimpleChunkerWithOptions creates a chunker with specific behavior.
 func NewSimpleChunkerWithOptions(splitBySentence bool) *SimpleChunker {
 	return &SimpleChunker{
-		splitBySentence: splitBySentence,
+		splitBySentence:     splitBySentence,
+		commonAbbreviations: initCommonAbbreviations(),
+	}
+}
+
+// initCommonAbbreviations returns a map of common abbreviations that don't typically end sentences
+func initCommonAbbreviations() map[string]bool {
+	return map[string]bool{
+		// Titles
+		"Dr": true, "Mr": true, "Mrs": true, "Ms": true, "Prof": true,
+		"Rev": true, "Sr": true, "Jr": true, "Capt": true, "Col": true,
+		"Gen": true, "Lt": true, "Sgt": true, "Maj": true, "Hon": true,
+		
+		// Academic degrees
+		"Ph": true, "M": true, "D": true, "B": true, "A": true, "S": true,
+		"Ph.D": true, "M.D": true, "B.A": true, "M.A": true, "D.D.S": true,
+		"B.S": true, "M.S": true, "Ed.D": true, "J.D": true,
+		
+		// Organizations
+		"Inc": true, "Corp": true, "Co": true, "Ltd": true, "LLC": true,
+		"LLP": true, "L.P": true, "P.C": true, "Assoc": true,
+		
+		// Geographic
+		"U.S": true, "U.K": true, "E.U": true, "U.N": true, "U.S.A": true,
+		"St": true, "Ave": true, "Blvd": true, "Rd": true, "Apt": true,
+		"Mt": true, "Ft": true,
+		
+		// Latin abbreviations
+		"i.e": true, "e.g": true, "etc": true, "vs": true, "cf": true,
+		"al": true, "et": true, "viz": true, "ca": true,
+		
+		// Months
+		"Jan": true, "Feb": true, "Mar": true, "Apr": true, "Jun": true,
+		"Jul": true, "Aug": true, "Sept": true, "Oct": true, "Nov": true,
+		"Dec": true,
+		
+		// Other common
+		"No": true, "Vol": true, "Ed": true, "Est": true, "Dept": true,
+		"Gov": true, "Sen": true, "Rep": true, "Pres": true, "V.P": true,
+		"a.m": true, "p.m": true, "A.M": true, "P.M": true,
 	}
 }
 
@@ -164,32 +207,89 @@ func (c *SimpleChunker) splitByTokens(text string, options ChunkOptions) []strin
 	return chunks
 }
 
-// splitIntoSentences splits text into sentences using common punctuation.
+// getWordBefore extracts the word immediately before the given position
+func (c *SimpleChunker) getWordBefore(text []rune, pos int) string {
+	if pos <= 0 || pos > len(text) {
+		return ""
+	}
+	
+	// Find the start of the word
+	start := pos - 1
+	for start > 0 && !unicode.IsSpace(text[start-1]) {
+		start--
+	}
+	
+	return string(text[start:pos])
+}
+
+// isSentenceBoundary determines if a punctuation mark at the given position ends a sentence
+func (c *SimpleChunker) isSentenceBoundary(text []rune, pos int) bool {
+	// Rule 1: Not a boundary if followed immediately by lowercase letter (no space)
+	if pos+1 < len(text) && unicode.IsLower(text[pos+1]) {
+		return false
+	}
+	
+	// Get the word before the period
+	word := c.getWordBefore(text, pos)
+	wordWithoutPeriods := strings.ReplaceAll(word, ".", "")
+	
+	// Rule 2: Check for known abbreviations
+	if c.commonAbbreviations[wordWithoutPeriods] {
+		return false
+	}
+	
+	// Rule 3: Single uppercase letter followed by period (initial)
+	if len(wordWithoutPeriods) == 1 && unicode.IsUpper(rune(wordWithoutPeriods[0])) {
+		return false
+	}
+	
+	// Rule 4: Multiple periods in word (e.g., U.S.A., Ph.D.)
+	if strings.Count(word, ".") > 0 {
+		return false
+	}
+	
+	// Rule 5: Check what comes after
+	if pos+1 < len(text) {
+		// Two spaces or newline after period = likely sentence boundary
+		if unicode.IsSpace(text[pos+1]) {
+			if pos+2 < len(text) && (text[pos+1] == '\n' || unicode.IsSpace(text[pos+2])) {
+				return true
+			}
+			// Single space followed by uppercase = likely sentence boundary
+			if pos+2 < len(text) && unicode.IsUpper(text[pos+2]) {
+				// But not if it's a single letter (could be an initial)
+				if pos+3 < len(text) && text[pos+3] == '.' {
+					return false
+				}
+				return true
+			}
+		}
+		
+		// No space but uppercase letter (e.g., "end.Start")
+		if unicode.IsUpper(text[pos+1]) {
+			return true
+		}
+	} else {
+		// End of text
+		return true
+	}
+	
+	// Default: conservative, don't split
+	return false
+}
+
+// splitIntoSentences splits text into sentences using improved punctuation and abbreviation handling
 func (c *SimpleChunker) splitIntoSentences(text string) []string {
-	// Basic sentence splitting using punctuation - kept simple for extensibility.
-	// Users can implement more sophisticated NLP-based chunkers if needed.
 	var sentences []string
 	var current strings.Builder
-
+	
 	runes := []rune(text)
 	for i, r := range runes {
 		current.WriteRune(r)
-
-		// Check for sentence endings
+		
+		// Check for sentence-ending punctuation
 		if r == '.' || r == '!' || r == '?' {
-			// Look ahead to check if this is really a sentence end
-			if i+1 < len(runes) {
-				next := runes[i+1]
-				// Space or uppercase after punctuation indicates sentence boundary (avoids splitting on abbreviations)
-				if unicode.IsSpace(next) || unicode.IsUpper(next) {
-					sentence := strings.TrimSpace(current.String())
-					if sentence != "" {
-						sentences = append(sentences, sentence)
-						current.Reset()
-					}
-				}
-			} else {
-				// End of text
+			if c.isSentenceBoundary(runes, i) {
 				sentence := strings.TrimSpace(current.String())
 				if sentence != "" {
 					sentences = append(sentences, sentence)
@@ -198,7 +298,7 @@ func (c *SimpleChunker) splitIntoSentences(text string) []string {
 			}
 		}
 	}
-
+	
 	// Add any remaining text
 	if current.Len() > 0 {
 		sentence := strings.TrimSpace(current.String())
@@ -206,7 +306,7 @@ func (c *SimpleChunker) splitIntoSentences(text string) []string {
 			sentences = append(sentences, sentence)
 		}
 	}
-
+	
 	return sentences
 }
 
