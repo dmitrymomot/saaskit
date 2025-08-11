@@ -12,7 +12,7 @@ type SimpleChunker struct {
 	// splitBySentence controls whether to attempt sentence boundary splitting.
 	// When false, splits purely by token count.
 	splitBySentence bool
-	
+
 	// commonAbbreviations contains known abbreviations that don't end sentences
 	commonAbbreviations map[string]bool
 }
@@ -41,30 +41,30 @@ func initCommonAbbreviations() map[string]bool {
 		"Dr": true, "Mr": true, "Mrs": true, "Ms": true, "Prof": true,
 		"Rev": true, "Sr": true, "Jr": true, "Capt": true, "Col": true,
 		"Gen": true, "Lt": true, "Sgt": true, "Maj": true, "Hon": true,
-		
+
 		// Academic degrees
 		"Ph": true, "M": true, "D": true, "B": true, "A": true, "S": true,
 		"Ph.D": true, "M.D": true, "B.A": true, "M.A": true, "D.D.S": true,
 		"B.S": true, "M.S": true, "Ed.D": true, "J.D": true,
-		
+
 		// Organizations
 		"Inc": true, "Corp": true, "Co": true, "Ltd": true, "LLC": true,
 		"LLP": true, "L.P": true, "P.C": true, "Assoc": true,
-		
+
 		// Geographic
 		"U.S": true, "U.K": true, "E.U": true, "U.N": true, "U.S.A": true,
 		"St": true, "Ave": true, "Blvd": true, "Rd": true, "Apt": true,
 		"Mt": true, "Ft": true,
-		
+
 		// Latin abbreviations
 		"i.e": true, "e.g": true, "etc": true, "vs": true, "cf": true,
 		"al": true, "et": true, "viz": true, "ca": true,
-		
+
 		// Months
 		"Jan": true, "Feb": true, "Mar": true, "Apr": true, "Jun": true,
 		"Jul": true, "Aug": true, "Sept": true, "Oct": true, "Nov": true,
 		"Dec": true,
-		
+
 		// Other common
 		"No": true, "Vol": true, "Ed": true, "Est": true, "Dept": true,
 		"Gov": true, "Sen": true, "Rep": true, "Pres": true, "V.P": true,
@@ -212,13 +212,13 @@ func (c *SimpleChunker) getWordBefore(text []rune, pos int) string {
 	if pos <= 0 || pos > len(text) {
 		return ""
 	}
-	
+
 	// Find the start of the word
 	start := pos - 1
 	for start > 0 && !unicode.IsSpace(text[start-1]) {
 		start--
 	}
-	
+
 	return string(text[start:pos])
 }
 
@@ -228,26 +228,26 @@ func (c *SimpleChunker) isSentenceBoundary(text []rune, pos int) bool {
 	if pos+1 < len(text) && unicode.IsLower(text[pos+1]) {
 		return false
 	}
-	
+
 	// Get the word before the period
 	word := c.getWordBefore(text, pos)
 	wordWithoutPeriods := strings.ReplaceAll(word, ".", "")
-	
+
 	// Rule 2: Check for known abbreviations
 	if c.commonAbbreviations[wordWithoutPeriods] {
 		return false
 	}
-	
+
 	// Rule 3: Single uppercase letter followed by period (initial)
 	if len(wordWithoutPeriods) == 1 && unicode.IsUpper(rune(wordWithoutPeriods[0])) {
 		return false
 	}
-	
+
 	// Rule 4: Multiple periods in word (e.g., U.S.A., Ph.D.)
 	if strings.Count(word, ".") > 0 {
 		return false
 	}
-	
+
 	// Rule 5: Check what comes after
 	if pos+1 < len(text) {
 		// Two spaces or newline after period = likely sentence boundary
@@ -264,7 +264,7 @@ func (c *SimpleChunker) isSentenceBoundary(text []rune, pos int) bool {
 				return true
 			}
 		}
-		
+
 		// No space but uppercase letter (e.g., "end.Start")
 		if unicode.IsUpper(text[pos+1]) {
 			return true
@@ -273,7 +273,7 @@ func (c *SimpleChunker) isSentenceBoundary(text []rune, pos int) bool {
 		// End of text
 		return true
 	}
-	
+
 	// Default: conservative, don't split
 	return false
 }
@@ -282,11 +282,11 @@ func (c *SimpleChunker) isSentenceBoundary(text []rune, pos int) bool {
 func (c *SimpleChunker) splitIntoSentences(text string) []string {
 	var sentences []string
 	var current strings.Builder
-	
+
 	runes := []rune(text)
 	for i, r := range runes {
 		current.WriteRune(r)
-		
+
 		// Check for sentence-ending punctuation
 		if r == '.' || r == '!' || r == '?' {
 			if c.isSentenceBoundary(runes, i) {
@@ -298,7 +298,7 @@ func (c *SimpleChunker) splitIntoSentences(text string) []string {
 			}
 		}
 	}
-	
+
 	// Add any remaining text
 	if current.Len() > 0 {
 		sentence := strings.TrimSpace(current.String())
@@ -306,7 +306,7 @@ func (c *SimpleChunker) splitIntoSentences(text string) []string {
 			sentences = append(sentences, sentence)
 		}
 	}
-	
+
 	return sentences
 }
 

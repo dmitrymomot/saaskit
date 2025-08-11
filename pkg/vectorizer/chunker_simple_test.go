@@ -155,74 +155,74 @@ func TestSimpleChunker_SplitIntoSentences(t *testing.T) {
 		assert.Equal(t, "Dr. Smith went to the U.S.A. yesterday.", sentences[0])
 		assert.Equal(t, "He enjoyed it.", sentences[1])
 	})
-	
+
 	t.Run("handles various title abbreviations", func(t *testing.T) {
 		text := "Mr. Jones met Mrs. Smith and Prof. Brown. They discussed the project."
 		sentences := chunker.splitIntoSentences(text)
-		
+
 		assert.Len(t, sentences, 2)
 		assert.Equal(t, "Mr. Jones met Mrs. Smith and Prof. Brown.", sentences[0])
 		assert.Equal(t, "They discussed the project.", sentences[1])
 	})
-	
+
 	t.Run("handles initials", func(t *testing.T) {
 		text := "J. K. Rowling wrote Harry Potter. It became very popular."
 		sentences := chunker.splitIntoSentences(text)
-		
+
 		assert.Len(t, sentences, 2)
 		assert.Equal(t, "J. K. Rowling wrote Harry Potter.", sentences[0])
 		assert.Equal(t, "It became very popular.", sentences[1])
 	})
-	
+
 	t.Run("handles organizations and locations", func(t *testing.T) {
 		text := "Apple Inc. announced new products. The event was in the U.S. yesterday."
 		sentences := chunker.splitIntoSentences(text)
-		
+
 		assert.Len(t, sentences, 2)
 		assert.Equal(t, "Apple Inc. announced new products.", sentences[0])
 		assert.Equal(t, "The event was in the U.S. yesterday.", sentences[1])
 	})
-	
+
 	t.Run("handles academic degrees", func(t *testing.T) {
 		text := "She earned her Ph.D. last year. Now she teaches at MIT."
 		sentences := chunker.splitIntoSentences(text)
-		
+
 		assert.Len(t, sentences, 2)
 		assert.Equal(t, "She earned her Ph.D. last year.", sentences[0])
 		assert.Equal(t, "Now she teaches at MIT.", sentences[1])
 	})
-	
+
 	t.Run("handles Latin abbreviations", func(t *testing.T) {
 		text := "We need tools (e.g. hammer, saw). Also materials i.e. wood and nails."
 		sentences := chunker.splitIntoSentences(text)
-		
+
 		assert.Len(t, sentences, 2)
 		assert.Equal(t, "We need tools (e.g. hammer, saw).", sentences[0])
 		assert.Equal(t, "Also materials i.e. wood and nails.", sentences[1])
 	})
-	
+
 	t.Run("handles months", func(t *testing.T) {
 		text := "The meeting is on Jan. 15th. Please confirm your attendance."
 		sentences := chunker.splitIntoSentences(text)
-		
+
 		assert.Len(t, sentences, 2)
 		assert.Equal(t, "The meeting is on Jan. 15th.", sentences[0])
 		assert.Equal(t, "Please confirm your attendance.", sentences[1])
 	})
-	
+
 	t.Run("handles double space as sentence boundary", func(t *testing.T) {
 		text := "This ends here.  This is a new sentence."
 		sentences := chunker.splitIntoSentences(text)
-		
+
 		assert.Len(t, sentences, 2)
 		assert.Equal(t, "This ends here.", sentences[0])
 		assert.Equal(t, "This is a new sentence.", sentences[1])
 	})
-	
+
 	t.Run("handles newline as sentence boundary", func(t *testing.T) {
 		text := "First sentence.\nSecond sentence."
 		sentences := chunker.splitIntoSentences(text)
-		
+
 		assert.Len(t, sentences, 2)
 		assert.Equal(t, "First sentence.", sentences[0])
 		assert.Equal(t, "Second sentence.", sentences[1])
