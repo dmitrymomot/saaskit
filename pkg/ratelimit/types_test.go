@@ -1,8 +1,10 @@
-package ratelimit
+package ratelimit_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/dmitrymomot/saaskit/pkg/ratelimit"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -12,7 +14,7 @@ func TestResult_RetryAfter(t *testing.T) {
 
 	t.Run("allowed request returns zero", func(t *testing.T) {
 		t.Parallel()
-		result := Result{
+		result := ratelimit.Result{
 			Allowed: true,
 			ResetAt: time.Now().Add(10 * time.Second),
 		}
@@ -23,7 +25,7 @@ func TestResult_RetryAfter(t *testing.T) {
 	t.Run("denied request with future reset", func(t *testing.T) {
 		t.Parallel()
 		now := time.Now()
-		result := Result{
+		result := ratelimit.Result{
 			Allowed: false,
 			ResetAt: now.Add(5 * time.Second),
 		}
@@ -34,7 +36,7 @@ func TestResult_RetryAfter(t *testing.T) {
 
 	t.Run("denied request with past reset", func(t *testing.T) {
 		t.Parallel()
-		result := Result{
+		result := ratelimit.Result{
 			Allowed: false,
 			ResetAt: time.Now().Add(-1 * time.Second),
 		}
@@ -49,7 +51,7 @@ func TestResult_EdgeCases(t *testing.T) {
 
 	t.Run("zero values", func(t *testing.T) {
 		t.Parallel()
-		var r Result
+		var r ratelimit.Result
 		assert.Equal(t, 0, r.Limit)
 		assert.Equal(t, 0, r.Remaining)
 		assert.False(t, r.Allowed)
@@ -61,7 +63,7 @@ func TestResult_EdgeCases(t *testing.T) {
 
 	t.Run("negative remaining", func(t *testing.T) {
 		t.Parallel()
-		r := Result{
+		r := ratelimit.Result{
 			Allowed:   false,
 			Limit:     10,
 			Remaining: -5,

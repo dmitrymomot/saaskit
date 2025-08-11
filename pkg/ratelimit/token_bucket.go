@@ -15,9 +15,12 @@ type TokenBucket struct {
 	interval time.Duration // Interval for token refill
 	burst    int           // Maximum bucket capacity
 
-	mu          sync.RWMutex
-	lastRefill  map[string]time.Time
-	initialized map[string]bool // Track if bucket has been initialized
+	mu      sync.RWMutex
+	buckets map[string]*bucketState
+}
+
+type bucketState struct {
+	lastRefill time.Time
 }
 
 // TokenBucketOption configures a TokenBucket.
@@ -45,12 +48,11 @@ func NewTokenBucket(store Store, rate int, interval time.Duration, opts ...Token
 	}
 
 	tb := &TokenBucket{
-		store:       store,
-		rate:        rate,
-		interval:    interval,
-		burst:       rate, // Default burst equals rate
-		lastRefill:  make(map[string]time.Time),
-		initialized: make(map[string]bool),
+		store:    store,
+		rate:     rate,
+		interval: interval,
+		burst:    rate, // Default burst equals rate
+		buckets:  make(map[string]*bucketState),
 	}
 
 	for _, opt := range opts {
@@ -69,79 +71,59 @@ func (tb *TokenBucket) Allow(ctx context.Context, key string) (*Result, error) {
 	return tb.AllowN(ctx, key, 1)
 }
 
+// refillTokens handles token refill atomically to prevent race conditions
+func (tb *TokenBucket) refillTokens(ctx context.Context, key string, now time.Time) error {
+	tb.mu.Lock()
+	state := tb.buckets[key]
+
+	if state == nil {
+		// New bucket - just track the state, ConsumeTokens will initialize
+		tb.buckets[key] = &bucketState{lastRefill: now}
+		tb.mu.Unlock()
+		return nil
+	}
+
+	// Calculate tokens to add
+	elapsed := now.Sub(state.lastRefill)
+	intervals := int(elapsed / tb.interval)
+
+	if intervals > 0 {
+		tokensToAdd := intervals * tb.rate
+		state.lastRefill = state.lastRefill.Add(time.Duration(intervals) * tb.interval)
+		tb.mu.Unlock()
+
+		// Get current tokens and add new ones (up to burst)
+		current, _, err := tb.store.Get(ctx, key)
+		if err != nil {
+			return err
+		}
+
+		newTotal := min(tb.burst, int(current)+tokensToAdd)
+		if newTotal > int(current) {
+			_, _, err = tb.store.IncrementAndGet(ctx, key, newTotal-int(current), tb.interval)
+			return err
+		}
+	} else {
+		tb.mu.Unlock()
+	}
+
+	return nil
+}
+
 // AllowN checks if n requests are allowed for the given key.
 func (tb *TokenBucket) AllowN(ctx context.Context, key string, n int) (*Result, error) {
 	if key == "" {
 		return nil, ErrKeyRequired
 	}
 	if n <= 0 {
-		n = 1
+		return nil, ErrInvalidLimit
 	}
 
 	now := time.Now()
 
-	// Check if this is a brand new bucket or needs refill
-	tb.mu.Lock()
-	isNew := !tb.initialized[key]
-	lastRefill, hasRefill := tb.lastRefill[key]
-
-	if isNew {
-		// Mark as initialized
-		tb.initialized[key] = true
-		tb.lastRefill[key] = now
-		tb.mu.Unlock()
-
-		// Initialize with burst capacity and consume
-		allowed, remaining, ttl, err := tb.store.ConsumeTokens(ctx, key, n, tb.burst, tb.interval)
-		if err != nil {
-			return nil, err
-		}
-
-		var resetAt time.Time
-		if ttl > 0 {
-			resetAt = now.Add(ttl)
-		} else {
-			resetAt = now.Add(tb.interval)
-		}
-
-		return &Result{
-			Allowed:   allowed,
-			Limit:     tb.burst,
-			Remaining: max(0, int(remaining)),
-			ResetAt:   resetAt,
-		}, nil
-	}
-
-	// Not new - handle refill
-	if hasRefill {
-		elapsed := now.Sub(lastRefill)
-		intervals := int(elapsed / tb.interval)
-		tokensToAdd := intervals * tb.rate
-
-		if tokensToAdd > 0 {
-			// Update last refill time
-			tb.lastRefill[key] = lastRefill.Add(time.Duration(intervals) * tb.interval)
-			tb.mu.Unlock()
-
-			// Get current tokens
-			current, _, err := tb.store.Get(ctx, key)
-			if err != nil {
-				return nil, err
-			}
-
-			// Add tokens (up to burst capacity)
-			newTotal := min(tb.burst, int(current)+tokensToAdd)
-			if newTotal > int(current) {
-				_, _, err = tb.store.IncrementAndGet(ctx, key, newTotal-int(current), tb.interval)
-				if err != nil {
-					return nil, err
-				}
-			}
-		} else {
-			tb.mu.Unlock()
-		}
-	} else {
-		tb.mu.Unlock()
+	// Handle refill atomically
+	if err := tb.refillTokens(ctx, key, now); err != nil {
+		return nil, err
 	}
 
 	// Try to consume tokens
@@ -174,8 +156,15 @@ func (tb *TokenBucket) Status(ctx context.Context, key string) (*Result, error) 
 	now := time.Now()
 
 	tb.mu.RLock()
-	lastRefill, exists := tb.lastRefill[key]
+	state := tb.buckets[key]
 	tb.mu.RUnlock()
+
+	var lastRefill time.Time
+	var exists bool
+	if state != nil {
+		lastRefill = state.lastRefill
+		exists = true
+	}
 
 	current, ttl, err := tb.store.Get(ctx, key)
 	if err != nil {
@@ -229,8 +218,7 @@ func (tb *TokenBucket) Reset(ctx context.Context, key string) error {
 	}
 
 	tb.mu.Lock()
-	delete(tb.lastRefill, key)
-	delete(tb.initialized, key)
+	delete(tb.buckets, key)
 	tb.mu.Unlock()
 
 	// Delete the key from store

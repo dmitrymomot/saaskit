@@ -44,7 +44,7 @@ func (sw *SlidingWindow) AllowN(ctx context.Context, key string, n int) (*Result
 		return nil, ErrKeyRequired
 	}
 	if n <= 0 {
-		n = 1
+		return nil, ErrInvalidLimit
 	}
 
 	now := time.Now()

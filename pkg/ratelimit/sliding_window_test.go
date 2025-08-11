@@ -1,10 +1,12 @@
-package ratelimit
+package ratelimit_test
 
 import (
 	"context"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/dmitrymomot/saaskit/pkg/ratelimit"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +17,7 @@ func TestNewSlidingWindow(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		store       SlidingWindowStore
+		store       ratelimit.SlidingWindowStore
 		limit       int
 		window      time.Duration
 		expectError error
@@ -25,39 +27,39 @@ func TestNewSlidingWindow(t *testing.T) {
 			store:       nil,
 			limit:       10,
 			window:      time.Second,
-			expectError: ErrStoreRequired,
+			expectError: ratelimit.ErrStoreRequired,
 		},
 		{
 			name:        "zero limit",
-			store:       NewMemoryStore(),
+			store:       ratelimit.NewMemoryStore(),
 			limit:       0,
 			window:      time.Second,
-			expectError: ErrInvalidLimit,
+			expectError: ratelimit.ErrInvalidLimit,
 		},
 		{
 			name:        "negative limit",
-			store:       NewMemoryStore(),
+			store:       ratelimit.NewMemoryStore(),
 			limit:       -1,
 			window:      time.Second,
-			expectError: ErrInvalidLimit,
+			expectError: ratelimit.ErrInvalidLimit,
 		},
 		{
 			name:        "zero window",
-			store:       NewMemoryStore(),
+			store:       ratelimit.NewMemoryStore(),
 			limit:       10,
 			window:      0,
-			expectError: ErrInvalidInterval,
+			expectError: ratelimit.ErrInvalidInterval,
 		},
 		{
 			name:        "negative window",
-			store:       NewMemoryStore(),
+			store:       ratelimit.NewMemoryStore(),
 			limit:       10,
 			window:      -1 * time.Second,
-			expectError: ErrInvalidInterval,
+			expectError: ratelimit.ErrInvalidInterval,
 		},
 		{
 			name:   "valid configuration",
-			store:  NewMemoryStore(),
+			store:  ratelimit.NewMemoryStore(),
 			limit:  10,
 			window: time.Second,
 		},
@@ -66,15 +68,14 @@ func TestNewSlidingWindow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			sw, err := NewSlidingWindow(tt.store, tt.limit, tt.window)
+			sw, err := ratelimit.NewSlidingWindow(tt.store, tt.limit, tt.window)
 			if tt.expectError != nil {
 				assert.ErrorIs(t, err, tt.expectError)
 				assert.Nil(t, sw)
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, sw)
-				assert.Equal(t, tt.limit, sw.limit)
-				assert.Equal(t, tt.window, sw.window)
+				// Can't test unexported fields in black-box testing
 			}
 		})
 	}
@@ -83,8 +84,8 @@ func TestNewSlidingWindow(t *testing.T) {
 func TestSlidingWindow_Allow(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
-	sw, err := NewSlidingWindow(store, 5, 100*time.Millisecond)
+	store := ratelimit.NewMemoryStore()
+	sw, err := ratelimit.NewSlidingWindow(store, 5, 100*time.Millisecond)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -92,7 +93,7 @@ func TestSlidingWindow_Allow(t *testing.T) {
 
 	t.Run("empty key", func(t *testing.T) {
 		result, err := sw.Allow(ctx, "")
-		assert.ErrorIs(t, err, ErrKeyRequired)
+		assert.ErrorIs(t, err, ratelimit.ErrKeyRequired)
 		assert.Nil(t, result)
 	})
 
@@ -136,8 +137,8 @@ func TestSlidingWindow_Allow(t *testing.T) {
 func TestSlidingWindow_AllowN(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
-	sw, err := NewSlidingWindow(store, 10, time.Second)
+	store := ratelimit.NewMemoryStore()
+	sw, err := ratelimit.NewSlidingWindow(store, 10, time.Second)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -160,27 +161,25 @@ func TestSlidingWindow_AllowN(t *testing.T) {
 		assert.Equal(t, 2, result.Remaining)
 	})
 
-	t.Run("negative n defaults to 1", func(t *testing.T) {
-		result, err := sw.AllowN(ctx, key+"-neg", -5)
-		require.NoError(t, err)
-		assert.True(t, result.Allowed)
-		assert.Equal(t, 9, result.Remaining)
+	t.Run("negative n returns error", func(t *testing.T) {
+		_, err := sw.AllowN(ctx, key+"-neg", -5)
+		require.Error(t, err)
+		assert.Equal(t, ratelimit.ErrInvalidLimit, err)
 	})
 
-	t.Run("zero n defaults to 1", func(t *testing.T) {
-		result, err := sw.AllowN(ctx, key+"-zero", 0)
-		require.NoError(t, err)
-		assert.True(t, result.Allowed)
-		assert.Equal(t, 9, result.Remaining)
+	t.Run("zero n returns error", func(t *testing.T) {
+		_, err := sw.AllowN(ctx, key+"-zero", 0)
+		require.Error(t, err)
+		assert.Equal(t, ratelimit.ErrInvalidLimit, err)
 	})
 }
 
 func TestSlidingWindow_WindowBoundaries(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
+	store := ratelimit.NewMemoryStore()
 	windowDuration := 200 * time.Millisecond // Increased window for more predictable test
-	sw, err := NewSlidingWindow(store, 3, windowDuration)
+	sw, err := ratelimit.NewSlidingWindow(store, 3, windowDuration)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -220,8 +219,8 @@ func TestSlidingWindow_WindowBoundaries(t *testing.T) {
 func TestSlidingWindow_Concurrent(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
-	sw, err := NewSlidingWindow(store, 100, time.Second)
+	store := ratelimit.NewMemoryStore()
+	sw, err := ratelimit.NewSlidingWindow(store, 100, time.Second)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -262,8 +261,8 @@ func TestSlidingWindow_Concurrent(t *testing.T) {
 func TestSlidingWindow_Status(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
-	sw, err := NewSlidingWindow(store, 5, time.Second)
+	store := ratelimit.NewMemoryStore()
+	sw, err := ratelimit.NewSlidingWindow(store, 5, time.Second)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -271,7 +270,7 @@ func TestSlidingWindow_Status(t *testing.T) {
 
 	t.Run("empty key", func(t *testing.T) {
 		result, err := sw.Status(ctx, "")
-		assert.ErrorIs(t, err, ErrKeyRequired)
+		assert.ErrorIs(t, err, ratelimit.ErrKeyRequired)
 		assert.Nil(t, result)
 	})
 
@@ -301,8 +300,8 @@ func TestSlidingWindow_Status(t *testing.T) {
 func TestSlidingWindow_Reset(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
-	sw, err := NewSlidingWindow(store, 5, time.Second)
+	store := ratelimit.NewMemoryStore()
+	sw, err := ratelimit.NewSlidingWindow(store, 5, time.Second)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -310,7 +309,7 @@ func TestSlidingWindow_Reset(t *testing.T) {
 
 	t.Run("empty key", func(t *testing.T) {
 		err := sw.Reset(ctx, "")
-		assert.ErrorIs(t, err, ErrKeyRequired)
+		assert.ErrorIs(t, err, ratelimit.ErrKeyRequired)
 	})
 
 	t.Run("reset clears timestamps", func(t *testing.T) {
@@ -336,8 +335,8 @@ func TestSlidingWindow_Reset(t *testing.T) {
 func TestSlidingWindow_AccurateTimestamps(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
-	sw, err := NewSlidingWindow(store, 2, 50*time.Millisecond)
+	store := ratelimit.NewMemoryStore()
+	sw, err := ratelimit.NewSlidingWindow(store, 2, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	ctx := context.Background()
