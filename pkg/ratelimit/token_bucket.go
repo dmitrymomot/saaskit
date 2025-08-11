@@ -75,7 +75,7 @@ func (tb *TokenBucket) Allow(ctx context.Context, key string) (*Result, error) {
 func (tb *TokenBucket) refillTokens(ctx context.Context, key string, now time.Time) error {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
-	
+
 	state := tb.buckets[key]
 
 	if state == nil {
@@ -96,7 +96,7 @@ func (tb *TokenBucket) refillTokens(ctx context.Context, key string, now time.Ti
 
 		// Temporarily unlock for store operations
 		tb.mu.Unlock()
-		
+
 		// Get current tokens and add new ones (up to burst)
 		current, _, err := tb.store.Get(ctx, key)
 		if err != nil {
@@ -120,7 +120,7 @@ func (tb *TokenBucket) refillTokens(ctx context.Context, key string, now time.Ti
 				return err
 			}
 		}
-		
+
 		// Re-acquire lock for defer
 		tb.mu.Lock()
 	}
