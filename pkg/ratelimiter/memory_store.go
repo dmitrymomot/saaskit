@@ -10,6 +10,7 @@ import (
 type bucket struct {
 	tokens     int
 	lastRefill time.Time
+	lastAccess time.Time // Track last access for proper staleness detection
 }
 
 // MemoryStore implements Store interface using in-memory storage.
@@ -20,19 +21,36 @@ type MemoryStore struct {
 	// cleanup management
 	cleanupInterval time.Duration
 	stopCleanup     chan struct{}
-	cleanupOnce     sync.Once
 }
 
-// NewMemoryStore creates a new in-memory store with automatic cleanup.
-func NewMemoryStore() *MemoryStore {
+// MemoryStoreOption configures a MemoryStore.
+type MemoryStoreOption func(*MemoryStore)
+
+// WithCleanupInterval sets the cleanup interval for removing stale buckets.
+// Set to 0 to disable automatic cleanup.
+func WithCleanupInterval(interval time.Duration) MemoryStoreOption {
+	return func(ms *MemoryStore) {
+		ms.cleanupInterval = interval
+	}
+}
+
+// NewMemoryStore creates a new in-memory store with optional cleanup.
+func NewMemoryStore(opts ...MemoryStoreOption) *MemoryStore {
 	ms := &MemoryStore{
 		buckets:         make(map[string]*bucket),
-		cleanupInterval: 5 * time.Minute,
+		cleanupInterval: 5 * time.Minute, // Default cleanup interval
 		stopCleanup:     make(chan struct{}),
 	}
 
-	// Start cleanup goroutine
-	go ms.cleanup()
+	// Apply options
+	for _, opt := range opts {
+		opt(ms)
+	}
+
+	// Only start cleanup goroutine if interval > 0
+	if ms.cleanupInterval > 0 {
+		go ms.cleanup()
+	}
 
 	return ms
 }
@@ -50,24 +68,30 @@ func (ms *MemoryStore) ConsumeTokens(ctx context.Context, key string, tokens int
 		b = &bucket{
 			tokens:     config.Capacity,
 			lastRefill: now,
+			lastAccess: now,
 		}
 		ms.buckets[key] = b
 	}
 
 	// Calculate tokens to add based on time elapsed
 	elapsed := now.Sub(b.lastRefill)
-	intervalsElapsed := int(elapsed / config.RefillInterval)
+	// Prevent integer overflow by bounding intervals
+	maxIntervals := int64(config.Capacity/config.RefillRate + 1)
+	intervalsElapsed := int(min(int64(elapsed/config.RefillInterval), maxIntervals))
 
 	if intervalsElapsed > 0 {
 		// Refill tokens
 		tokensToAdd := intervalsElapsed * config.RefillRate
 		b.tokens = min(b.tokens+tokensToAdd, config.Capacity)
-		b.lastRefill = b.lastRefill.Add(time.Duration(intervalsElapsed) * config.RefillInterval)
+		// Use actual time to prevent drift
+		b.lastRefill = now
 	}
 
 	// Consume tokens
 	b.tokens -= tokens
 	remaining = b.tokens
+	// Update last access time
+	b.lastAccess = now
 
 	// Calculate next refill time
 	resetAt = b.lastRefill.Add(config.RefillInterval)
@@ -108,7 +132,8 @@ func (ms *MemoryStore) removeStale() {
 	staleThreshold := 1 * time.Hour
 
 	for key, b := range ms.buckets {
-		if now.Sub(b.lastRefill) > staleThreshold {
+		// Check last access instead of last refill
+		if now.Sub(b.lastAccess) > staleThreshold {
 			delete(ms.buckets, key)
 		}
 	}
@@ -116,7 +141,10 @@ func (ms *MemoryStore) removeStale() {
 
 // Close stops the cleanup goroutine.
 func (ms *MemoryStore) Close() {
-	ms.cleanupOnce.Do(func() {
+	select {
+	case <-ms.stopCleanup:
+		// Already closed
+	default:
 		close(ms.stopCleanup)
-	})
+	}
 }
