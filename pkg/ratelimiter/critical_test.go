@@ -15,8 +15,8 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/ratelimiter"
 )
 
-// TestTokenBucket_ContextCancellation verifies proper context handling
-func TestTokenBucket_ContextCancellation(t *testing.T) {
+// TestBucket_ContextCancellation verifies proper context handling
+func TestBucket_ContextCancellation(t *testing.T) {
 	t.Parallel()
 
 	store := ratelimiter.NewMemoryStore()
@@ -28,7 +28,7 @@ func TestTokenBucket_ContextCancellation(t *testing.T) {
 		RefillInterval: time.Second,
 	}
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	t.Run("cancelled context before operation", func(t *testing.T) {
@@ -120,8 +120,8 @@ func (s *mockFailingStore) EnableFailure(enable bool) {
 	s.shouldFail = enable
 }
 
-// TestTokenBucket_StoreFailures verifies handling of store backend failures
-func TestTokenBucket_StoreFailures(t *testing.T) {
+// TestBucket_StoreFailures verifies handling of store backend failures
+func TestBucket_StoreFailures(t *testing.T) {
 	t.Parallel()
 
 	t.Run("store connection failure", func(t *testing.T) {
@@ -134,7 +134,7 @@ func TestTokenBucket_StoreFailures(t *testing.T) {
 			RefillInterval: time.Second,
 		}
 
-		tb, err := ratelimiter.NewTokenBucket(store, config)
+		tb, err := ratelimiter.NewBucket(store, config)
 		require.NoError(t, err)
 
 		result, err := tb.Allow(context.Background(), "test-key")
@@ -153,7 +153,7 @@ func TestTokenBucket_StoreFailures(t *testing.T) {
 			RefillInterval: time.Second,
 		}
 
-		tb, err := ratelimiter.NewTokenBucket(store, config)
+		tb, err := ratelimiter.NewBucket(store, config)
 		require.NoError(t, err)
 
 		// First two calls should succeed
@@ -180,7 +180,7 @@ func TestTokenBucket_StoreFailures(t *testing.T) {
 			RefillInterval: time.Second,
 		}
 
-		tb, err := ratelimiter.NewTokenBucket(store, config)
+		tb, err := ratelimiter.NewBucket(store, config)
 		require.NoError(t, err)
 
 		err = tb.Reset(context.Background(), "test-key")
@@ -198,7 +198,7 @@ func TestTokenBucket_StoreFailures(t *testing.T) {
 			RefillInterval: time.Second,
 		}
 
-		tb, err := ratelimiter.NewTokenBucket(store, config)
+		tb, err := ratelimiter.NewBucket(store, config)
 		require.NoError(t, err)
 
 		// Use up the successful calls
@@ -221,8 +221,8 @@ func TestTokenBucket_StoreFailures(t *testing.T) {
 	})
 }
 
-// TestTokenBucket_ClockEdgeCases tests time-related edge cases
-func TestTokenBucket_ClockEdgeCases(t *testing.T) {
+// TestBucket_ClockEdgeCases tests time-related edge cases
+func TestBucket_ClockEdgeCases(t *testing.T) {
 	t.Parallel()
 
 	t.Run("very large refill intervals", func(t *testing.T) {
@@ -236,7 +236,7 @@ func TestTokenBucket_ClockEdgeCases(t *testing.T) {
 			RefillInterval: 24 * 365 * time.Hour, // 1 year
 		}
 
-		tb, err := ratelimiter.NewTokenBucket(store, config)
+		tb, err := ratelimiter.NewBucket(store, config)
 		require.NoError(t, err)
 
 		// Should handle large intervals without overflow
@@ -256,7 +256,7 @@ func TestTokenBucket_ClockEdgeCases(t *testing.T) {
 			RefillInterval: time.Microsecond, // Very fast refill
 		}
 
-		tb, err := ratelimiter.NewTokenBucket(store, config)
+		tb, err := ratelimiter.NewBucket(store, config)
 		require.NoError(t, err)
 
 		// Rapid calls should not cause issues
@@ -277,7 +277,7 @@ func TestTokenBucket_ClockEdgeCases(t *testing.T) {
 			RefillInterval: time.Second,
 		}
 
-		tb, err := ratelimiter.NewTokenBucket(store, config)
+		tb, err := ratelimiter.NewBucket(store, config)
 		require.NoError(t, err)
 
 		// First call establishes the bucket
@@ -299,7 +299,7 @@ func TestTokenBucket_ClockEdgeCases(t *testing.T) {
 			RefillInterval: time.Nanosecond,
 		}
 
-		tb, err := ratelimiter.NewTokenBucket(store, config)
+		tb, err := ratelimiter.NewBucket(store, config)
 		require.NoError(t, err)
 
 		// Should handle without overflow
@@ -331,7 +331,7 @@ func TestMemoryStore_MemoryLeak(t *testing.T) {
 		RefillInterval: 50 * time.Millisecond, // Short TTL
 	}
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	// Create multiple buckets
@@ -388,8 +388,8 @@ func eventually(t *testing.T, condition func() bool, timeout time.Duration, msg 
 	t.Errorf("condition not met within %v: %s", timeout, msg)
 }
 
-// TestTokenBucket_EventualConsistency replaces sleep with polling
-func TestTokenBucket_EventualConsistency(t *testing.T) {
+// TestBucket_EventualConsistency replaces sleep with polling
+func TestBucket_EventualConsistency(t *testing.T) {
 	t.Parallel()
 
 	store := ratelimiter.NewMemoryStore()
@@ -401,7 +401,7 @@ func TestTokenBucket_EventualConsistency(t *testing.T) {
 		RefillInterval: 100 * time.Millisecond,
 	}
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	// Consume all tokens

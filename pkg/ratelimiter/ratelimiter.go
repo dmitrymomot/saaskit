@@ -11,29 +11,29 @@ type RateLimiter interface {
 	AllowN(ctx context.Context, key string, n int) (*Result, error)
 }
 
-// TokenBucket implements a token bucket rate limiter.
-type TokenBucket struct {
+// Bucket implements a token bucket rate limiter.
+type Bucket struct {
 	store  Store
 	config Config
 }
 
-// NewTokenBucket creates a new token bucket rate limiter.
-func NewTokenBucket(store Store, config Config) (*TokenBucket, error) {
+// NewBucket creates a new token bucket rate limiter.
+func NewBucket(store Store, config Config) (*Bucket, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
 
-	return &TokenBucket{
+	return &Bucket{
 		store:  store,
 		config: config,
 	}, nil
 }
 
-func (tb *TokenBucket) Allow(ctx context.Context, key string) (*Result, error) {
+func (tb *Bucket) Allow(ctx context.Context, key string) (*Result, error) {
 	return tb.AllowN(ctx, key, 1)
 }
 
-func (tb *TokenBucket) AllowN(ctx context.Context, key string, n int) (*Result, error) {
+func (tb *Bucket) AllowN(ctx context.Context, key string, n int) (*Result, error) {
 	if n <= 0 {
 		return nil, fmt.Errorf("%w: must be positive, got %d", ErrInvalidTokenCount, n)
 	}
@@ -51,7 +51,7 @@ func (tb *TokenBucket) AllowN(ctx context.Context, key string, n int) (*Result, 
 }
 
 // Status returns the current state without consuming tokens.
-func (tb *TokenBucket) Status(ctx context.Context, key string) (*Result, error) {
+func (tb *Bucket) Status(ctx context.Context, key string) (*Result, error) {
 	// ConsumeTokens with 0 tokens updates bucket state but doesn't actually consume
 	remaining, resetAt, err := tb.store.ConsumeTokens(ctx, key, 0, tb.config)
 	if err != nil {
@@ -65,7 +65,7 @@ func (tb *TokenBucket) Status(ctx context.Context, key string) (*Result, error) 
 	}, nil
 }
 
-func (tb *TokenBucket) Reset(ctx context.Context, key string) error {
+func (tb *Bucket) Reset(ctx context.Context, key string) error {
 	return tb.store.Reset(ctx, key)
 }
 

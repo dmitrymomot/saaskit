@@ -9,8 +9,8 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/ratelimiter"
 )
 
-// BenchmarkTokenBucket_Allow benchmarks single token consumption
-func BenchmarkTokenBucket_Allow(b *testing.B) {
+// BenchmarkBucket_Allow benchmarks single token consumption
+func BenchmarkBucket_Allow(b *testing.B) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
@@ -20,7 +20,7 @@ func BenchmarkTokenBucket_Allow(b *testing.B) {
 		RefillInterval: time.Second,
 	}
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -36,8 +36,8 @@ func BenchmarkTokenBucket_Allow(b *testing.B) {
 	})
 }
 
-// BenchmarkTokenBucket_AllowN benchmarks multiple token consumption
-func BenchmarkTokenBucket_AllowN(b *testing.B) {
+// BenchmarkBucket_AllowN benchmarks multiple token consumption
+func BenchmarkBucket_AllowN(b *testing.B) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
@@ -47,7 +47,7 @@ func BenchmarkTokenBucket_AllowN(b *testing.B) {
 		RefillInterval: time.Second,
 	}
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -67,8 +67,8 @@ func BenchmarkTokenBucket_AllowN(b *testing.B) {
 	}
 }
 
-// BenchmarkTokenBucket_Status benchmarks status checks
-func BenchmarkTokenBucket_Status(b *testing.B) {
+// BenchmarkBucket_Status benchmarks status checks
+func BenchmarkBucket_Status(b *testing.B) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
@@ -78,7 +78,7 @@ func BenchmarkTokenBucket_Status(b *testing.B) {
 		RefillInterval: time.Second,
 	}
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -147,8 +147,8 @@ func BenchmarkMemoryStore_ConcurrentAccess(b *testing.B) {
 	})
 }
 
-// BenchmarkTokenBucket_HighContention benchmarks under high contention
-func BenchmarkTokenBucket_HighContention(b *testing.B) {
+// BenchmarkBucket_HighContention benchmarks under high contention
+func BenchmarkBucket_HighContention(b *testing.B) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
@@ -158,7 +158,7 @@ func BenchmarkTokenBucket_HighContention(b *testing.B) {
 		RefillInterval: time.Millisecond,
 	}
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -175,8 +175,8 @@ func BenchmarkTokenBucket_HighContention(b *testing.B) {
 	})
 }
 
-// BenchmarkTokenBucket_MixedOperations benchmarks mixed read/write operations
-func BenchmarkTokenBucket_MixedOperations(b *testing.B) {
+// BenchmarkBucket_MixedOperations benchmarks mixed read/write operations
+func BenchmarkBucket_MixedOperations(b *testing.B) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
@@ -186,7 +186,7 @@ func BenchmarkTokenBucket_MixedOperations(b *testing.B) {
 		RefillInterval: time.Second,
 	}
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	if err != nil {
 		b.Fatal(err)
 	}

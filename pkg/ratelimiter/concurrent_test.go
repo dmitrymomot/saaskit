@@ -15,7 +15,7 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/ratelimiter"
 )
 
-func TestTokenBucket_ConcurrentSafety(t *testing.T) {
+func TestBucket_ConcurrentSafety(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping race condition test in short mode")
 	}
@@ -32,7 +32,7 @@ func TestTokenBucket_ConcurrentSafety(t *testing.T) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	t.Run("concurrent requests same key", func(t *testing.T) {
@@ -211,7 +211,7 @@ func TestMiddleware_ConcurrentRequests(t *testing.T) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
-	limiter, err := ratelimiter.NewTokenBucket(store, config)
+	limiter, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	keyFunc := func(r *http.Request) string {
@@ -292,7 +292,7 @@ func TestMiddleware_ConcurrentRequests(t *testing.T) {
 	})
 }
 
-func TestTokenBucket_RaceConditions(t *testing.T) {
+func TestBucket_RaceConditions(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping race detector test in short mode")
 	}
@@ -309,7 +309,7 @@ func TestTokenBucket_RaceConditions(t *testing.T) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	t.Run("mixed operations race test", func(t *testing.T) {

@@ -26,7 +26,7 @@ func TestMiddleware_RateLimitEnforcement(t *testing.T) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
-	limiter, err := ratelimiter.NewTokenBucket(store, config)
+	limiter, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	keyFunc := func(r *http.Request) string {
@@ -109,7 +109,7 @@ func TestMiddleware_Headers(t *testing.T) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
-	limiter, err := ratelimiter.NewTokenBucket(store, config)
+	limiter, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	keyFunc := func(r *http.Request) string {
@@ -170,7 +170,7 @@ func TestMiddleware_CustomErrorResponder(t *testing.T) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
-	limiter, err := ratelimiter.NewTokenBucket(store, config)
+	limiter, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	keyFunc := func(r *http.Request) string {
@@ -335,7 +335,7 @@ func TestMiddleware_EmptyKey(t *testing.T) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
-	limiter, err := ratelimiter.NewTokenBucket(store, config)
+	limiter, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	keyFunc := func(r *http.Request) string {

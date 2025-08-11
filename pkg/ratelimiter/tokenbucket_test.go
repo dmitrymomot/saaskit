@@ -11,7 +11,7 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/ratelimiter"
 )
 
-func TestNewTokenBucket(t *testing.T) {
+func TestNewBucket(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -97,7 +97,7 @@ func TestNewTokenBucket(t *testing.T) {
 			store := ratelimiter.NewMemoryStore()
 			defer store.Close()
 
-			tb, err := ratelimiter.NewTokenBucket(store, tt.config)
+			tb, err := ratelimiter.NewBucket(store, tt.config)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -113,7 +113,7 @@ func TestNewTokenBucket(t *testing.T) {
 	}
 }
 
-func TestTokenBucket_Allow(t *testing.T) {
+func TestBucket_Allow(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -126,7 +126,7 @@ func TestTokenBucket_Allow(t *testing.T) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	t.Run("allows requests within capacity", func(t *testing.T) {
@@ -176,7 +176,7 @@ func TestTokenBucket_Allow(t *testing.T) {
 	})
 }
 
-func TestTokenBucket_AllowN(t *testing.T) {
+func TestBucket_AllowN(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -189,7 +189,7 @@ func TestTokenBucket_AllowN(t *testing.T) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	t.Run("allows N requests within capacity", func(t *testing.T) {
@@ -243,7 +243,7 @@ func TestTokenBucket_AllowN(t *testing.T) {
 	})
 }
 
-func TestTokenBucket_Status(t *testing.T) {
+func TestBucket_Status(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -256,7 +256,7 @@ func TestTokenBucket_Status(t *testing.T) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	t.Run("returns status without consuming tokens", func(t *testing.T) {
@@ -293,7 +293,7 @@ func TestTokenBucket_Status(t *testing.T) {
 	})
 }
 
-func TestTokenBucket_Reset(t *testing.T) {
+func TestBucket_Reset(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -306,7 +306,7 @@ func TestTokenBucket_Reset(t *testing.T) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	t.Run("resets consumed tokens", func(t *testing.T) {
@@ -336,7 +336,7 @@ func TestTokenBucket_Reset(t *testing.T) {
 	})
 }
 
-func TestTokenBucket_MultipleKeys(t *testing.T) {
+func TestBucket_MultipleKeys(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -349,7 +349,7 @@ func TestTokenBucket_MultipleKeys(t *testing.T) {
 	store := ratelimiter.NewMemoryStore()
 	defer store.Close()
 
-	tb, err := ratelimiter.NewTokenBucket(store, config)
+	tb, err := ratelimiter.NewBucket(store, config)
 	require.NoError(t, err)
 
 	t.Run("independent rate limits per key", func(t *testing.T) {
