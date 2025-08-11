@@ -73,7 +73,7 @@ func TestNew(t *testing.T) {
 		v, err := New(provider, nil)
 		assert.Error(t, err)
 		assert.Nil(t, v)
-		assert.Contains(t, err.Error(), "chunker cannot be nil")
+		assert.ErrorIs(t, err, ErrChunkerNotSet)
 	})
 }
 
@@ -263,7 +263,7 @@ func TestVectorizer_SetChunker(t *testing.T) {
 
 		err := v.SetChunker(nil)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "chunker cannot be nil")
+		assert.ErrorIs(t, err, ErrChunkerNotSet)
 	})
 }
 
@@ -313,7 +313,7 @@ func TestVectorizer_ProcessWithChunker(t *testing.T) {
 
 		_, err := v.ProcessWithChunker(ctx, "test", nil, DefaultChunkOptions())
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "chunker cannot be nil")
+		assert.ErrorIs(t, err, ErrChunkerNotSet)
 	})
 }
 

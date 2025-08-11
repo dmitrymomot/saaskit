@@ -2,6 +2,7 @@ package vectorizer
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -284,7 +285,7 @@ func BenchmarkProcess(b *testing.B) {
 func generateChunks(n int) []string {
 	chunks := make([]string, n)
 	for i := range n {
-		chunks[i] = "This is test chunk number " + string(rune(i)) + ". It contains some text for vectorization."
+		chunks[i] = "This is test chunk number " + strconv.Itoa(i) + ". It contains some text for vectorization."
 	}
 	return chunks
 }

@@ -7,6 +7,7 @@ import "errors"
 // to provide both user-facing messages and detailed logging context.
 var (
 	ErrProviderNotSet        = errors.New("vectorization provider not set")
+	ErrChunkerNotSet         = errors.New("chunker not set")
 	ErrEmptyText             = errors.New("text cannot be empty")
 	ErrInvalidChunkSize      = errors.New("invalid chunk size")
 	ErrVectorizationFailed   = errors.New("failed to vectorize text")

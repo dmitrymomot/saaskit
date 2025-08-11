@@ -3,7 +3,6 @@ package vectorizer
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 )
 
@@ -48,7 +47,7 @@ func New(provider Provider, chunker Chunker) (*Vectorizer, error) {
 		return nil, ErrProviderNotSet
 	}
 	if chunker == nil {
-		return nil, fmt.Errorf("chunker cannot be nil")
+		return nil, ErrChunkerNotSet
 	}
 	return &Vectorizer{
 		provider: provider,
@@ -169,7 +168,7 @@ func (v *Vectorizer) Chunk(text string, options ChunkOptions) []string {
 // This allows runtime switching of chunking strategies.
 func (v *Vectorizer) SetChunker(chunker Chunker) error {
 	if chunker == nil {
-		return fmt.Errorf("chunker cannot be nil")
+		return ErrChunkerNotSet
 	}
 	v.chunker = chunker
 	return nil
@@ -182,7 +181,7 @@ func (v *Vectorizer) ProcessWithChunker(ctx context.Context, text string, chunke
 		return nil, ErrProviderNotSet
 	}
 	if chunker == nil {
-		return nil, fmt.Errorf("chunker cannot be nil")
+		return nil, ErrChunkerNotSet
 	}
 
 	// Split text into chunks using the provided chunker
