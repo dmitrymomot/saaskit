@@ -15,15 +15,15 @@
 //		Password string `json:"password" validate:"required,min=8"`
 //	}
 //
-//	handler := handler.HandlerFunc[handler.Context, CreateUserRequest](
-//		func(ctx handler.Context, req CreateUserRequest) handler.Response {
-//			user, err := createUser(req)
-//			if err != nil {
-//				return handler.JSONError(err)
-//			}
-//			return handler.JSON(user)
-//		},
-//	)
+//	func createUser(ctx handler.Context, req CreateUserRequest) handler.Response {
+//		user, err := userService.Create(req)
+//		if err != nil {
+//			return handler.JSONError(err)
+//		}
+//		return handler.JSON(user)
+//	}
+//
+//	http.HandleFunc("/users", handler.Wrap(createUser))
 //
 // # Architecture
 //
@@ -104,19 +104,18 @@
 //
 //	import "github.com/dmitrymomot/saaskit/handler"
 //
-//	// Define handler
-//	h := handler.HandlerFunc[handler.Context, CreateUserRequest](
-//		func(ctx handler.Context, req CreateUserRequest) handler.Response {
-//			// Implementation
-//		},
-//	)
+//	// Define handler function
+//	func createUser(ctx handler.Context, req CreateUserRequest) handler.Response {
+//		// Implementation
+//		return handler.JSON(result)
+//	}
 //
 //	// Register with router
-//	http.HandleFunc("/users", handler.Wrap(h))
+//	http.HandleFunc("/users", handler.Wrap(createUser))
 //
 // With custom options:
 //
-//	http.HandleFunc("/users", handler.Wrap(h,
+//	http.HandleFunc("/users", handler.Wrap(createUser,
 //		handler.WithBinders(
 //			binder.JSON(),          // Parse JSON body
 //			binder.Validate(),      // Validate struct tags
