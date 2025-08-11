@@ -7,8 +7,7 @@ import (
 	"strings"
 )
 
-// maxKeyLength is the maximum allowed length for a rate limit key
-// to prevent excessively long storage keys.
+// maxKeyLength prevents unbounded key growth in storage backends.
 const maxKeyLength = 64
 
 // KeyFunc extracts a rate limit key from the request.
@@ -34,11 +33,10 @@ func WithErrorResponder(responder ErrorResponder) MiddlewareOption {
 	}
 }
 
-// Composite combines multiple key functions into one.
-// Long keys (>64 chars) are hashed using FNV-1a for storage efficiency.
+// Composite combines multiple key functions into one rate limiting key.
+// Uses FNV-1a hashing to keep keys under 64 characters for storage efficiency.
 func Composite(keyFuncs ...KeyFunc) KeyFunc {
 	return func(r *http.Request) string {
-		// Collect non-empty parts
 		parts := make([]string, 0, len(keyFuncs))
 		for _, fn := range keyFuncs {
 			if key := fn(r); key != "" {
@@ -46,42 +44,35 @@ func Composite(keyFuncs ...KeyFunc) KeyFunc {
 			}
 		}
 
-		// Handle empty case
 		if len(parts) == 0 {
 			return ""
 		}
 
-		// Single key optimization
+		// Avoid allocation for single short keys
 		if len(parts) == 1 && len(parts[0]) <= maxKeyLength {
 			return parts[0]
 		}
 
-		// Join multiple parts
 		combined := strings.Join(parts, ":")
 
-		// Hash if too long using FNV-1a (fast, simple, built-in)
+		// FNV-1a hash for deterministic, collision-resistant key compression
 		if len(combined) > maxKeyLength {
 			h := fnv.New64a()
 			h.Write([]byte(combined))
-			// Base36 encoding for compact output (~13 chars)
-			return strconv.FormatUint(h.Sum64(), 36)
+			return strconv.FormatUint(h.Sum64(), 36) // ~13 character output
 		}
 
 		return combined
 	}
 }
 
-// defaultErrorResponder handles all rate limiting errors by default.
 func defaultErrorResponder(w http.ResponseWriter, r *http.Request, result *Result, err error) {
-	// Internal error
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	// Rate limit exceeded
 	if result != nil && !result.Allowed() {
-		// Set Retry-After header
 		retryAfter := int(result.RetryAfter().Seconds())
 		if retryAfter > 0 {
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
@@ -92,12 +83,10 @@ func defaultErrorResponder(w http.ResponseWriter, r *http.Request, result *Resul
 
 // Middleware creates an HTTP middleware for rate limiting.
 func Middleware(limiter RateLimiter, keyFunc KeyFunc, opts ...MiddlewareOption) func(http.Handler) http.Handler {
-	// Apply default configuration
 	config := &middlewareConfig{
 		errorResponder: defaultErrorResponder,
 	}
 
-	// Apply options
 	for _, opt := range opts {
 		opt(config)
 	}
@@ -112,7 +101,7 @@ func Middleware(limiter RateLimiter, keyFunc KeyFunc, opts ...MiddlewareOption) 
 				return
 			}
 
-			// Set rate limit headers
+			// Standard rate limit headers for client awareness
 			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(result.Limit))
 			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(max(0, result.Remaining)))
 			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(result.ResetAt.Unix(), 10))
