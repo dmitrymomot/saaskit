@@ -378,6 +378,7 @@ func TestMemoryStore_Concurrent(t *testing.T) {
 	t.Run("concurrent window operations", func(t *testing.T) {
 		var wg sync.WaitGroup
 		key := "concurrent-window"
+		startTime := time.Now()
 
 		wg.Add(goroutines)
 		for range goroutines {
@@ -391,9 +392,20 @@ func TestMemoryStore_Concurrent(t *testing.T) {
 		}
 		wg.Wait()
 
+		duration := time.Since(startTime)
+
 		count, err := store.CountInWindow(ctx, key, time.Second)
 		require.NoError(t, err)
-		assert.Equal(t, int64(goroutines*operations), count)
+
+		// If operations took less than 1 second, all should be counted
+		// Otherwise, some early timestamps may have expired
+		if duration < time.Second {
+			assert.Equal(t, int64(goroutines*operations), count)
+		} else {
+			// At least some timestamps should be in the window
+			assert.Greater(t, count, int64(0))
+			assert.LessOrEqual(t, count, int64(goroutines*operations))
+		}
 	})
 
 	t.Run("concurrent mixed operations", func(t *testing.T) {

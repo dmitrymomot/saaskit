@@ -49,28 +49,27 @@ func (sw *SlidingWindow) AllowN(ctx context.Context, key string, n int) (*Result
 
 	now := time.Now()
 
-	count, err := sw.store.CountInWindow(ctx, key, sw.window)
+	// Use atomic check-and-record operation
+	allowed, finalCount, err := sw.store.RecordTimestampIfAllowed(ctx, key, now, sw.window, sw.limit, n)
 	if err != nil {
 		return nil, err
 	}
 
-	remaining := sw.limit - int(count)
-	allowed := remaining >= n
+	remaining := sw.limit - int(finalCount)
+	if !allowed {
+		// If not allowed, calculate actual remaining
+		count, err := sw.store.CountInWindow(ctx, key, sw.window)
+		if err != nil {
+			return nil, err
+		}
+		remaining = sw.limit - int(count)
+	}
 
 	result := &Result{
 		Allowed:   allowed,
 		Limit:     sw.limit,
 		Remaining: max(0, remaining),
 		ResetAt:   now.Add(sw.window),
-	}
-
-	if allowed {
-		for range n {
-			if err := sw.store.RecordTimestamp(ctx, key, now, sw.window); err != nil {
-				return nil, err
-			}
-		}
-		result.Remaining = max(0, remaining-n)
 	}
 
 	return result, nil

@@ -18,6 +18,9 @@ type MemoryStore struct {
 	initialCapacity int
 	stopCleanup     chan struct{}
 	cleanupOnce     sync.Once
+
+	// Track window durations for cleanup
+	windowDurations sync.Map // key -> time.Duration
 }
 
 type bucket struct {
@@ -92,6 +95,48 @@ func (s *MemoryStore) IncrementAndGet(ctx context.Context, key string, incr int,
 	return b.count, time.Until(b.expiresAt), nil
 }
 
+// ConsumeTokens atomically checks and consumes tokens if available.
+// For new buckets, initializes with burst capacity.
+// Returns (allowed, remaining, ttl, error).
+func (s *MemoryStore) ConsumeTokens(ctx context.Context, key string, n int, burst int, window time.Duration) (bool, int64, time.Duration, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	b, exists := s.buckets[key]
+
+	if !exists {
+		// Brand new bucket - initialize with burst capacity
+		if n > burst {
+			// Request exceeds burst capacity
+			return false, int64(burst), window, nil
+		}
+		b = &bucket{
+			count:     int64(burst - n), // Initialize and consume in one step
+			expiresAt: now.Add(window),
+		}
+		s.buckets[key] = b
+		return true, b.count, window, nil
+	}
+
+	// Bucket exists - check if expired
+	if now.After(b.expiresAt) {
+		// Expired bucket - DON'T reset with burst, just mark as empty
+		// The token bucket refill logic will handle adding tokens
+		b.count = 0
+		b.expiresAt = now.Add(window)
+	}
+
+	// Check if we have enough tokens
+	if b.count < int64(n) {
+		return false, b.count, time.Until(b.expiresAt), nil
+	}
+
+	// Consume tokens
+	b.count -= int64(n)
+	return true, b.count, time.Until(b.expiresAt), nil
+}
+
 // Get returns the current counter value and TTL for token bucket algorithm.
 // Returns (0, 0) if the bucket doesn't exist or has expired.
 func (s *MemoryStore) Get(ctx context.Context, key string) (int64, time.Duration, error) {
@@ -124,6 +169,9 @@ func (s *MemoryStore) Delete(ctx context.Context, key string) error {
 // RecordTimestamp adds a timestamp to the sliding window and removes
 // expired timestamps to maintain accuracy and prevent memory growth.
 func (s *MemoryStore) RecordTimestamp(ctx context.Context, key string, timestamp time.Time, window time.Duration) error {
+	// Track window duration for cleanup
+	s.windowDurations.Store(key, window)
+
 	s.mu.Lock()
 	sw, exists := s.windows[key]
 	if !exists {
@@ -150,6 +198,52 @@ func (s *MemoryStore) RecordTimestamp(ctx context.Context, key string, timestamp
 	sw.timestamps = validTimestamps
 
 	return nil
+}
+
+// RecordTimestampIfAllowed atomically checks if recording is allowed and records if so.
+// Returns whether the timestamp was recorded.
+func (s *MemoryStore) RecordTimestampIfAllowed(ctx context.Context, key string, timestamp time.Time, window time.Duration, limit int, n int) (bool, int64, error) {
+	// Track window duration for cleanup
+	s.windowDurations.Store(key, window)
+
+	s.mu.Lock()
+	sw, exists := s.windows[key]
+	if !exists {
+		sw = &slidingWindow{
+			timestamps: make([]time.Time, 0, s.initialCapacity),
+		}
+		s.windows[key] = sw
+	}
+	s.mu.Unlock()
+
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+
+	cutoff := timestamp.Add(-window)
+	validTimestamps := make([]time.Time, 0, len(sw.timestamps)+n)
+	count := int64(0)
+
+	for _, ts := range sw.timestamps {
+		if ts.After(cutoff) {
+			validTimestamps = append(validTimestamps, ts)
+			count++
+		}
+	}
+
+	// Check if we can add n more timestamps
+	if int(count)+n > limit {
+		// Not allowed, don't modify
+		sw.timestamps = validTimestamps // Still cleanup expired
+		return false, count, nil
+	}
+
+	// Allowed, add n timestamps
+	for range n {
+		validTimestamps = append(validTimestamps, timestamp)
+	}
+	sw.timestamps = validTimestamps
+
+	return true, count + int64(n), nil
 }
 
 // CountInWindow returns the number of timestamps within the sliding window
@@ -238,16 +332,36 @@ func (s *MemoryStore) cleanup() {
 
 	now := time.Now()
 
+	// Clean up expired buckets
 	for key, b := range s.buckets {
 		if now.After(b.expiresAt) {
 			delete(s.buckets, key)
 		}
 	}
 
+	// Clean up windows with expired timestamps
 	for key, sw := range s.windows {
 		sw.mu.Lock()
+
+		// Check if we know the window duration for this key
+		if windowDuration, ok := s.windowDurations.Load(key); ok {
+			duration := windowDuration.(time.Duration)
+			cutoff := now.Add(-duration)
+
+			// Remove expired timestamps
+			validTimestamps := make([]time.Time, 0, len(sw.timestamps))
+			for _, ts := range sw.timestamps {
+				if ts.After(cutoff) {
+					validTimestamps = append(validTimestamps, ts)
+				}
+			}
+			sw.timestamps = validTimestamps
+		}
+
+		// Remove window if empty
 		if len(sw.timestamps) == 0 {
 			delete(s.windows, key)
+			s.windowDurations.Delete(key)
 		}
 		sw.mu.Unlock()
 	}

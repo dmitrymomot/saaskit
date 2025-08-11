@@ -58,6 +58,11 @@ type Store interface {
 
 	// Delete removes the given key from the store.
 	Delete(ctx context.Context, key string) error
+
+	// ConsumeTokens atomically checks and consumes tokens if available.
+	// For new buckets, initializes with burst capacity.
+	// Returns (allowed, remaining, ttl, error).
+	ConsumeTokens(ctx context.Context, key string, n int, burst int, window time.Duration) (allowed bool, remaining int64, ttl time.Duration, err error)
 }
 
 // SlidingWindowStore extends Store with sliding window specific operations.
@@ -72,4 +77,8 @@ type SlidingWindowStore interface {
 
 	// CleanupExpired removes expired timestamps from the sliding window.
 	CleanupExpired(ctx context.Context, key string, window time.Duration) error
+
+	// RecordTimestampIfAllowed atomically checks if recording is allowed and records if so.
+	// Returns whether the timestamp was recorded and the final count.
+	RecordTimestampIfAllowed(ctx context.Context, key string, timestamp time.Time, window time.Duration, limit int, n int) (bool, int64, error)
 }
