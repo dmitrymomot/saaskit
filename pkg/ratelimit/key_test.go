@@ -1,4 +1,4 @@
-package ratelimit
+package ratelimit_test
 
 import (
 	"crypto/sha256"
@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/dmitrymomot/saaskit/pkg/ratelimit"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -28,18 +30,18 @@ func TestComposite(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		keyFuncs []KeyFunc
+		keyFuncs []ratelimit.KeyFunc
 		setup    func(*http.Request)
 		expected string
 	}{
 		{
 			name:     "empty key functions",
-			keyFuncs: []KeyFunc{},
+			keyFuncs: []ratelimit.KeyFunc{},
 			expected: "",
 		},
 		{
 			name:     "single key function",
-			keyFuncs: []KeyFunc{ipKeyFunc},
+			keyFuncs: []ratelimit.KeyFunc{ipKeyFunc},
 			setup: func(r *http.Request) {
 				r.RemoteAddr = "192.168.1.1:8080"
 			},
@@ -47,7 +49,7 @@ func TestComposite(t *testing.T) {
 		},
 		{
 			name:     "single key under 64 chars",
-			keyFuncs: []KeyFunc{pathKeyFunc},
+			keyFuncs: []ratelimit.KeyFunc{pathKeyFunc},
 			setup: func(r *http.Request) {
 				r.URL.Path = "/api/v1/users"
 			},
@@ -55,7 +57,7 @@ func TestComposite(t *testing.T) {
 		},
 		{
 			name:     "multiple keys combined",
-			keyFuncs: []KeyFunc{ipKeyFunc, pathKeyFunc},
+			keyFuncs: []ratelimit.KeyFunc{ipKeyFunc, pathKeyFunc},
 			setup: func(r *http.Request) {
 				r.RemoteAddr = "192.168.1.1:8080"
 				r.URL.Path = "/api/v1/users"
@@ -64,7 +66,7 @@ func TestComposite(t *testing.T) {
 		},
 		{
 			name:     "skip empty keys",
-			keyFuncs: []KeyFunc{ipKeyFunc, userKeyFunc, pathKeyFunc},
+			keyFuncs: []ratelimit.KeyFunc{ipKeyFunc, userKeyFunc, pathKeyFunc},
 			setup: func(r *http.Request) {
 				r.RemoteAddr = "192.168.1.1:8080"
 				r.URL.Path = "/api/v1/users"
@@ -73,7 +75,7 @@ func TestComposite(t *testing.T) {
 		},
 		{
 			name: "all empty keys",
-			keyFuncs: []KeyFunc{
+			keyFuncs: []ratelimit.KeyFunc{
 				func(r *http.Request) string { return "" },
 				func(r *http.Request) string { return "" },
 			},
@@ -81,7 +83,7 @@ func TestComposite(t *testing.T) {
 		},
 		{
 			name: "long key gets hashed",
-			keyFuncs: []KeyFunc{
+			keyFuncs: []ratelimit.KeyFunc{
 				func(r *http.Request) string {
 					return strings.Repeat("a", 70)
 				},
@@ -95,7 +97,7 @@ func TestComposite(t *testing.T) {
 		},
 		{
 			name: "combined key over 64 chars gets hashed",
-			keyFuncs: []KeyFunc{
+			keyFuncs: []ratelimit.KeyFunc{
 				func(r *http.Request) string { return strings.Repeat("a", 30) },
 				func(r *http.Request) string { return strings.Repeat("b", 30) },
 				func(r *http.Request) string { return strings.Repeat("c", 10) },
@@ -109,7 +111,7 @@ func TestComposite(t *testing.T) {
 		},
 		{
 			name: "exactly 64 chars not hashed",
-			keyFuncs: []KeyFunc{
+			keyFuncs: []ratelimit.KeyFunc{
 				func(r *http.Request) string { return strings.Repeat("x", 64) },
 			},
 			setup:    func(r *http.Request) {},
@@ -117,7 +119,7 @@ func TestComposite(t *testing.T) {
 		},
 		{
 			name: "combined exactly 64 chars not hashed",
-			keyFuncs: []KeyFunc{
+			keyFuncs: []ratelimit.KeyFunc{
 				func(r *http.Request) string { return strings.Repeat("a", 31) },
 				func(r *http.Request) string { return strings.Repeat("b", 32) },
 			},
@@ -135,7 +137,7 @@ func TestComposite(t *testing.T) {
 				tt.setup(req)
 			}
 
-			compositeFunc := Composite(tt.keyFuncs...)
+			compositeFunc := ratelimit.Composite(tt.keyFuncs...)
 			result := compositeFunc(req)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -145,12 +147,12 @@ func TestComposite(t *testing.T) {
 func TestComposite_HashCollisionResistance(t *testing.T) {
 	t.Parallel()
 
-	keyFunc1 := Composite(
+	keyFunc1 := ratelimit.Composite(
 		func(r *http.Request) string { return strings.Repeat("a", 100) },
 		func(r *http.Request) string { return strings.Repeat("b", 100) },
 	)
 
-	keyFunc2 := Composite(
+	keyFunc2 := ratelimit.Composite(
 		func(r *http.Request) string { return strings.Repeat("b", 100) },
 		func(r *http.Request) string { return strings.Repeat("a", 100) },
 	)
@@ -171,7 +173,7 @@ func TestComposite_RealWorldScenarios(t *testing.T) {
 	t.Run("API rate limiting by IP and path", func(t *testing.T) {
 		t.Parallel()
 
-		keyFunc := Composite(
+		keyFunc := ratelimit.Composite(
 			func(r *http.Request) string { return r.RemoteAddr },
 			func(r *http.Request) string { return r.URL.Path },
 		)
@@ -197,7 +199,7 @@ func TestComposite_RealWorldScenarios(t *testing.T) {
 	t.Run("user-specific rate limiting with fallback to IP", func(t *testing.T) {
 		t.Parallel()
 
-		keyFunc := Composite(
+		keyFunc := ratelimit.Composite(
 			func(r *http.Request) string {
 				if userID := r.Header.Get("X-User-ID"); userID != "" {
 					return "user:" + userID
@@ -229,7 +231,7 @@ func TestComposite_RealWorldScenarios(t *testing.T) {
 	t.Run("complex multi-tenant scenario", func(t *testing.T) {
 		t.Parallel()
 
-		keyFunc := Composite(
+		keyFunc := ratelimit.Composite(
 			func(r *http.Request) string { return r.Header.Get("X-Tenant-ID") },
 			func(r *http.Request) string { return r.Header.Get("X-User-ID") },
 			func(r *http.Request) string { return r.Method },
@@ -251,7 +253,7 @@ func TestComposite_EdgeCases(t *testing.T) {
 	t.Run("nil key function in list", func(t *testing.T) {
 		// The current implementation will panic on nil functions
 		// This test documents the current behavior
-		keyFunc := Composite(
+		keyFunc := ratelimit.Composite(
 			func(r *http.Request) string { return "test" },
 		)
 		req := httptest.NewRequest("GET", "/test", nil)
@@ -262,7 +264,7 @@ func TestComposite_EdgeCases(t *testing.T) {
 	t.Run("key with colons", func(t *testing.T) {
 		t.Parallel()
 
-		keyFunc := Composite(
+		keyFunc := ratelimit.Composite(
 			func(r *http.Request) string { return "key:with:colons" },
 			func(r *http.Request) string { return "another:key" },
 		)
@@ -275,7 +277,7 @@ func TestComposite_EdgeCases(t *testing.T) {
 	t.Run("unicode characters", func(t *testing.T) {
 		t.Parallel()
 
-		keyFunc := Composite(
+		keyFunc := ratelimit.Composite(
 			func(r *http.Request) string { return "用户123" },
 			func(r *http.Request) string { return "路径/测试" },
 		)
@@ -288,7 +290,7 @@ func TestComposite_EdgeCases(t *testing.T) {
 	t.Run("special characters", func(t *testing.T) {
 		t.Parallel()
 
-		keyFunc := Composite(
+		keyFunc := ratelimit.Composite(
 			func(r *http.Request) string { return "key!@#$%^&*()" },
 			func(r *http.Request) string { return "path/with/slashes" },
 		)
@@ -300,7 +302,7 @@ func TestComposite_EdgeCases(t *testing.T) {
 }
 
 func BenchmarkComposite(b *testing.B) {
-	keyFunc := Composite(
+	keyFunc := ratelimit.Composite(
 		func(r *http.Request) string { return r.RemoteAddr },
 		func(r *http.Request) string { return r.URL.Path },
 		func(r *http.Request) string { return r.Header.Get("X-User-ID") },
@@ -317,7 +319,7 @@ func BenchmarkComposite(b *testing.B) {
 }
 
 func BenchmarkComposite_LongKey(b *testing.B) {
-	keyFunc := Composite(
+	keyFunc := ratelimit.Composite(
 		func(r *http.Request) string { return strings.Repeat("a", 50) },
 		func(r *http.Request) string { return strings.Repeat("b", 50) },
 	)

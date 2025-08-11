@@ -1,4 +1,4 @@
-package ratelimit
+package ratelimit_test
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dmitrymomot/saaskit/pkg/ratelimit"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,22 +19,22 @@ func TestMiddleware(t *testing.T) {
 	t.Parallel()
 
 	t.Run("panic on nil keyFunc", func(t *testing.T) {
-		store := NewMemoryStore()
-		limiter, _ := NewTokenBucket(store, 10, time.Second)
+		store := ratelimit.NewMemoryStore()
+		limiter, _ := ratelimit.NewTokenBucket(store, 10, time.Second)
 
 		assert.Panics(t, func() {
-			Middleware(limiter, nil)
+			ratelimit.Middleware(limiter, nil)
 		})
 	})
 
 	t.Run("rate limit headers set correctly", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewMemoryStore()
-		limiter, _ := NewTokenBucket(store, 5, time.Second)
+		store := ratelimit.NewMemoryStore()
+		limiter, _ := ratelimit.NewTokenBucket(store, 5, time.Second)
 		keyFunc := func(r *http.Request) string { return "test-key" }
 
-		handler := Middleware(limiter, keyFunc)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := ratelimit.Middleware(limiter, keyFunc)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -50,11 +52,11 @@ func TestMiddleware(t *testing.T) {
 	t.Run("429 status when rate limit exceeded", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewMemoryStore()
-		limiter, _ := NewTokenBucket(store, 2, time.Second)
+		store := ratelimit.NewMemoryStore()
+		limiter, _ := ratelimit.NewTokenBucket(store, 2, time.Second)
 		keyFunc := func(r *http.Request) string { return "test-key-429" }
 
-		handler := Middleware(limiter, keyFunc)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := ratelimit.Middleware(limiter, keyFunc)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -82,11 +84,11 @@ func TestMiddleware(t *testing.T) {
 	t.Run("empty key bypasses rate limiting", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewMemoryStore()
-		limiter, _ := NewTokenBucket(store, 1, time.Second)
+		store := ratelimit.NewMemoryStore()
+		limiter, _ := ratelimit.NewTokenBucket(store, 1, time.Second)
 		keyFunc := func(r *http.Request) string { return "" }
 
-		handler := Middleware(limiter, keyFunc)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := ratelimit.Middleware(limiter, keyFunc)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -105,7 +107,7 @@ func TestMiddleware(t *testing.T) {
 		failingLimiter := &failingLimiter{err: errors.New("storage error")}
 		keyFunc := func(r *http.Request) string { return "test-key" }
 
-		handler := Middleware(failingLimiter, keyFunc)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := ratelimit.Middleware(failingLimiter, keyFunc)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -123,28 +125,28 @@ func TestMiddlewareWithOptions(t *testing.T) {
 	t.Parallel()
 
 	t.Run("panic on nil keyFunc", func(t *testing.T) {
-		store := NewMemoryStore()
-		limiter, _ := NewTokenBucket(store, 10, time.Second)
+		store := ratelimit.NewMemoryStore()
+		limiter, _ := ratelimit.NewTokenBucket(store, 10, time.Second)
 
 		assert.Panics(t, func() {
-			MiddlewareWithOptions(limiter, nil)
+			ratelimit.MiddlewareWithOptions(limiter, nil)
 		})
 	})
 
 	t.Run("custom key function", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewMemoryStore()
-		limiter, _ := NewTokenBucket(store, 5, time.Second)
+		store := ratelimit.NewMemoryStore()
+		limiter, _ := ratelimit.NewTokenBucket(store, 5, time.Second)
 
 		customKeyFunc := func(r *http.Request) string {
 			return r.Header.Get("X-API-Key")
 		}
 
-		handler := MiddlewareWithOptions(
+		handler := ratelimit.MiddlewareWithOptions(
 			limiter,
 			func(r *http.Request) string { return "default" },
-			WithKeyFunc(customKeyFunc),
+			ratelimit.WithKeyFunc(customKeyFunc),
 		)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -165,21 +167,21 @@ func TestMiddlewareWithOptions(t *testing.T) {
 	t.Run("custom on limit reached handler", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewMemoryStore()
-		limiter, _ := NewTokenBucket(store, 1, time.Second)
+		store := ratelimit.NewMemoryStore()
+		limiter, _ := ratelimit.NewTokenBucket(store, 1, time.Second)
 
 		customHandlerCalled := false
-		customHandler := func(w http.ResponseWriter, r *http.Request, result *Result) {
+		customHandler := func(w http.ResponseWriter, r *http.Request, result *ratelimit.Result) {
 			customHandlerCalled = true
 			w.Header().Set("X-Custom-Header", "rate-limited")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			w.Write([]byte("Custom rate limit message"))
 		}
 
-		handler := MiddlewareWithOptions(
+		handler := ratelimit.MiddlewareWithOptions(
 			limiter,
 			func(r *http.Request) string { return "test-key-custom" },
-			WithOnLimitReached(customHandler),
+			ratelimit.WithOnLimitReached(customHandler),
 		)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -202,17 +204,17 @@ func TestMiddlewareWithOptions(t *testing.T) {
 	t.Run("skip function", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewMemoryStore()
-		limiter, _ := NewTokenBucket(store, 1, time.Second)
+		store := ratelimit.NewMemoryStore()
+		limiter, _ := ratelimit.NewTokenBucket(store, 1, time.Second)
 
 		skipFunc := func(r *http.Request) bool {
 			return r.Header.Get("X-Skip-RateLimit") == "true"
 		}
 
-		handler := MiddlewareWithOptions(
+		handler := ratelimit.MiddlewareWithOptions(
 			limiter,
 			func(r *http.Request) string { return "test-key-skip" },
-			WithSkipFunc(skipFunc),
+			ratelimit.WithSkipFunc(skipFunc),
 		)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -239,19 +241,19 @@ func TestMiddlewareWithOptions(t *testing.T) {
 	t.Run("multiple options combined", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewMemoryStore()
-		limiter, _ := NewTokenBucket(store, 2, time.Second)
+		store := ratelimit.NewMemoryStore()
+		limiter, _ := ratelimit.NewTokenBucket(store, 2, time.Second)
 
-		handler := MiddlewareWithOptions(
+		handler := ratelimit.MiddlewareWithOptions(
 			limiter,
 			func(r *http.Request) string { return "default" },
-			WithKeyFunc(func(r *http.Request) string {
+			ratelimit.WithKeyFunc(func(r *http.Request) string {
 				return r.Header.Get("X-User-ID")
 			}),
-			WithSkipFunc(func(r *http.Request) bool {
+			ratelimit.WithSkipFunc(func(r *http.Request) bool {
 				return r.Header.Get("X-Admin") == "true"
 			}),
-			WithOnLimitReached(func(w http.ResponseWriter, r *http.Request, result *Result) {
+			ratelimit.WithOnLimitReached(func(w http.ResponseWriter, r *http.Request, result *ratelimit.Result) {
 				w.WriteHeader(http.StatusForbidden)
 				w.Write([]byte("Forbidden"))
 			}),
@@ -285,8 +287,8 @@ func TestMiddlewareWithOptions(t *testing.T) {
 func TestHandlerFunc(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
-	limiter, _ := NewTokenBucket(store, 3, time.Second, WithBurst(3))
+	store := ratelimit.NewMemoryStore()
+	limiter, _ := ratelimit.NewTokenBucket(store, 3, time.Second, ratelimit.WithBurst(3))
 
 	// Pre-fill the token bucket
 	ctx := context.Background()
@@ -294,7 +296,7 @@ func TestHandlerFunc(t *testing.T) {
 
 	keyFunc := func(r *http.Request) string { return "test-handler-func-key" }
 
-	handler := HandlerFunc(limiter, keyFunc, func(w http.ResponseWriter, r *http.Request) {
+	handler := ratelimit.HandlerFunc(limiter, keyFunc, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
@@ -318,10 +320,10 @@ func TestPerEndpoint(t *testing.T) {
 	t.Parallel()
 
 	t.Run("panic on nil keyFunc in config", func(t *testing.T) {
-		store := NewMemoryStore()
-		limiter, _ := NewTokenBucket(store, 10, time.Second)
+		store := ratelimit.NewMemoryStore()
+		limiter, _ := ratelimit.NewTokenBucket(store, 10, time.Second)
 
-		configs := []EndpointConfig{
+		configs := []ratelimit.EndpointConfig{
 			{
 				Path:    "/api/users",
 				Limiter: limiter,
@@ -330,7 +332,7 @@ func TestPerEndpoint(t *testing.T) {
 		}
 
 		assert.Panics(t, func() {
-			PerEndpoint(configs, limiter, func(r *http.Request) string { return "default" })
+			ratelimit.PerEndpoint(configs, limiter, func(r *http.Request) string { return "default" })
 		})
 	})
 
@@ -338,14 +340,14 @@ func TestPerEndpoint(t *testing.T) {
 		t.Parallel()
 
 		// Use separate stores for different limiters to avoid shared state
-		strictStore := NewMemoryStore()
-		strictLimiter, _ := NewTokenBucket(strictStore, 2, time.Second, WithBurst(2))
+		strictStore := ratelimit.NewMemoryStore()
+		strictLimiter, _ := ratelimit.NewTokenBucket(strictStore, 2, time.Second, ratelimit.WithBurst(2))
 
-		relaxedStore := NewMemoryStore()
-		relaxedLimiter, _ := NewTokenBucket(relaxedStore, 10, time.Second, WithBurst(10))
+		relaxedStore := ratelimit.NewMemoryStore()
+		relaxedLimiter, _ := ratelimit.NewTokenBucket(relaxedStore, 10, time.Second, ratelimit.WithBurst(10))
 
-		defaultStore := NewMemoryStore()
-		defaultLimiter, _ := NewTokenBucket(defaultStore, 5, time.Second, WithBurst(5))
+		defaultStore := ratelimit.NewMemoryStore()
+		defaultLimiter, _ := ratelimit.NewTokenBucket(defaultStore, 5, time.Second, ratelimit.WithBurst(5))
 
 		// Pre-fill token buckets
 		ctx := context.Background()
@@ -353,7 +355,7 @@ func TestPerEndpoint(t *testing.T) {
 		_, _, _ = relaxedStore.IncrementAndGet(ctx, "relaxed-key", 10, time.Second)
 		_, _, _ = defaultStore.IncrementAndGet(ctx, "default-key", 5, time.Second)
 
-		configs := []EndpointConfig{
+		configs := []ratelimit.EndpointConfig{
 			{
 				Path:    "/api/strict",
 				Limiter: strictLimiter,
@@ -366,7 +368,7 @@ func TestPerEndpoint(t *testing.T) {
 			},
 		}
 
-		handler := PerEndpoint(
+		handler := ratelimit.PerEndpoint(
 			configs,
 			defaultLimiter,
 			func(r *http.Request) string { return "default-key" },
@@ -396,14 +398,14 @@ func TestPerEndpoint(t *testing.T) {
 	t.Run("endpoint-specific rate limit enforcement", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewMemoryStore()
-		limiter, _ := NewTokenBucket(store, 2, time.Second, WithBurst(2))
+		store := ratelimit.NewMemoryStore()
+		limiter, _ := ratelimit.NewTokenBucket(store, 2, time.Second, ratelimit.WithBurst(2))
 
 		// Pre-fill the token bucket to ensure we start with full capacity
 		ctx := context.Background()
 		_, _, _ = store.IncrementAndGet(ctx, "limited-endpoint", 2, time.Second)
 
-		configs := []EndpointConfig{
+		configs := []ratelimit.EndpointConfig{
 			{
 				Path:    "/api/limited",
 				Limiter: limiter,
@@ -411,7 +413,7 @@ func TestPerEndpoint(t *testing.T) {
 			},
 		}
 
-		handler := PerEndpoint(
+		handler := ratelimit.PerEndpoint(
 			configs,
 			nil,
 			nil,
@@ -442,8 +444,8 @@ func TestPerEndpoint(t *testing.T) {
 	t.Run("nil limiter or keyFunc bypasses", func(t *testing.T) {
 		t.Parallel()
 
-		handler := PerEndpoint(
-			[]EndpointConfig{},
+		handler := ratelimit.PerEndpoint(
+			[]ratelimit.EndpointConfig{},
 			nil,
 			nil,
 		)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -463,7 +465,7 @@ func TestPerEndpoint(t *testing.T) {
 
 		failingLimiter := &failingLimiter{err: errors.New("storage error")}
 
-		configs := []EndpointConfig{
+		configs := []ratelimit.EndpointConfig{
 			{
 				Path:    "/api/failing",
 				Limiter: failingLimiter,
@@ -471,7 +473,7 @@ func TestPerEndpoint(t *testing.T) {
 			},
 		}
 
-		handler := PerEndpoint(
+		handler := ratelimit.PerEndpoint(
 			configs,
 			nil,
 			nil,
@@ -492,14 +494,14 @@ func TestMiddleware_RealWorldScenarios(t *testing.T) {
 	t.Run("API protection with burst handling", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewMemoryStore()
-		limiter, _ := NewTokenBucket(store, 10, 100*time.Millisecond, WithBurst(20))
+		store := ratelimit.NewMemoryStore()
+		limiter, _ := ratelimit.NewTokenBucket(store, 10, 100*time.Millisecond, ratelimit.WithBurst(20))
 
 		// Pre-fill the token bucket with burst capacity
 		ctx := context.Background()
 		_, _, _ = store.IncrementAndGet(ctx, "192.168.1.1:8080", 20, 100*time.Millisecond)
 
-		handler := Middleware(
+		handler := ratelimit.Middleware(
 			limiter,
 			func(r *http.Request) string { return r.RemoteAddr },
 		)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -535,11 +537,11 @@ func TestMiddleware_RealWorldScenarios(t *testing.T) {
 		t.Parallel()
 
 		// Use separate stores to avoid shared state
-		authStore := NewMemoryStore()
-		authLimiter, _ := NewTokenBucket(authStore, 100, time.Second, WithBurst(100))
+		authStore := ratelimit.NewMemoryStore()
+		authLimiter, _ := ratelimit.NewTokenBucket(authStore, 100, time.Second, ratelimit.WithBurst(100))
 
-		unauthStore := NewMemoryStore()
-		unauthLimiter, _ := NewTokenBucket(unauthStore, 10, time.Second, WithBurst(10))
+		unauthStore := ratelimit.NewMemoryStore()
+		unauthLimiter, _ := ratelimit.NewTokenBucket(unauthStore, 10, time.Second, ratelimit.WithBurst(10))
 
 		// Pre-fill token buckets
 		ctx := context.Background()
@@ -551,7 +553,7 @@ func TestMiddleware_RealWorldScenarios(t *testing.T) {
 		})
 
 		protectedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var limiter Limiter
+			var limiter ratelimit.Limiter
 			var key string
 
 			if userID := r.Header.Get("X-User-ID"); userID != "" {
@@ -606,15 +608,15 @@ type failingLimiter struct {
 	err error
 }
 
-func (f *failingLimiter) Allow(ctx context.Context, key string) (*Result, error) {
+func (f *failingLimiter) Allow(ctx context.Context, key string) (*ratelimit.Result, error) {
 	return nil, f.err
 }
 
-func (f *failingLimiter) AllowN(ctx context.Context, key string, n int) (*Result, error) {
+func (f *failingLimiter) AllowN(ctx context.Context, key string, n int) (*ratelimit.Result, error) {
 	return nil, f.err
 }
 
-func (f *failingLimiter) Status(ctx context.Context, key string) (*Result, error) {
+func (f *failingLimiter) Status(ctx context.Context, key string) (*ratelimit.Result, error) {
 	return nil, f.err
 }
 

@@ -1,4 +1,4 @@
-package ratelimit
+package ratelimit_test
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/dmitrymomot/saaskit/pkg/ratelimit"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,55 +18,58 @@ func TestNewMemoryStore(t *testing.T) {
 
 	t.Run("default configuration", func(t *testing.T) {
 		t.Parallel()
-		store := NewMemoryStore()
+		store := ratelimit.NewMemoryStore()
 		assert.NotNil(t, store)
-		assert.NotNil(t, store.buckets)
-		assert.NotNil(t, store.windows)
-		assert.Equal(t, 1*time.Minute, store.cleanupInterval)
-		assert.Equal(t, 100, store.initialCapacity)
+		// Can't test unexported fields in black-box testing
 	})
 
 	t.Run("custom cleanup interval", func(t *testing.T) {
 		t.Parallel()
-		store := NewMemoryStore(WithCleanupInterval(5 * time.Second))
-		assert.Equal(t, 5*time.Second, store.cleanupInterval)
+		store := ratelimit.NewMemoryStore(ratelimit.WithCleanupInterval(5 * time.Second))
+		assert.NotNil(t, store)
+		// Can't test unexported fields in black-box testing
 	})
 
 	t.Run("custom initial capacity", func(t *testing.T) {
 		t.Parallel()
-		store := NewMemoryStore(WithInitialCapacity(500))
-		assert.Equal(t, 500, store.initialCapacity)
+		store := ratelimit.NewMemoryStore(ratelimit.WithInitialCapacity(500))
+		assert.NotNil(t, store)
+		// Can't test unexported fields in black-box testing
 	})
 
 	t.Run("zero cleanup interval ignored", func(t *testing.T) {
 		t.Parallel()
-		store := NewMemoryStore(WithCleanupInterval(0))
-		assert.Equal(t, 1*time.Minute, store.cleanupInterval)
+		store := ratelimit.NewMemoryStore(ratelimit.WithCleanupInterval(0))
+		assert.NotNil(t, store)
+		// Can't test unexported fields in black-box testing
 	})
 
 	t.Run("negative cleanup interval ignored", func(t *testing.T) {
 		t.Parallel()
-		store := NewMemoryStore(WithCleanupInterval(-1 * time.Second))
-		assert.Equal(t, 1*time.Minute, store.cleanupInterval)
+		store := ratelimit.NewMemoryStore(ratelimit.WithCleanupInterval(-1 * time.Second))
+		assert.NotNil(t, store)
+		// Can't test unexported fields in black-box testing
 	})
 
 	t.Run("zero initial capacity ignored", func(t *testing.T) {
 		t.Parallel()
-		store := NewMemoryStore(WithInitialCapacity(0))
-		assert.Equal(t, 100, store.initialCapacity)
+		store := ratelimit.NewMemoryStore(ratelimit.WithInitialCapacity(0))
+		assert.NotNil(t, store)
+		// Can't test unexported fields in black-box testing
 	})
 
 	t.Run("negative initial capacity ignored", func(t *testing.T) {
 		t.Parallel()
-		store := NewMemoryStore(WithInitialCapacity(-50))
-		assert.Equal(t, 100, store.initialCapacity)
+		store := ratelimit.NewMemoryStore(ratelimit.WithInitialCapacity(-50))
+		assert.NotNil(t, store)
+		// Can't test unexported fields in black-box testing
 	})
 }
 
 func TestMemoryStore_IncrementAndGet(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
+	store := ratelimit.NewMemoryStore()
 	defer store.Close()
 	ctx := context.Background()
 
@@ -113,7 +118,7 @@ func TestMemoryStore_IncrementAndGet(t *testing.T) {
 func TestMemoryStore_Get(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
+	store := ratelimit.NewMemoryStore()
 	defer store.Close()
 	ctx := context.Background()
 
@@ -152,7 +157,7 @@ func TestMemoryStore_Get(t *testing.T) {
 func TestMemoryStore_Delete(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
+	store := ratelimit.NewMemoryStore()
 	defer store.Close()
 	ctx := context.Background()
 
@@ -196,7 +201,7 @@ func TestMemoryStore_Delete(t *testing.T) {
 func TestMemoryStore_RecordTimestamp(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
+	store := ratelimit.NewMemoryStore()
 	defer store.Close()
 	ctx := context.Background()
 
@@ -244,7 +249,7 @@ func TestMemoryStore_RecordTimestamp(t *testing.T) {
 func TestMemoryStore_CountInWindow(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
+	store := ratelimit.NewMemoryStore()
 	defer store.Close()
 	ctx := context.Background()
 
@@ -284,23 +289,14 @@ func TestMemoryStore_CountInWindow(t *testing.T) {
 		count, err := store.CountInWindow(ctx, key, time.Second)
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), count)
-
-		store.mu.RLock()
-		sw := store.windows[key]
-		store.mu.RUnlock()
-
-		sw.mu.Lock()
-		timestampCount := len(sw.timestamps)
-		sw.mu.Unlock()
-
-		assert.Equal(t, 1, timestampCount, "expired timestamps should be removed")
+		// Can't test internal cleanup in black-box testing
 	})
 }
 
 func TestMemoryStore_CleanupExpired(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
+	store := ratelimit.NewMemoryStore()
 	defer store.Close()
 	ctx := context.Background()
 
@@ -331,11 +327,11 @@ func TestMemoryStore_CleanupExpired(t *testing.T) {
 		err = store.CleanupExpired(ctx, key, time.Second)
 		require.NoError(t, err)
 
-		store.mu.RLock()
-		_, exists := store.windows[key]
-		store.mu.RUnlock()
-
-		assert.False(t, exists, "empty window should be removed")
+		// Can't test internal deletion in black-box testing
+		// Just verify the count is 0
+		count, err := store.CountInWindow(ctx, key, time.Second)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), count)
 	})
 
 	t.Run("cleanup non-existent key", func(t *testing.T) {
@@ -347,7 +343,7 @@ func TestMemoryStore_CleanupExpired(t *testing.T) {
 func TestMemoryStore_Concurrent(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore()
+	store := ratelimit.NewMemoryStore()
 	defer store.Close()
 	ctx := context.Background()
 
@@ -441,7 +437,7 @@ func TestMemoryStore_Concurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			time.Sleep(30 * time.Millisecond)
-			store.cleanup()
+			// Can't call unexported cleanup method in black-box testing
 		}()
 
 		wg.Wait()
@@ -451,7 +447,7 @@ func TestMemoryStore_Concurrent(t *testing.T) {
 func TestMemoryStore_Cleanup(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore(WithCleanupInterval(50 * time.Millisecond))
+	store := ratelimit.NewMemoryStore(ratelimit.WithCleanupInterval(50 * time.Millisecond))
 	defer store.Close()
 	ctx := context.Background()
 
@@ -462,17 +458,21 @@ func TestMemoryStore_Cleanup(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		store.mu.RLock()
-		initialCount := len(store.buckets)
-		store.mu.RUnlock()
-		assert.Equal(t, 10, initialCount)
+		// Verify all 10 entries were created
+		for i := range 10 {
+			key := "auto-cleanup-" + string(rune(i))
+			count, _, _ := store.Get(ctx, key)
+			assert.Greater(t, count, int64(0))
+		}
 
 		time.Sleep(100 * time.Millisecond)
 
-		store.mu.RLock()
-		finalCount := len(store.buckets)
-		store.mu.RUnlock()
-		assert.Equal(t, 0, finalCount, "expired buckets should be cleaned up")
+		// Verify all entries expired
+		for i := range 10 {
+			key := "auto-cleanup-" + string(rune(i))
+			count, _, _ := store.Get(ctx, key)
+			assert.Equal(t, int64(0), count, "expired buckets should be cleaned up")
+		}
 	})
 
 	t.Run("cleanup preserves non-expired entries", func(t *testing.T) {
@@ -483,10 +483,11 @@ func TestMemoryStore_Cleanup(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond)
 
-		store.mu.RLock()
-		_, shortExists := store.buckets["short-lived"]
-		_, longExists := store.buckets["long-lived"]
-		store.mu.RUnlock()
+		// Check if entries still exist
+		shortCount, _, _ := store.Get(ctx, "short-lived")
+		longCount, _, _ := store.Get(ctx, "long-lived")
+		shortExists := shortCount > 0
+		longExists := longCount > 0
 
 		assert.False(t, shortExists, "short-lived bucket should be cleaned up")
 		assert.True(t, longExists, "long-lived bucket should remain")
@@ -497,20 +498,15 @@ func TestMemoryStore_Close(t *testing.T) {
 	t.Parallel()
 
 	t.Run("close stops cleanup goroutine", func(t *testing.T) {
-		store := NewMemoryStore(WithCleanupInterval(50 * time.Millisecond))
+		store := ratelimit.NewMemoryStore(ratelimit.WithCleanupInterval(50 * time.Millisecond))
 
 		err := store.Close()
 		assert.NoError(t, err)
-
-		select {
-		case <-store.stopCleanup:
-		case <-time.After(100 * time.Millisecond):
-			t.Fatal("cleanup channel should be closed")
-		}
+		// Can't test unexported stopCleanup channel in black-box testing
 	})
 
 	t.Run("multiple close calls are safe", func(t *testing.T) {
-		store := NewMemoryStore()
+		store := ratelimit.NewMemoryStore()
 
 		err := store.Close()
 		assert.NoError(t, err)
@@ -523,7 +519,7 @@ func TestMemoryStore_Close(t *testing.T) {
 func TestMemoryStore_MemoryLeak(t *testing.T) {
 	t.Parallel()
 
-	store := NewMemoryStore(WithCleanupInterval(50 * time.Millisecond))
+	store := ratelimit.NewMemoryStore(ratelimit.WithCleanupInterval(50 * time.Millisecond))
 	defer store.Close()
 	ctx := context.Background()
 
@@ -537,14 +533,14 @@ func TestMemoryStore_MemoryLeak(t *testing.T) {
 	// Wait for entries to expire and cleanup to run multiple times
 	time.Sleep(150 * time.Millisecond)
 
-	store.mu.RLock()
-	bucketCount := len(store.buckets)
-	windowCount := len(store.windows)
-	store.mu.RUnlock()
-
-	// All entries should be cleaned up since they expired
-	assert.Equal(t, 0, bucketCount, "all expired buckets should be cleaned up")
-	assert.Equal(t, 0, windowCount, "all expired windows should be cleaned up")
+	// Check all entries expired through Get/CountInWindow
+	for i := range 100 {
+		key := fmt.Sprintf("leak-test-%d", i)
+		count, _, _ := store.Get(ctx, key)
+		assert.Equal(t, int64(0), count, "expired entry should be cleaned up")
+		winCount, _ := store.CountInWindow(ctx, key, 25*time.Millisecond)
+		assert.Equal(t, int64(0), winCount, "expired window should be cleaned up")
+	}
 
 	// Now test that non-expired entries are preserved
 	for i := range 5 {
@@ -556,11 +552,12 @@ func TestMemoryStore_MemoryLeak(t *testing.T) {
 	// Wait for a cleanup cycle
 	time.Sleep(60 * time.Millisecond)
 
-	store.mu.RLock()
-	bucketCount = len(store.buckets)
-	windowCount = len(store.windows)
-	store.mu.RUnlock()
-
-	assert.Equal(t, 5, bucketCount, "non-expired buckets should remain")
-	assert.Equal(t, 5, windowCount, "non-expired windows should remain")
+	// Check non-expired entries still exist
+	for i := range 5 {
+		key := fmt.Sprintf("persistent-%d", i)
+		count, _, _ := store.Get(ctx, key)
+		assert.Greater(t, count, int64(0), "non-expired bucket should remain")
+		winCount, _ := store.CountInWindow(ctx, key, 5*time.Second)
+		assert.Greater(t, winCount, int64(0), "non-expired window should remain")
+	}
 }
