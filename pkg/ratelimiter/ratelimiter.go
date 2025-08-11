@@ -8,8 +8,18 @@ import (
 
 var (
 	// ErrInvalidConfig is returned when the configuration is invalid.
-	ErrInvalidConfig = errors.New("invalid rate limiter configuration")
+	ErrInvalidConfig = errors.New("invalid configuration")
+	// ErrInvalidTokenCount is returned when the token count is invalid.
+	ErrInvalidTokenCount = errors.New("invalid token count")
 )
+
+// RateLimiter defines the interface for rate limiting implementations.
+type RateLimiter interface {
+	// Allow checks if a single request is allowed.
+	Allow(ctx context.Context, key string) (*Result, error)
+	// AllowN checks if n requests are allowed.
+	AllowN(ctx context.Context, key string, n int) (*Result, error)
+}
 
 // TokenBucket implements a token bucket rate limiter.
 type TokenBucket struct {
@@ -19,10 +29,10 @@ type TokenBucket struct {
 
 // NewTokenBucket creates a new token bucket rate limiter.
 func NewTokenBucket(store Store, config Config) (*TokenBucket, error) {
-	if err := config.Validate(); err != nil {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
-	
+
 	return &TokenBucket{
 		store:  store,
 		config: config,
@@ -36,11 +46,15 @@ func (tb *TokenBucket) Allow(ctx context.Context, key string) (*Result, error) {
 
 // AllowN checks if n requests are allowed.
 func (tb *TokenBucket) AllowN(ctx context.Context, key string, n int) (*Result, error) {
+	if n <= 0 {
+		return nil, fmt.Errorf("%w: must be positive, got %d", ErrInvalidTokenCount, n)
+	}
+
 	remaining, resetAt, err := tb.store.ConsumeTokens(ctx, key, n, tb.config)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &Result{
 		Limit:     tb.config.Capacity,
 		Remaining: remaining,
@@ -55,7 +69,7 @@ func (tb *TokenBucket) Status(ctx context.Context, key string) (*Result, error) 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &Result{
 		Limit:     tb.config.Capacity,
 		Remaining: remaining,
@@ -68,16 +82,15 @@ func (tb *TokenBucket) Reset(ctx context.Context, key string) error {
 	return tb.store.Reset(ctx, key)
 }
 
-// Validate checks if the configuration is valid.
-func (c Config) Validate() error {
+func (c Config) validate() error {
 	if c.Capacity <= 0 {
-		return fmt.Errorf("%w: capacity must be greater than 0, got %d", ErrInvalidConfig, c.Capacity)
+		return fmt.Errorf("capacity must be positive, got %d", c.Capacity)
 	}
 	if c.RefillRate <= 0 {
-		return fmt.Errorf("%w: refill rate must be greater than 0, got %d", ErrInvalidConfig, c.RefillRate)
+		return fmt.Errorf("refill rate must be positive, got %d", c.RefillRate)
 	}
 	if c.RefillInterval <= 0 {
-		return fmt.Errorf("%w: refill interval must be greater than 0, got %v", ErrInvalidConfig, c.RefillInterval)
+		return fmt.Errorf("refill interval must be positive, got %v", c.RefillInterval)
 	}
 	return nil
 }
