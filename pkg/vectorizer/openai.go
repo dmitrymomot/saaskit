@@ -103,11 +103,7 @@ func (p *OpenAIProvider) VectorizeBatch(ctx context.Context, texts []string) ([]
 	var allVectors []Vector
 
 	for i := 0; i < len(texts); i += maxBatchSize {
-		end := i + maxBatchSize
-		if end > len(texts) {
-			end = len(texts)
-		}
-
+		end := min(i+maxBatchSize, len(texts))
 		batch := texts[i:end]
 		vectors, err := p.callAPI(ctx, batch)
 		if err != nil {
