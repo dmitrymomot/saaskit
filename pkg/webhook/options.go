@@ -1,6 +1,7 @@
 package webhook
 
 import (
+	"maps"
 	"net/http"
 	"time"
 )
@@ -74,11 +75,11 @@ func WithHeader(key, value string) SendOption {
 // WithHeaders adds multiple custom headers to the webhook request.
 func WithHeaders(headers map[string]string) SendOption {
 	return func(o *sendOptions) {
-		for k, v := range headers {
-			if k != "" && v != "" {
-				o.headers[k] = v
-			}
-		}
+		// Filter out empty keys/values before copying using maps.FilterFunc
+		filtered := maps.FilterFunc(headers, func(_ string, v string) bool {
+			return v != ""
+		})
+		maps.Copy(o.headers, filtered)
 	}
 }
 
