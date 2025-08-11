@@ -169,34 +169,10 @@ func (s *MemoryStore) Delete(ctx context.Context, key string) error {
 // RecordTimestamp adds a timestamp to the sliding window and removes
 // expired timestamps to maintain accuracy and prevent memory growth.
 func (s *MemoryStore) RecordTimestamp(ctx context.Context, key string, timestamp time.Time, window time.Duration) error {
-	// Track window duration for cleanup
-	s.windowDurations.Store(key, window)
-
-	s.mu.Lock()
-	sw, exists := s.windows[key]
-	if !exists {
-		sw = &slidingWindow{
-			timestamps: make([]time.Time, 0, s.initialCapacity),
-		}
-		s.windows[key] = sw
+	allowed, _, err := s.RecordTimestampIfAllowed(ctx, key, timestamp, window, int(^uint(0)>>1), 1) // Max int limit
+	if !allowed {
+		return err
 	}
-	s.mu.Unlock()
-
-	sw.mu.Lock()
-	defer sw.mu.Unlock()
-
-	cutoff := timestamp.Add(-window)
-	validTimestamps := make([]time.Time, 0, len(sw.timestamps)+1)
-
-	for _, ts := range sw.timestamps {
-		if ts.After(cutoff) {
-			validTimestamps = append(validTimestamps, ts)
-		}
-	}
-
-	validTimestamps = append(validTimestamps, timestamp)
-	sw.timestamps = validTimestamps
-
 	return nil
 }
 
@@ -220,30 +196,28 @@ func (s *MemoryStore) RecordTimestampIfAllowed(ctx context.Context, key string, 
 	defer sw.mu.Unlock()
 
 	cutoff := timestamp.Add(-window)
-	validTimestamps := make([]time.Time, 0, len(sw.timestamps)+n)
-	count := int64(0)
 
-	for _, ts := range sw.timestamps {
-		if ts.After(cutoff) {
-			validTimestamps = append(validTimestamps, ts)
-			count++
+	// Filter in-place to avoid allocations
+	validCount := 0
+	for i := 0; i < len(sw.timestamps); i++ {
+		if sw.timestamps[i].After(cutoff) {
+			sw.timestamps[validCount] = sw.timestamps[i]
+			validCount++
 		}
 	}
+	sw.timestamps = sw.timestamps[:validCount]
 
 	// Check if we can add n more timestamps
-	if int(count)+n > limit {
-		// Not allowed, don't modify
-		sw.timestamps = validTimestamps // Still cleanup expired
-		return false, count, nil
+	if validCount+n > limit {
+		return false, int64(validCount), nil
 	}
 
 	// Allowed, add n timestamps
 	for range n {
-		validTimestamps = append(validTimestamps, timestamp)
+		sw.timestamps = append(sw.timestamps, timestamp)
 	}
-	sw.timestamps = validTimestamps
 
-	return true, count + int64(n), nil
+	return true, int64(validCount) + int64(n), nil
 }
 
 // CountInWindow returns the number of timestamps within the sliding window
@@ -261,18 +235,17 @@ func (s *MemoryStore) CountInWindow(ctx context.Context, key string, window time
 	defer sw.mu.Unlock()
 
 	cutoff := time.Now().Add(-window)
-	count := int64(0)
 
-	validTimestamps := make([]time.Time, 0, len(sw.timestamps))
-	for _, ts := range sw.timestamps {
-		if ts.After(cutoff) {
-			count++
-			validTimestamps = append(validTimestamps, ts)
+	// Filter in-place and count valid timestamps
+	validCount := 0
+	for i := 0; i < len(sw.timestamps); i++ {
+		if sw.timestamps[i].After(cutoff) {
+			sw.timestamps[validCount] = sw.timestamps[i]
+			validCount++
 		}
 	}
-
-	sw.timestamps = validTimestamps
-	return count, nil
+	sw.timestamps = sw.timestamps[:validCount]
+	return int64(validCount), nil
 }
 
 // CleanupExpired removes expired timestamps from the sliding window.
@@ -289,15 +262,16 @@ func (s *MemoryStore) CleanupExpired(ctx context.Context, key string, window tim
 	defer sw.mu.Unlock()
 
 	cutoff := time.Now().Add(-window)
-	validTimestamps := make([]time.Time, 0, len(sw.timestamps))
 
-	for _, ts := range sw.timestamps {
-		if ts.After(cutoff) {
-			validTimestamps = append(validTimestamps, ts)
+	// Filter in-place to avoid allocations
+	validCount := 0
+	for i := 0; i < len(sw.timestamps); i++ {
+		if sw.timestamps[i].After(cutoff) {
+			sw.timestamps[validCount] = sw.timestamps[i]
+			validCount++
 		}
 	}
-
-	sw.timestamps = validTimestamps
+	sw.timestamps = sw.timestamps[:validCount]
 
 	if len(sw.timestamps) == 0 {
 		s.mu.Lock()
@@ -327,20 +301,28 @@ func (s *MemoryStore) cleanupLoop() {
 // cleanup removes expired token buckets and empty sliding windows.
 // Called periodically by cleanupLoop to prevent unbounded memory growth.
 func (s *MemoryStore) cleanup() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	now := time.Now()
 
 	// Clean up expired buckets
+	s.mu.Lock()
 	for key, b := range s.buckets {
 		if now.After(b.expiresAt) {
 			delete(s.buckets, key)
 		}
 	}
+	s.mu.Unlock()
 
-	// Clean up windows with expired timestamps
+	// Collect windows to clean (avoid holding main lock while cleaning)
+	s.mu.RLock()
+	windowsToClean := make(map[string]*slidingWindow, len(s.windows))
 	for key, sw := range s.windows {
+		windowsToClean[key] = sw
+	}
+	s.mu.RUnlock()
+
+	// Clean each window separately
+	keysToDelete := []string{}
+	for key, sw := range windowsToClean {
 		sw.mu.Lock()
 
 		// Check if we know the window duration for this key
@@ -348,22 +330,32 @@ func (s *MemoryStore) cleanup() {
 			duration := windowDuration.(time.Duration)
 			cutoff := now.Add(-duration)
 
-			// Remove expired timestamps
-			validTimestamps := make([]time.Time, 0, len(sw.timestamps))
-			for _, ts := range sw.timestamps {
-				if ts.After(cutoff) {
-					validTimestamps = append(validTimestamps, ts)
+			// Filter in-place to avoid allocations
+			validCount := 0
+			for i := 0; i < len(sw.timestamps); i++ {
+				if sw.timestamps[i].After(cutoff) {
+					sw.timestamps[validCount] = sw.timestamps[i]
+					validCount++
 				}
 			}
-			sw.timestamps = validTimestamps
+			sw.timestamps = sw.timestamps[:validCount]
 		}
 
-		// Remove window if empty
+		// Mark for deletion if empty
 		if len(sw.timestamps) == 0 {
+			keysToDelete = append(keysToDelete, key)
+		}
+		sw.mu.Unlock()
+	}
+
+	// Delete empty windows
+	if len(keysToDelete) > 0 {
+		s.mu.Lock()
+		for _, key := range keysToDelete {
 			delete(s.windows, key)
 			s.windowDurations.Delete(key)
 		}
-		sw.mu.Unlock()
+		s.mu.Unlock()
 	}
 }
 
