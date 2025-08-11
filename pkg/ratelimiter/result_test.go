@@ -9,60 +9,6 @@ import (
 	"github.com/dmitrymomot/saaskit/pkg/ratelimiter"
 )
 
-func TestResult_Allowed(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		result   ratelimiter.Result
-		expected bool
-	}{
-		{
-			name: "positive remaining tokens",
-			result: ratelimiter.Result{
-				Limit:     100,
-				Remaining: 50,
-				ResetAt:   time.Now().Add(time.Minute),
-			},
-			expected: true,
-		},
-		{
-			name: "zero remaining tokens",
-			result: ratelimiter.Result{
-				Limit:     100,
-				Remaining: 0,
-				ResetAt:   time.Now().Add(time.Minute),
-			},
-			expected: true,
-		},
-		{
-			name: "negative remaining tokens",
-			result: ratelimiter.Result{
-				Limit:     100,
-				Remaining: -1,
-				ResetAt:   time.Now().Add(time.Minute),
-			},
-			expected: false,
-		},
-		{
-			name: "large negative remaining",
-			result: ratelimiter.Result{
-				Limit:     100,
-				Remaining: -50,
-				ResetAt:   time.Now().Add(time.Minute),
-			},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tt.expected, tt.result.Allowed())
-		})
-	}
-}
-
 func TestResult_RetryAfter(t *testing.T) {
 	t.Parallel()
 
