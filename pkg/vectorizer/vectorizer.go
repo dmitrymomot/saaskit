@@ -2,6 +2,7 @@ package vectorizer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -75,7 +76,7 @@ func (v *Vectorizer) ToVector(ctx context.Context, text string) (Vector, error) 
 
 	vector, err := v.provider.Vectorize(ctx, text)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrVectorizationFailed, err)
+		return nil, errors.Join(ErrVectorizationFailed, err)
 	}
 
 	return vector, nil
@@ -108,7 +109,7 @@ func (v *Vectorizer) ChunksToVectors(ctx context.Context, chunks []string) ([]Ve
 
 	vectors, err := v.provider.VectorizeBatch(ctx, nonEmptyChunks)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrVectorizationFailed, err)
+		return nil, errors.Join(ErrVectorizationFailed, err)
 	}
 
 	return vectors, nil
