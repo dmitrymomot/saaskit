@@ -74,12 +74,13 @@ func (tb *TokenBucket) Allow(ctx context.Context, key string) (*Result, error) {
 // refillTokens handles token refill atomically to prevent race conditions
 func (tb *TokenBucket) refillTokens(ctx context.Context, key string, now time.Time) error {
 	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	
 	state := tb.buckets[key]
 
 	if state == nil {
 		// New bucket - just track the state, ConsumeTokens will initialize
 		tb.buckets[key] = &bucketState{lastRefill: now}
-		tb.mu.Unlock()
 		return nil
 	}
 
@@ -89,22 +90,39 @@ func (tb *TokenBucket) refillTokens(ctx context.Context, key string, now time.Ti
 
 	if intervals > 0 {
 		tokensToAdd := intervals * tb.rate
+		// Update last refill time first to prevent double refill
+		oldLastRefill := state.lastRefill
 		state.lastRefill = state.lastRefill.Add(time.Duration(intervals) * tb.interval)
-		tb.mu.Unlock()
 
+		// Temporarily unlock for store operations
+		tb.mu.Unlock()
+		
 		// Get current tokens and add new ones (up to burst)
 		current, _, err := tb.store.Get(ctx, key)
 		if err != nil {
+			// Restore state on error
+			tb.mu.Lock()
+			if s := tb.buckets[key]; s != nil {
+				s.lastRefill = oldLastRefill
+			}
 			return err
 		}
 
 		newTotal := min(tb.burst, int(current)+tokensToAdd)
 		if newTotal > int(current) {
 			_, _, err = tb.store.IncrementAndGet(ctx, key, newTotal-int(current), tb.interval)
-			return err
+			if err != nil {
+				// Restore state on error
+				tb.mu.Lock()
+				if s := tb.buckets[key]; s != nil {
+					s.lastRefill = oldLastRefill
+				}
+				return err
+			}
 		}
-	} else {
-		tb.mu.Unlock()
+		
+		// Re-acquire lock for defer
+		tb.mu.Lock()
 	}
 
 	return nil

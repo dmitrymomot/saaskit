@@ -7,6 +7,10 @@ import (
 	"strings"
 )
 
+// maxKeyLength is the maximum allowed length for a rate limit key
+// to prevent excessively long storage keys in backends like Redis.
+const maxKeyLength = 64
+
 // KeyFunc extracts a unique identifier from an HTTP request for rate limiting.
 type KeyFunc func(*http.Request) string
 
@@ -26,13 +30,13 @@ func Composite(keyFuncs ...KeyFunc) KeyFunc {
 			return ""
 		}
 
-		if len(parts) == 1 && len(parts[0]) <= 64 {
+		if len(parts) == 1 && len(parts[0]) <= maxKeyLength {
 			return parts[0]
 		}
 
 		combined := strings.Join(parts, ":")
 
-		if len(combined) > 64 {
+		if len(combined) > maxKeyLength {
 			hash := sha256.Sum256([]byte(combined))
 			// 128-bit hash provides sufficient collision resistance
 			return hex.EncodeToString(hash[:16])

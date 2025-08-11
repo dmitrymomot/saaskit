@@ -2,6 +2,8 @@ package ratelimit
 
 import (
 	"context"
+	"maps"
+	"math"
 	"sync"
 	"time"
 )
@@ -166,14 +168,24 @@ func (s *MemoryStore) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
-// RecordTimestamp adds a timestamp to the sliding window and removes
-// expired timestamps to maintain accuracy and prevent memory growth.
-func (s *MemoryStore) RecordTimestamp(ctx context.Context, key string, timestamp time.Time, window time.Duration) error {
-	allowed, _, err := s.RecordTimestampIfAllowed(ctx, key, timestamp, window, int(^uint(0)>>1), 1) // Max int limit
-	if !allowed {
-		return err
+// filterValidTimestamps filters timestamps in-place to avoid allocations.
+// Returns the slice with only valid timestamps after the cutoff time.
+func filterValidTimestamps(timestamps []time.Time, cutoff time.Time) []time.Time {
+	validCount := 0
+	for i := range len(timestamps) {
+		if timestamps[i].After(cutoff) {
+			timestamps[validCount] = timestamps[i]
+			validCount++
+		}
 	}
-	return nil
+	return timestamps[:validCount]
+}
+
+// RecordTimestamp adds a timestamp to the sliding window for the given key.
+// This is a convenience wrapper around RecordTimestampIfAllowed with no limit.
+func (s *MemoryStore) RecordTimestamp(ctx context.Context, key string, timestamp time.Time, window time.Duration) error {
+	_, _, err := s.RecordTimestampIfAllowed(ctx, key, timestamp, window, math.MaxInt, 1)
+	return err
 }
 
 // RecordTimestampIfAllowed atomically checks if recording is allowed and records if so.
@@ -196,16 +208,8 @@ func (s *MemoryStore) RecordTimestampIfAllowed(ctx context.Context, key string, 
 	defer sw.mu.Unlock()
 
 	cutoff := timestamp.Add(-window)
-
-	// Filter in-place to avoid allocations
-	validCount := 0
-	for i := 0; i < len(sw.timestamps); i++ {
-		if sw.timestamps[i].After(cutoff) {
-			sw.timestamps[validCount] = sw.timestamps[i]
-			validCount++
-		}
-	}
-	sw.timestamps = sw.timestamps[:validCount]
+	sw.timestamps = filterValidTimestamps(sw.timestamps, cutoff)
+	validCount := len(sw.timestamps)
 
 	// Check if we can add n more timestamps
 	if validCount+n > limit {
@@ -235,17 +239,8 @@ func (s *MemoryStore) CountInWindow(ctx context.Context, key string, window time
 	defer sw.mu.Unlock()
 
 	cutoff := time.Now().Add(-window)
-
-	// Filter in-place and count valid timestamps
-	validCount := 0
-	for i := 0; i < len(sw.timestamps); i++ {
-		if sw.timestamps[i].After(cutoff) {
-			sw.timestamps[validCount] = sw.timestamps[i]
-			validCount++
-		}
-	}
-	sw.timestamps = sw.timestamps[:validCount]
-	return int64(validCount), nil
+	sw.timestamps = filterValidTimestamps(sw.timestamps, cutoff)
+	return int64(len(sw.timestamps)), nil
 }
 
 // CleanupExpired removes expired timestamps from the sliding window.
@@ -262,16 +257,7 @@ func (s *MemoryStore) CleanupExpired(ctx context.Context, key string, window tim
 	defer sw.mu.Unlock()
 
 	cutoff := time.Now().Add(-window)
-
-	// Filter in-place to avoid allocations
-	validCount := 0
-	for i := 0; i < len(sw.timestamps); i++ {
-		if sw.timestamps[i].After(cutoff) {
-			sw.timestamps[validCount] = sw.timestamps[i]
-			validCount++
-		}
-	}
-	sw.timestamps = sw.timestamps[:validCount]
+	sw.timestamps = filterValidTimestamps(sw.timestamps, cutoff)
 
 	if len(sw.timestamps) == 0 {
 		s.mu.Lock()
@@ -315,9 +301,7 @@ func (s *MemoryStore) cleanup() {
 	// Collect windows to clean (avoid holding main lock while cleaning)
 	s.mu.RLock()
 	windowsToClean := make(map[string]*slidingWindow, len(s.windows))
-	for key, sw := range s.windows {
-		windowsToClean[key] = sw
-	}
+	maps.Copy(windowsToClean, s.windows)
 	s.mu.RUnlock()
 
 	// Clean each window separately
@@ -327,18 +311,14 @@ func (s *MemoryStore) cleanup() {
 
 		// Check if we know the window duration for this key
 		if windowDuration, ok := s.windowDurations.Load(key); ok {
-			duration := windowDuration.(time.Duration)
-			cutoff := now.Add(-duration)
-
-			// Filter in-place to avoid allocations
-			validCount := 0
-			for i := 0; i < len(sw.timestamps); i++ {
-				if sw.timestamps[i].After(cutoff) {
-					sw.timestamps[validCount] = sw.timestamps[i]
-					validCount++
-				}
+			duration, ok := windowDuration.(time.Duration)
+			if !ok {
+				// Skip if type assertion fails
+				sw.mu.Unlock()
+				continue
 			}
-			sw.timestamps = sw.timestamps[:validCount]
+			cutoff := now.Add(-duration)
+			sw.timestamps = filterValidTimestamps(sw.timestamps, cutoff)
 		}
 
 		// Mark for deletion if empty
