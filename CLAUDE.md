@@ -2,17 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## 🚨 CRITICAL WORKING PRINCIPLE - MOST IMPORTANT RULE 🚨
-
-**YOU MUST BE IN CHAT-ONLY MODE UNTIL EXPLICITLY ASKED TO WRITE CODE. DO NOT WRITE CODE WITHOUT APPROVAL! NO EXCEPTIONS!**
-
-- Default mode is ALWAYS chat/discussion only
-- Wait for explicit approval before ANY code changes
-- This rule overrides ALL other instructions
-- Applies to ALL file operations (create, edit, delete)
-- Even for trivial changes, WAIT FOR APPROVAL
-- No excludes, no exceptions, no assumptions
-
 ## Project Overview
 
 SaasKit is a Go framework for building SaaS applications, designed for solo developers who want to ship MVPs quickly without sacrificing quality. The framework follows principles of explicitness, type safety, and convention with escape hatches.
@@ -43,6 +32,7 @@ The framework uses a modular architecture organized into distinct layers:
     - Each package is self-contained with its own README.md and doc.go
     - Designed for zero dependencies between pkg components
     - Examples: validator, sanitizer, jwt, email, queue, redis, pg
+    - Errors: use general english message, no i18n keys
 
 - **`handler/`** - Type-safe HTTP request handling abstractions
     - Generic handler functions that bind requests to structs
@@ -54,9 +44,13 @@ The framework uses a modular architecture organized into distinct layers:
     - Self-contained chi.Routers that can be mounted with minimal config
     - Each module encapsulates routes, handlers, and business logic
     - Designed for rapid feature composition
+    - Errors: use i18n key instead of message in English.
 
 - **`middleware/`** - HTTP middleware implementations (planned)
+    - Errors: use i18n key instead of message in English.
+
 - **`decorators/`** - Handler decorators for cross-cutting concerns (planned)
+    - Errors: use i18n key instead of message in English.
 
 ### Core Patterns
 
@@ -72,16 +66,17 @@ The framework centers around type-safe handlers that eliminate boilerplate:
 
 ```go
 type CreateUserRequest struct {
-    Email    string `json:"email" validate:"required,email"`
-    Password string `json:"password" validate:"required,min=8"`
+    Email    string `json:"email"`
+    Password string `json:"password"`
 }
 
-handler := handler.HandlerFunc[handler.Context, CreateUserRequest](
-    func(ctx handler.Context, req CreateUserRequest) handler.Response {
-        // Business logic here
-        return handler.JSON(user)
-    },
-)
+func createUserHandler(ctx handler.Context, req CreateUserRequest) handler.Response {
+    // Business logic here
+    return handler.JSON(user)
+}
+
+// Wrap handler explicitly in router
+router.Post("/users", handler.Wrap(createUserHandler))
 ```
 
 ## Go Version and Standards
@@ -92,6 +87,77 @@ handler := handler.HandlerFunc[handler.Context, CreateUserRequest](
 - **Testing**: github.com/stretchr/testify for assertions and mocking
 - **No Reflection**: Avoid reflection where alternatives exist
 - **Zero Allocations**: Optimize hot paths for minimal allocations
+
+## Error Handling Standards
+
+### Error Definition
+
+- **pkg/ packages**: Use general English messages for errors (utility packages should be i18n-agnostic)
+
+    ```go
+    var ErrInvalidInput = errors.New("invalid input provided")
+    var ErrConnectionFailed = errors.New("connection failed")
+    ```
+
+- **modules/ and handlers**: Use i18n keys for user-facing errors
+    ```go
+    var ErrAuthFailed = errors.New("auth.failed")
+    var ErrPermissionDenied = errors.New("permission.denied")
+    ```
+
+### Error Wrapping
+
+- **Use `errors.Join`** for combining sentinel errors with underlying errors:
+
+    ```go
+    // Correct - preserves both error chains
+    return nil, errors.Join(ErrVectorizationFailed, err)
+    ```
+
+- **Use `fmt.Errorf` with %w** for adding descriptive context:
+
+    ```go
+    // Correct - adds context while preserving error chain
+    return nil, fmt.Errorf("failed to connect to database: %w", err)
+    ```
+
+- **Never use** `fmt.Errorf("%w: %v", sentinel, err)` pattern:
+    ```go
+    // Wrong - loses error chain for err
+    return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
+    ```
+
+### Error Checking
+
+- Use `errors.Is()` for sentinel error checking
+- Use `errors.As()` for typed error extraction
+- Always wrap errors with appropriate context when propagating up the stack
+- Maintain error chains for proper unwrapping
+
+### Examples
+
+```go
+// Defining errors
+var (
+    ErrInvalidConfig = errors.New("invalid configuration")
+    ErrAPIKeyMissing = errors.New("API key is missing")
+)
+
+// Wrapping with context
+if err := db.Connect(); err != nil {
+    return fmt.Errorf("failed to initialize database: %w", err)
+}
+
+// Combining sentinel with underlying error
+if err := provider.Validate(); err != nil {
+    return errors.Join(ErrInvalidConfig, err)
+}
+
+// Checking errors
+if errors.Is(err, ErrInvalidConfig) {
+    // Handle invalid configuration
+}
+```
 
 ## Development Workflow
 
