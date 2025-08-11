@@ -18,13 +18,13 @@ func Middleware(limiter Limiter, keyFunc KeyFunc) func(http.Handler) http.Handle
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			key := keyFunc(r)
 			if key == "" {
-					next.ServeHTTP(w, r)
+				next.ServeHTTP(w, r)
 				return
 			}
 
 			result, err := limiter.Allow(r.Context(), key)
 			if err != nil {
-					next.ServeHTTP(w, r)
+				next.ServeHTTP(w, r)
 				return
 			}
 
@@ -110,13 +110,13 @@ func MiddlewareWithOptions(limiter Limiter, keyFunc KeyFunc, opts ...MiddlewareO
 
 			key := config.keyFunc(r)
 			if key == "" {
-					next.ServeHTTP(w, r)
+				next.ServeHTTP(w, r)
 				return
 			}
 
 			result, err := limiter.Allow(r.Context(), key)
 			if err != nil {
-					next.ServeHTTP(w, r)
+				next.ServeHTTP(w, r)
 				return
 			}
 
