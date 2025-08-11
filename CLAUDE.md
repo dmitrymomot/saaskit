@@ -75,7 +75,7 @@ fmt.Errorf("%w: %v", ErrFoo, err)       // ✗ NEVER - loses err chain
 
 ### Testing
 
-**Test:** Business logic, payment/auth, error paths (80%+ coverage)
+**Test:** Business logic, payment/auth, error paths, black-box testing (80%+ coverage)
 **Skip:** Getters/setters, wrappers, third-party code
 
 ## Core Constraints
