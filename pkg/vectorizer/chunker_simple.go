@@ -139,7 +139,7 @@ func (c *SimpleChunker) splitByTokens(text string, options ChunkOptions) []strin
 		return []string{}
 	}
 
-	// Calculate words per chunk (approximation)
+	// Use 1.3 tokens per word based on average English word length (4-5 chars + space)
 	wordsPerChunk := int(float64(options.MaxTokens) / 1.3)
 	overlapWords := int(float64(options.Overlap) / 1.3)
 
@@ -154,7 +154,7 @@ func (c *SimpleChunker) splitByTokens(text string, options ChunkOptions) []strin
 		if overlapWords > 0 && end < len(words) {
 			i = end - overlapWords
 			if i <= 0 {
-				i = 1 // Ensure progress
+				i = 1 // Prevent infinite loop while maintaining overlap
 			}
 		} else {
 			i = end
@@ -166,8 +166,8 @@ func (c *SimpleChunker) splitByTokens(text string, options ChunkOptions) []strin
 
 // splitIntoSentences splits text into sentences using common punctuation.
 func (c *SimpleChunker) splitIntoSentences(text string) []string {
-	// Simple sentence splitting by common terminators
-	// This is a basic implementation - could be enhanced with better NLP
+	// Basic sentence splitting using punctuation - kept simple for extensibility.
+	// Users can implement more sophisticated NLP-based chunkers if needed.
 	var sentences []string
 	var current strings.Builder
 
@@ -180,7 +180,7 @@ func (c *SimpleChunker) splitIntoSentences(text string) []string {
 			// Look ahead to check if this is really a sentence end
 			if i+1 < len(runes) {
 				next := runes[i+1]
-				// Check if next character suggests continuation (e.g., lowercase letter after period might be abbreviation)
+				// Space or uppercase after punctuation indicates sentence boundary (avoids splitting on abbreviations)
 				if unicode.IsSpace(next) || unicode.IsUpper(next) {
 					sentence := strings.TrimSpace(current.String())
 					if sentence != "" {
@@ -217,17 +217,23 @@ func (c *SimpleChunker) getOverlapText(sentences []string, overlapTokens int) st
 	}
 
 	// Work backwards to get approximately overlapTokens worth of text
-	var overlapSentences []string
+	// First pass: count sentences needed
+	sentenceCount := 0
 	currentTokens := 0
 
 	for i := len(sentences) - 1; i >= 0; i-- {
 		sentenceTokens := EstimateTokens(sentences[i])
-		if currentTokens+sentenceTokens > overlapTokens && len(overlapSentences) > 0 {
+		if currentTokens+sentenceTokens > overlapTokens && sentenceCount > 0 {
 			break
 		}
-		overlapSentences = append([]string{sentences[i]}, overlapSentences...)
+		sentenceCount++
 		currentTokens += sentenceTokens
 	}
+
+	// Second pass: build slice with correct capacity to avoid reallocations
+	startIdx := len(sentences) - sentenceCount
+	overlapSentences := make([]string, sentenceCount)
+	copy(overlapSentences, sentences[startIdx:])
 
 	return strings.Join(overlapSentences, " ")
 }
