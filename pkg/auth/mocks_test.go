@@ -106,6 +106,11 @@ func (m *MockUserStorage) UpdateUserEmail(ctx context.Context, id uuid.UUID, ema
 	return args.Error(0)
 }
 
+func (m *MockUserStorage) UpdateUserProfile(ctx context.Context, id uuid.UUID, user *User) error {
+	args := m.Called(ctx, id, user)
+	return args.Error(0)
+}
+
 func (m *MockUserStorage) GetPasswordHash(ctx context.Context, userID uuid.UUID) ([]byte, error) {
 	args := m.Called(ctx, userID)
 	if args.Get(0) == nil {
