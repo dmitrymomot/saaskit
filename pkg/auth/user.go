@@ -48,6 +48,7 @@ type UserStorage interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (*User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	UpdateUserEmail(ctx context.Context, id uuid.UUID, email string) error
+	UpdateUserProfile(ctx context.Context, id uuid.UUID, user *User) error
 	GetPasswordHash(ctx context.Context, userID uuid.UUID) ([]byte, error)
 	UpdatePasswordHash(ctx context.Context, userID uuid.UUID, hash []byte) error
 	DeleteUser(ctx context.Context, id uuid.UUID) error

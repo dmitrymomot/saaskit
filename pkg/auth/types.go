@@ -26,6 +26,8 @@ const (
 type User struct {
 	ID         uuid.UUID
 	Email      string
+	Name       string // Display name (optional)
+	Avatar     string // Avatar URL (optional)
 	AuthMethod string
 	IsVerified bool
 	CreatedAt  time.Time
