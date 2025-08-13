@@ -3,6 +3,8 @@ package handler
 import (
 	"errors"
 	"net/http"
+
+	"github.com/dmitrymomot/saaskit/pkg/binder"
 )
 
 // HandlerFunc provides type-safe HTTP request handling with custom context support.
@@ -202,9 +204,13 @@ func Wrap[C Context, R any](h HandlerFunc[C, R], opts ...WrapOption[C, R]) http.
 
 		var req R
 
-		// Apply binders in order - each processes only its specific tags
-		for _, binder := range cfg.binders {
-			if err := binder(r, &req); err != nil {
+		// Apply binders in order - skip those that are not applicable
+		for _, bind := range cfg.binders {
+			if err := bind(r, &req); err != nil {
+				// Skip binders that are not applicable to this request
+				if errors.Is(err, binder.ErrBinderNotApplicable) {
+					continue
+				}
 				cfg.errorHandler(ctx, err)
 				return
 			}
