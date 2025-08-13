@@ -245,8 +245,10 @@ func (s *oauthService) handleAuth(ctx context.Context, profile ProviderProfile) 
 	}
 
 	user = &User{
-		ID:    uuid.New(),
-		Email: profile.Email,
+		ID:     uuid.New(),
+		Email:  profile.Email,
+		Name:   profile.Name,
+		Avatar: profile.AvatarURL,
 		AuthMethod: func() string {
 			switch s.adapter.ProviderID() {
 			case OAuthProviderGoogle:

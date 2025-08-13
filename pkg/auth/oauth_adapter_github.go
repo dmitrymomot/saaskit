@@ -103,6 +103,8 @@ func (a *githubAdapter) ResolveProfile(ctx context.Context, code string) (Provid
 		ProviderUserID: strconv.FormatInt(u.ID, 10),
 		Email:          email,
 		EmailVerified:  verified,
+		Name:           u.Name,
+		AvatarURL:      u.AvatarURL,
 	}, nil
 }
 
@@ -159,7 +161,9 @@ func (a *githubAdapter) fetchGitHubEmails(ctx context.Context, accessToken strin
 }
 
 type ghUser struct {
-	ID int64 `json:"id"`
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	AvatarURL string `json:"avatar_url"`
 }
 
 type ghEmail struct {

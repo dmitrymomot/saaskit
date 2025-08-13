@@ -47,4 +47,10 @@ type ProviderProfile struct {
 
 	// EmailVerified indicates whether the provider asserts the email is verified.
 	EmailVerified bool
+
+	// Name is the display name from the provider (optional).
+	Name string
+
+	// AvatarURL is the URL to the user's avatar image (optional).
+	AvatarURL string
 }

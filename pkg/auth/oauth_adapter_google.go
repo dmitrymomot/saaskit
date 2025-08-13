@@ -71,6 +71,8 @@ func (a *googleAdapter) ResolveProfile(ctx context.Context, code string) (Provid
 		ProviderUserID: u.ID,
 		Email:          u.Email,
 		EmailVerified:  u.VerifiedEmail,
+		Name:           u.Name,
+		AvatarURL:      u.Picture,
 	}, nil
 }
 
@@ -102,6 +104,8 @@ type gUser struct {
 	ID            string `json:"id"`
 	Email         string `json:"email"`
 	VerifiedEmail bool   `json:"verified_email"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
 }
 
 // Compile-time interface assertion
