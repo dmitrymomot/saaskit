@@ -4,10 +4,11 @@ Complete authentication solution for SaaS applications with OAuth, magic links, 
 
 ## Features
 
-- OAuth authentication (Google, GitHub) with extensible adapter pattern
+- OAuth authentication (Google, GitHub) with profile data (name, avatar) and extensible adapter pattern
 - Magic link passwordless authentication with replay protection
 - Password authentication with bcrypt hashing and strength validation
-- User management with email changes and password updates
+- User management with email changes, password updates, and profile management
+- Context functions for middleware integration and user access
 - Extensible hook system for custom business logic
 - Type-safe interfaces with comprehensive error handling
 
@@ -32,6 +33,8 @@ import (
 )
 
 func main() {
+    ctx := context.Background()
+    
     // Initialize your storage implementation
     storage := &MyAuthStorage{} // implements required interfaces
 
@@ -41,7 +44,7 @@ func main() {
     // Magic link authentication
     magicLinkAuth := auth.NewMagicLinkService(storage, "your-jwt-secret")
 
-    // OAuth with Google
+    // OAuth with Google (automatically populates name and avatar)
     googleAuth := auth.NewOAuthService(
         storage,
         auth.NewGoogleAdapter(auth.GoogleOAuthConfig{
@@ -58,6 +61,15 @@ func main() {
     user, err := passwordAuth.Register(ctx, "user@example.com", "securePassword123")
     if err != nil {
         log.Fatal(err)
+    }
+
+    // Store user in context for middleware chain
+    ctx = auth.SetUserToContext(ctx, user)
+    
+    // Retrieve user from context later
+    currentUser := auth.GetUserFromContext(ctx)
+    if currentUser != nil {
+        log.Printf("User: %s (%s)", currentUser.Email, currentUser.Name)
     }
 }
 ```
@@ -118,6 +130,21 @@ emailReq, err := userManager.RequestEmailChange(ctx, userID, "new@example.com", 
 
 // Confirm email change
 user, err := userManager.ConfirmEmailChange(ctx, emailReq.Token)
+```
+
+### Context Functions
+
+```go
+// Store authenticated user in request context (typically in middleware)
+ctx = auth.SetUserToContext(ctx, user)
+
+// Retrieve user from context in handlers
+user := auth.GetUserFromContext(ctx)
+if user != nil {
+    // User is authenticated
+    fmt.Printf("Hello %s!", user.Name)
+    fmt.Printf("Avatar: %s", user.Avatar)
+}
 ```
 
 ## Error Handling
@@ -193,20 +220,36 @@ magicLinkAuth := auth.NewMagicLinkService(
 
 ## Storage Interface Implementation
 
-You must implement the required storage interfaces:
+You must implement the required storage interfaces. The User struct now includes profile fields:
 
 ```go
 type AuthStorage struct {
     // Your database/storage implementation
 }
 
+// User struct with profile data
+// type User struct {
+//     ID         uuid.UUID
+//     Email      string
+//     Name       string // Display name from OAuth or manual update
+//     Avatar     string // Avatar URL from OAuth or manual update
+//     AuthMethod string
+//     IsVerified bool
+//     CreatedAt  time.Time
+// }
+
 // Implement PasswordStorage interface
 func (s *AuthStorage) CreateUser(ctx context.Context, user *auth.User) error {
-    // Store user in database
+    // Store user in database with profile fields (Name, Avatar)
 }
 
 func (s *AuthStorage) GetUserByEmail(ctx context.Context, email string) (*auth.User, error) {
-    // Fetch user by email
+    // Fetch user by email, include profile fields
+}
+
+// Implement UserStorage interface (extended with profile management)
+func (s *AuthStorage) UpdateUserProfile(ctx context.Context, id uuid.UUID, user *auth.User) error {
+    // Update user's Name and Avatar fields
 }
 
 // Implement other required methods...
@@ -226,6 +269,8 @@ Or visit [pkg.go.dev](https://pkg.go.dev/github.com/dmitrymomot/saaskit/pkg/auth
 
 - All services use bcrypt for password hashing with configurable cost
 - JWT tokens are used for password reset, email change, and magic link flows
-- OAuth adapters handle provider-specific implementations
+- OAuth adapters handle provider-specific implementations and automatically populate user profile data (name, avatar) from providers
+- OAuth services create users with populated Name and Avatar fields from provider profiles
+- Context functions enable clean middleware integration for authenticated user access
 - Storage operations should be atomic where indicated to prevent race conditions
 - Hook functions run synchronously but do not block authentication on errors

@@ -7,12 +7,12 @@
 //
 // # Supported Authentication Methods
 //
-// The package supports four primary authentication methods:
+// The package supports four primary authentication methods with rich user profile data:
 //
 //   - Password-based authentication with bcrypt hashing and configurable strength requirements
 //   - Magic link authentication via email for passwordless login
 //   - OAuth integration with GitHub and Google providers (extensible to other providers)
-//   - User management operations including password changes and email updates
+//   - User management operations including password changes, email updates, and profile management
 //
 // # Architecture Overview
 //
@@ -23,6 +23,7 @@
 //   - Provider adapters encapsulate OAuth provider-specific logic
 //   - Configuration options enable customization without breaking changes
 //   - Hooks allow extension points for business logic integration
+//   - Context functions provide middleware access to authenticated users
 //
 // # Password Authentication
 //
@@ -48,6 +49,7 @@
 //	if err != nil {
 //		// Handle registration errors (duplicate email, weak password, etc.)
 //	}
+//	// User contains: ID, Email, Name (empty for password auth), Avatar (empty), AuthMethod, etc.
 //
 //	// Authenticate existing user
 //	user, err = passwordAuth.Authenticate(ctx, "user@example.com", "securepassword123")
@@ -119,6 +121,7 @@
 //	if err != nil {
 //		// Handle OAuth errors (invalid state, unverified email, etc.)
 //	}
+//	// User contains profile data: ID, Email, Name (from provider), Avatar (from provider), etc.
 //
 //	// Link OAuth account to existing user
 //	user, err = oauthService.Auth(ctx, code, state, &existingUserID)
@@ -162,6 +165,44 @@
 //		// Handle confirmation errors
 //	}
 //
+// # Context Functions
+//
+// The package provides context functions for storing and retrieving authenticated users
+// in middleware chains, enabling clean separation between authentication and authorization:
+//
+//	// In authentication middleware
+//	user, err := authService.Authenticate(ctx, token)
+//	if err != nil {
+//		return err
+//	}
+//	// Store authenticated user in context
+//	ctx = auth.SetUserToContext(ctx, user)
+//
+//	// In downstream handlers
+//	user := auth.GetUserFromContext(ctx)
+//	if user == nil {
+//		// User not authenticated
+//		return errors.New("authentication required")
+//	}
+//	// Access user data: user.ID, user.Email, user.Name, user.Avatar, etc.
+//
+// # Profile Management
+//
+// OAuth providers automatically populate Name and Avatar fields from user profiles.
+// The UserStorage interface includes UpdateUserProfile for custom profile updates:
+//
+//	storage := &MyUserStorage{} // implements UserStorage with UpdateUserProfile
+//
+//	// Update user profile data
+//	updatedUser := &auth.User{
+//		Name:   "Updated Name",
+//		Avatar: "https://example.com/new-avatar.jpg",
+//	}
+//	err := storage.UpdateUserProfile(ctx, userID, updatedUser)
+//	if err != nil {
+//		// Handle profile update errors
+//	}
+//
 // # Error Handling
 //
 // The package defines specific error types for different failure scenarios, enabling precise
@@ -196,7 +237,8 @@
 // # Storage Interface Implementation
 //
 // Applications must implement the storage interfaces for their chosen persistence layer.
-// Each authentication method requires its specific storage interface:
+// Each authentication method requires its specific storage interface. Note that the User
+// struct now includes Name and Avatar fields that should be persisted:
 //
 //	// Example implementation for password authentication
 //	type PostgresPasswordStorage struct {
@@ -204,13 +246,22 @@
 //	}
 //
 //	func (s *PostgresPasswordStorage) CreateUser(ctx context.Context, user *auth.User) error {
-//		// Insert user record into database
+//		// Insert user record with profile data into database
+//		// INSERT INTO users (id, email, name, avatar, auth_method, is_verified, created_at)
+//		// VALUES ($1, $2, $3, $4, $5, $6, $7)
 //		return nil
 //	}
 //
 //	func (s *PostgresPasswordStorage) GetUserByEmail(ctx context.Context, email string) (*auth.User, error) {
-//		// Query user by email
+//		// Query user by email, include all fields
+//		// SELECT id, email, name, avatar, auth_method, is_verified, created_at FROM users WHERE email = $1
 //		return nil, nil
+//	}
+//
+//	func (s *PostgresPasswordStorage) UpdateUserProfile(ctx context.Context, id uuid.UUID, user *auth.User) error {
+//		// Update user profile fields
+//		// UPDATE users SET name = $1, avatar = $2 WHERE id = $3
+//		return nil
 //	}
 //
 //	// Implement remaining PasswordStorage methods...
@@ -233,7 +284,14 @@
 //
 //	func (a *CustomOAuthAdapter) ResolveProfile(ctx context.Context, code string) (auth.ProviderProfile, error) {
 //		// Implement token exchange and profile fetching
-//		return auth.ProviderProfile{}, nil
+//		// Return profile with Name and AvatarURL populated
+//		return auth.ProviderProfile{
+//			ProviderUserID: "provider-user-id",
+//			Email:          "user@example.com",
+//			EmailVerified:  true,
+//			Name:           "User Name", // Populated from provider
+//			AvatarURL:      "https://provider.com/avatar.jpg", // Populated from provider
+//		}, nil
 //	}
 //
 // # Constants
