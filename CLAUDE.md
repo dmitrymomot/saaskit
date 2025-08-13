@@ -10,6 +10,7 @@ Build Minimum Lovable Products - features users enjoy, not just tolerate. Solo d
 make test       # Run tests before changes
 make lint       # Lint before committing
 make fmt        # Format code
+make fmt lint   # Run after creating/updating any Go file
 # Target specific: make test PKG=./pkg/validator
 ```
 
