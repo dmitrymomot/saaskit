@@ -85,7 +85,7 @@ func TestSimpleChunker_Split(t *testing.T) {
 			MaxTokens:    10,
 			Overlap:      0,
 			MinChunkSize: 5,
-			Custom:       map[string]interface{}{"splitBySentence": false},
+			Custom:       map[string]any{"splitBySentence": false},
 		}
 
 		chunks := chunker.Split(text, options)
@@ -118,7 +118,7 @@ func TestSimpleChunker_Split(t *testing.T) {
 			MaxTokens:    6, // About 4-5 words
 			Overlap:      3, // About 2 words
 			MinChunkSize: 2,
-			Custom:       map[string]interface{}{"splitBySentence": false},
+			Custom:       map[string]any{"splitBySentence": false},
 		})
 
 		assert.Greater(t, len(chunks), 1)

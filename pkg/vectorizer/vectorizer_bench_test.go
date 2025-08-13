@@ -83,7 +83,7 @@ func BenchmarkSimpleChunker_Split(b *testing.B) {
 				MaxTokens:    tc.maxTokens,
 				Overlap:      tc.overlap,
 				MinChunkSize: 10,
-				Custom:       make(map[string]interface{}),
+				Custom:       make(map[string]any),
 			}
 
 			b.ReportAllocs()
@@ -102,7 +102,7 @@ func BenchmarkSimpleChunker_SplitBySentence(b *testing.B) {
 		MaxTokens:    500,
 		Overlap:      50,
 		MinChunkSize: 10,
-		Custom:       make(map[string]interface{}),
+		Custom:       make(map[string]any),
 	}
 
 	b.Run("WithSentenceSplitting", func(b *testing.B) {
@@ -159,7 +159,7 @@ func BenchmarkOverlapProcessing(b *testing.B) {
 				MaxTokens:    500,
 				Overlap:      tc.overlap,
 				MinChunkSize: 10,
-				Custom:       make(map[string]interface{}),
+				Custom:       make(map[string]any),
 			}
 
 			b.ReportAllocs()
@@ -246,7 +246,7 @@ func BenchmarkProcess(b *testing.B) {
 				MaxTokens:    500,
 				Overlap:      50,
 				MinChunkSize: 10,
-				Custom:       make(map[string]interface{}),
+				Custom:       make(map[string]any),
 			},
 		},
 		{
@@ -256,7 +256,7 @@ func BenchmarkProcess(b *testing.B) {
 				MaxTokens:    500,
 				Overlap:      50,
 				MinChunkSize: 10,
-				Custom:       make(map[string]interface{}),
+				Custom:       make(map[string]any),
 			},
 		},
 		{
@@ -266,7 +266,7 @@ func BenchmarkProcess(b *testing.B) {
 				MaxTokens:    500,
 				Overlap:      50,
 				MinChunkSize: 10,
-				Custom:       make(map[string]interface{}),
+				Custom:       make(map[string]any),
 			},
 		},
 	}

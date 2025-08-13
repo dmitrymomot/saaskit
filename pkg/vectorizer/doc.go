@@ -72,7 +72,7 @@
 //	    MaxTokens:    300,  // Smaller chunks for precise search
 //	    Overlap:      50,   // Moderate overlap for context
 //	    MinChunkSize: 30,   // Avoid tiny fragments
-//	    Custom: map[string]interface{}{
+//	    Custom: map[string]any{
 //	        "splitBySentence": true, // Maintain sentence boundaries
 //	    },
 //	}

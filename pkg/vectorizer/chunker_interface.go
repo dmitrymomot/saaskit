@@ -26,7 +26,7 @@ type ChunkOptions struct {
 
 	// Custom allows chunker-specific options.
 	// For example, SimpleChunker might use Custom["splitBySentence"] = true.
-	Custom map[string]interface{}
+	Custom map[string]any
 }
 
 // DefaultChunkOptions returns sensible defaults for text chunking.
@@ -36,7 +36,7 @@ func DefaultChunkOptions() ChunkOptions {
 		MaxTokens:    500,
 		Overlap:      50,
 		MinChunkSize: 10,
-		Custom:       make(map[string]interface{}),
+		Custom:       make(map[string]any),
 	}
 }
 

@@ -338,7 +338,7 @@ options := vectorizer.ChunkOptions{
     MaxTokens:    500,  // Max tokens per chunk
     Overlap:      50,   // Token overlap between chunks
     MinChunkSize: 10,   // Minimum chunk size
-    Custom: map[string]interface{}{
+    Custom: map[string]any{
         "splitBySentence": true,  // SimpleChunker option
         // Add custom options for your chunker
     },
