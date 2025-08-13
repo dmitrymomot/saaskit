@@ -19,7 +19,7 @@ profile.cov
 *.prof
 
 # Dependency directories (remove the comment below to include it)
-# vendor/
+ vendor/
 
 # Go workspace file
 go.work
@@ -41,3 +41,6 @@ docs/
 notes/
 pkg/PROPOSED_PACKAGES.md
 REVIEW.md
+
+# Test app
+cmd/
