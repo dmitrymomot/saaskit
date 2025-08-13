@@ -63,9 +63,7 @@ func Form() func(r *http.Request, v any) error {
 	return func(r *http.Request, v any) error {
 		contentType := r.Header.Get("Content-Type")
 		if contentType == "" {
-			// Return ErrBinderNotApplicable for requests without Content-Type
-			// This allows WithBinders to skip this binder gracefully
-			return fmt.Errorf("%w: no content-type header", ErrBinderNotApplicable)
+			return fmt.Errorf("%w: missing content-type header, expected application/x-www-form-urlencoded or multipart/form-data", ErrMissingContentType)
 		}
 
 		// Extract media type without parameters

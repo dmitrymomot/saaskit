@@ -208,7 +208,7 @@ func Wrap[C Context, R any](h HandlerFunc[C, R], opts ...WrapOption[C, R]) http.
 		for _, bind := range cfg.binders {
 			if err := bind(r, &req); err != nil {
 				// Skip binders that are not applicable to this request
-				if errors.Is(err, binder.ErrBinderNotApplicable) {
+				if errors.Is(err, binder.ErrBinderNotApplicable) || errors.Is(err, binder.ErrMissingContentType) {
 					continue
 				}
 				cfg.errorHandler(ctx, err)
