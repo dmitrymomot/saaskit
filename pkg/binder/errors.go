@@ -10,4 +10,5 @@ var (
 	ErrFailedToParseQuery   = errors.New("failed to parse query parameters")
 	ErrFailedToParsePath    = errors.New("failed to parse path parameters")
 	ErrMissingContentType   = errors.New("missing content type")
+	ErrBinderNotApplicable  = errors.New("binder not applicable for this request")
 )
