@@ -730,17 +730,16 @@ type mockTransport struct {
 	userServer string
 }
 
-func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if strings.Contains(req.URL.Host, "api.github.com") {
+func (mt *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	switch {
+	case strings.Contains(req.URL.Host, "api.github.com"):
 		// Redirect GitHub API calls to mock server
-		req.URL.Host = strings.TrimPrefix(t.userServer, "http://")
+		req.URL.Host = strings.TrimPrefix(mt.userServer, "http://")
 		req.URL.Scheme = "http"
-		return http.DefaultTransport.RoundTrip(req)
-	} else if strings.Contains(req.URL.Host, "googleapis.com") {
+	case strings.Contains(req.URL.Host, "googleapis.com"):
 		// Redirect Google API calls to mock server
-		req.URL.Host = strings.TrimPrefix(t.userServer, "http://")
+		req.URL.Host = strings.TrimPrefix(mt.userServer, "http://")
 		req.URL.Scheme = "http"
-		return http.DefaultTransport.RoundTrip(req)
 	}
 
 	return http.DefaultTransport.RoundTrip(req)
