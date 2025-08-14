@@ -158,7 +158,7 @@
 // - Use directly for simple, synchronous webhook needs
 // - Combine with pkg/queue for async delivery in modules/webhooks
 // - Add pkg/storage for webhook persistence and history
-// - Integrate with pkg/tenant for multi-tenant webhook management
+// - Integrate with svc/tenant for multi-tenant webhook management
 //
 // See the README.md file for more examples and the modules/webhooks package
 // for a complete webhook management solution.
